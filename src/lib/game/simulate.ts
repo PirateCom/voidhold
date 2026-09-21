@@ -230,15 +230,15 @@ export function catchUpPlanet(planet: SimPlanet, at: number): SimPlanet {
     next = completeUpgrade(tickPlanet(next, due));
   }
   while (next.defencesQueued > 0 && next.defenceBuilding && next.defenceCompletesAt != null && next.defenceCompletesAt <= at) {
-    next = applyDefence(next, next.defenceBuilding);
-    next = {
-      ...next,
-      defencesQueued: next.defencesQueued - 1,
-    };
-    if (next.defencesQueued > 0 && next.defenceBuilding) {
+    const building = next.defenceBuilding;
+    const due = next.defenceCompletesAt;
+    next = applyDefence(next, building);
+    const remaining = next.defencesQueued - 1;
+    if (remaining > 0) {
       next = {
         ...next,
-        defenceCompletesAt: next.defenceCompletesAt + defenceTimeSeconds(next.defenceBuilding) * 1000,
+        defencesQueued: remaining,
+        defenceCompletesAt: due + defenceTimeSeconds(building) * 1000,
       };
     } else {
       next = { ...next, defenceBuilding: null, defenceCompletesAt: null, defencesQueued: 0 };
