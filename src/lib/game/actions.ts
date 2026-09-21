@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { BuildingId, EmpireState } from "@/lib/game/types";
+import type { BuildingId, DefenceId, EmpireState } from "@/lib/game/types";
 
 function asState(data: unknown): EmpireState {
   return data as EmpireState;
@@ -35,6 +35,14 @@ export async function upgradeBuilding(building: BuildingId): Promise<EmpireState
   return rpc("start_upgrade", { p_building: building });
 }
 
+export async function cancelBuildingUpgrade(): Promise<EmpireState> {
+  return rpc("cancel_upgrade");
+}
+
+export async function resetEmpireProgress(): Promise<EmpireState> {
+  return rpc("reset_empire");
+}
+
 export async function researchPropulsion(): Promise<EmpireState> {
   return rpc("start_research");
 }
@@ -45,4 +53,12 @@ export async function buildRaiders(count: number): Promise<EmpireState> {
 
 export async function launchRaid(system: number, slot: number, raiders: number): Promise<EmpireState> {
   return rpc("send_raid", { p_system: system, p_slot: slot, p_raiders: raiders });
+}
+
+export async function queueDefence(id: DefenceId, count: number): Promise<EmpireState> {
+  return rpc("queue_defence", { p_id: id, p_count: count });
+}
+
+export async function spawnPirateWave(): Promise<EmpireState> {
+  return rpc("spawn_pirates");
 }

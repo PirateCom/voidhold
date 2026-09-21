@@ -22,11 +22,11 @@ export default async function LoginPage({
         </p>
       ) : null}
       <div className="mt-8">
-        <LoginForm />
+        <LoginForm next={params.next} />
       </div>
       <p className="mt-6 text-xs text-[var(--muted-fg)]">
-        After you send one link, open the newest email in this same browser. Old “Confirm email” messages will
-        not log you in.
+        Sign in with email and password from any browser. If you first used a magic link, tap Forgot password
+        once to set one.
       </p>
       <Link href="/privacy" className="mt-8 text-center text-xs text-[var(--muted-fg)] underline">
         Privacy

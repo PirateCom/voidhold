@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost } from "./catalog";
 import {
+  EMPTY_DEFENCES,
   catchUpWorld,
+  cancelUpgrade,
+  queueDefence,
   queueRaiders,
+  resetEmpire,
   sendRaid,
+  spawnPirates,
   startResearch,
   startUpgrade,
   type SimPlanet,
@@ -25,6 +30,7 @@ function world(at = 0): SimWorld {
     powerPlant: 1,
     upgradeBuilding: null,
     upgradeCompletesAt: null,
+    ...EMPTY_DEFENCES,
   };
   const npc: SimPlanet = {
     id: 2,
@@ -40,6 +46,7 @@ function world(at = 0): SimWorld {
     powerPlant: 1,
     upgradeBuilding: null,
     upgradeCompletesAt: null,
+    ...EMPTY_DEFENCES,
   };
   return {
     planets: [planet, npc],
@@ -51,6 +58,7 @@ function world(at = 0): SimWorld {
       raidersQueued: 0,
       raiderCompletesAt: null,
       researchCompletesAt: null,
+      nextPirateAt: null,
     },
     fleets: [],
     reports: [],
@@ -87,10 +95,75 @@ describe("time-skip simulation", () => {
     expect(home.reports.length).toBe(1);
   });
 
+  it("refunds half the cost when an upgrade is cancelled at 50%", () => {
+    const started = startUpgrade(world(0), "ore_mine", 0);
+    const mid = started.planets[0].upgradeCompletesAt! / 2;
+    const ticked = catchUpWorld(started, mid);
+    const cancelled = cancelUpgrade(started, mid);
+    const refundOre = Math.floor(buildingCost("ore_mine", 1).ore * 0.5);
+    const refundCrystal = Math.floor(buildingCost("ore_mine", 1).crystal * 0.5);
+    expect(cancelled.planets[0].upgradeBuilding).toBeNull();
+    expect(cancelled.planets[0].oreMine).toBe(1);
+    expect(cancelled.planets[0].ore).toBe(ticked.planets[0].ore + refundOre);
+    expect(cancelled.planets[0].crystal).toBe(ticked.planets[0].crystal + refundCrystal);
+  });
+
+  it("resets the homeworld without touching NPC worlds", () => {
+    const upgraded = catchUpWorld(startUpgrade(world(0), "ore_mine", 0), 60_000);
+    const wiped = resetEmpire(upgraded, 90_000);
+    expect(wiped.planets[0].oreMine).toBe(1);
+    expect(wiped.planets[0].powerPlant).toBe(1);
+    expect(wiped.planets[0].ore).toBe(STARTING_ORE);
+    expect(wiped.planets[1].ore).toBe(4000);
+    expect(wiped.empire.propulsionLevel).toBe(0);
+    expect(wiped.fleets).toEqual([]);
+  });
+
   it("completes propulsion research on a time skip", () => {
     const started = startResearch(world(0), 0);
     const done = catchUpWorld(started, started.empire.researchCompletesAt!);
     expect(done.empire.propulsionLevel).toBe(1);
     expect(done.empire.researchCompletesAt).toBeNull();
+  });
+
+  it("builds a rocket launcher and will not raise a second small dome", () => {
+    const richer: SimWorld = {
+      ...world(0),
+      planets: world(0).planets.map((p) => (p.id === 1 ? { ...p, ore: 5000, crystal: 5000 } : p)),
+    };
+    const started = queueDefence(richer, "rocket_launcher", 2, 0);
+    expect(started.planets[0].ore).toBe(5000 - defenceCost("rocket_launcher").ore * 2);
+    const done = catchUpWorld(started, started.planets[0].defenceCompletesAt! + 10_000);
+    expect(done.planets[0].rocketLauncher).toBe(2);
+    expect(done.planets[0].defencesQueued).toBe(0);
+    const dome = queueDefence(done, "small_shield_dome", 1, done.planets[0].lastHarvestedAt);
+    const raised = catchUpWorld(dome, dome.planets[0].defenceCompletesAt!);
+    expect(raised.planets[0].smallShieldDome).toBe(1);
+    expect(() => queueDefence(raised, "small_shield_dome", 1, raised.planets[0].lastHarvestedAt)).toThrow(
+      /one of those domes/i,
+    );
+  });
+
+  it("resolves a due pirate wave and writes a report", () => {
+    const base = world(0);
+    const armed: SimWorld = {
+      ...base,
+      planets: base.planets.map((p) =>
+        p.id === 1 ? { ...p, rocketLauncher: 2, ore: 2000, crystal: 800 } : p,
+      ),
+      empire: { ...base.empire, nextPirateAt: 0 },
+    };
+    const after = catchUpWorld(armed, 0);
+    expect(after.reports.length).toBe(1);
+    expect(after.reports[0].title).toMatch(/Pirate raid/);
+    expect(after.empire.nextPirateAt).toBeGreaterThan(0);
+    expect(after.planets[0].ore).toBeLessThanOrEqual(2000);
+  });
+
+  it("debug spawn deploys pirates immediately", () => {
+    const after = spawnPirates(world(0), 1000);
+    expect(after.reports.length).toBe(1);
+    expect(after.reports[0].body).toMatch(/ATK/);
+    expect(after.empire.nextPirateAt).toBeGreaterThan(1000);
   });
 });

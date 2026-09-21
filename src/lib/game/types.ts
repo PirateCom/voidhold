@@ -1,4 +1,12 @@
 export type BuildingId = "ore_mine" | "crystal_mine" | "power_plant";
+export type DefenceId =
+  | "small_shield_dome"
+  | "large_shield_dome"
+  | "rocket_launcher"
+  | "light_laser"
+  | "heavy_laser"
+  | "ion_cannon"
+  | "gauss_cannon";
 
 export type PlanetRow = {
   id: number;
@@ -15,6 +23,16 @@ export type PlanetRow = {
   power_plant: number;
   upgrade_building: BuildingId | null;
   upgrade_completes_at: string | null;
+  small_shield_dome: number;
+  large_shield_dome: number;
+  rocket_launcher: number;
+  light_laser: number;
+  heavy_laser: number;
+  ion_cannon: number;
+  gauss_cannon: number;
+  defence_building: DefenceId | null;
+  defences_queued: number;
+  defence_completes_at: string | null;
 };
 
 export type EmpireRow = {
@@ -25,6 +43,7 @@ export type EmpireRow = {
   raiders_queued: number;
   raider_completes_at: string | null;
   research_completes_at: string | null;
+  next_pirate_at: string | null;
 };
 
 export type FleetRow = {

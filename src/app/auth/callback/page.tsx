@@ -30,7 +30,7 @@ export default function AuthCallbackPage() {
 
       const url = new URL(window.location.href);
       const nextPath = url.searchParams.get("next");
-      const next =
+      let next =
         nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
       const authError =
         url.searchParams.get("error_description") ||
@@ -39,6 +39,7 @@ export default function AuthCallbackPage() {
       const code = url.searchParams.get("code");
       const tokenHash = url.searchParams.get("token_hash");
       const typeParam = url.searchParams.get("type");
+      if (typeParam === "recovery" && next === "/") next = "/reset-password";
       const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
       const hashParams = new URLSearchParams(hash);
 

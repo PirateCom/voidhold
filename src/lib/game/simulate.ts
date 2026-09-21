@@ -1,24 +1,40 @@
 import {
   BUILDINGS,
   type BuildingId,
+  type DefenceCounts,
+  type DefenceId,
+  PIRATE_WAVE_CAP,
   RAIDER_CARGO,
   RAIDER_COST,
   RAIDER_BUILD_SECONDS,
   buildingCost,
   buildingTimeSeconds,
   crystalProductionPerHour,
+  defenceSpec,
+  defenceTimeSeconds,
+  defenceUnitCount,
   energyFactor,
   energyNow,
   flightSeconds,
+  formatLostGuns,
   harvestAmount,
+  isDefenceId,
   mineProductionPerHour,
-  raidLoot,
+  pirateCombat,
+  pirateIntervalSeconds,
+  pirateWaveSize,
+  progressToward,
+  raidHaul,
   researchCost,
   researchTimeSeconds,
+  STARTING_CRYSTAL,
+  STARTING_ORE,
+  STARTING_RAIDERS,
   storageCap,
+  cancelRefund,
 } from "./catalog";
 
-export type { BuildingId };
+export type { BuildingId, DefenceId };
 
 export type SimPlanet = {
   id: number;
@@ -34,7 +50,102 @@ export type SimPlanet = {
   powerPlant: number;
   upgradeBuilding: BuildingId | null;
   upgradeCompletesAt: number | null;
+  smallShieldDome: number;
+  largeShieldDome: number;
+  rocketLauncher: number;
+  lightLaser: number;
+  heavyLaser: number;
+  ionCannon: number;
+  gaussCannon: number;
+  defenceBuilding: DefenceId | null;
+  defencesQueued: number;
+  defenceCompletesAt: number | null;
 };
+
+export const EMPTY_DEFENCES = {
+  smallShieldDome: 0,
+  largeShieldDome: 0,
+  rocketLauncher: 0,
+  lightLaser: 0,
+  heavyLaser: 0,
+  ionCannon: 0,
+  gaussCannon: 0,
+  defenceBuilding: null as DefenceId | null,
+  defencesQueued: 0,
+  defenceCompletesAt: null as number | null,
+};
+
+export function defenceOwned(planet: SimPlanet, id: DefenceId): number {
+  switch (id) {
+    case "small_shield_dome":
+      return planet.smallShieldDome;
+    case "large_shield_dome":
+      return planet.largeShieldDome;
+    case "rocket_launcher":
+      return planet.rocketLauncher;
+    case "light_laser":
+      return planet.lightLaser;
+    case "heavy_laser":
+      return planet.heavyLaser;
+    case "ion_cannon":
+      return planet.ionCannon;
+    case "gauss_cannon":
+      return planet.gaussCannon;
+  }
+}
+
+function applyDefence(planet: SimPlanet, id: DefenceId): SimPlanet {
+  const next = { ...planet };
+  switch (id) {
+    case "small_shield_dome":
+      next.smallShieldDome = 1;
+      break;
+    case "large_shield_dome":
+      next.largeShieldDome = 1;
+      break;
+    case "rocket_launcher":
+      next.rocketLauncher += 1;
+      break;
+    case "light_laser":
+      next.lightLaser += 1;
+      break;
+    case "heavy_laser":
+      next.heavyLaser += 1;
+      break;
+    case "ion_cannon":
+      next.ionCannon += 1;
+      break;
+    case "gauss_cannon":
+      next.gaussCannon += 1;
+      break;
+  }
+  return next;
+}
+
+export function defenceCountsOf(planet: SimPlanet): DefenceCounts {
+  return {
+    small_shield_dome: planet.smallShieldDome,
+    large_shield_dome: planet.largeShieldDome,
+    rocket_launcher: planet.rocketLauncher,
+    light_laser: planet.lightLaser,
+    heavy_laser: planet.heavyLaser,
+    ion_cannon: planet.ionCannon,
+    gauss_cannon: planet.gaussCannon,
+  };
+}
+
+export function applyDefenceCounts(planet: SimPlanet, counts: DefenceCounts): SimPlanet {
+  return {
+    ...planet,
+    smallShieldDome: counts.small_shield_dome,
+    largeShieldDome: counts.large_shield_dome,
+    rocketLauncher: counts.rocket_launcher,
+    lightLaser: counts.light_laser,
+    heavyLaser: counts.heavy_laser,
+    ionCannon: counts.ion_cannon,
+    gaussCannon: counts.gauss_cannon,
+  };
+}
 
 export type SimEmpire = {
   userId: string;
@@ -44,6 +155,7 @@ export type SimEmpire = {
   raidersQueued: number;
   raiderCompletesAt: number | null;
   researchCompletesAt: number | null;
+  nextPirateAt: number | null;
 };
 
 export type SimFleet = {
@@ -112,11 +224,27 @@ function completeUpgrade(planet: SimPlanet): SimPlanet {
 }
 
 export function catchUpPlanet(planet: SimPlanet, at: number): SimPlanet {
-  if (planet.upgradeCompletesAt != null && planet.upgradeCompletesAt <= at) {
-    const due = planet.upgradeCompletesAt;
-    return tickPlanet(completeUpgrade(tickPlanet(planet, due)), at);
+  let next = planet;
+  if (next.upgradeCompletesAt != null && next.upgradeCompletesAt <= at) {
+    const due = next.upgradeCompletesAt;
+    next = completeUpgrade(tickPlanet(next, due));
   }
-  return tickPlanet(planet, at);
+  while (next.defencesQueued > 0 && next.defenceBuilding && next.defenceCompletesAt != null && next.defenceCompletesAt <= at) {
+    next = applyDefence(next, next.defenceBuilding);
+    next = {
+      ...next,
+      defencesQueued: next.defencesQueued - 1,
+    };
+    if (next.defencesQueued > 0 && next.defenceBuilding) {
+      next = {
+        ...next,
+        defenceCompletesAt: next.defenceCompletesAt + defenceTimeSeconds(next.defenceBuilding) * 1000,
+      };
+    } else {
+      next = { ...next, defenceBuilding: null, defenceCompletesAt: null, defencesQueued: 0 };
+    }
+  }
+  return tickPlanet(next, at);
 }
 
 export function catchUpEmpire(empire: SimEmpire, at: number): SimEmpire {
@@ -152,10 +280,9 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
 
   if (fleet.mission === "attack") {
     const tickedDest = catchUpPlanet(dest, fleet.arrivesAt);
-    let cargoLeft = fleet.raiders * RAIDER_CARGO;
-    const lootOre = raidLoot(tickedDest.ore, cargoLeft);
-    cargoLeft -= lootOre;
-    const lootCrystal = raidLoot(tickedDest.crystal, cargoLeft);
+    const haul = raidHaul(tickedDest.ore, tickedDest.crystal, fleet.raiders * RAIDER_CARGO);
+    const lootOre = haul.ore;
+    const lootCrystal = haul.crystal;
     const looted: SimPlanet = {
       ...tickedDest,
       ore: tickedDest.ore - lootOre,
@@ -219,7 +346,86 @@ export function catchUpWorld(world: SimWorld, at: number): SimWorld {
     next = resolveFleet(next, due, at);
     guard += 1;
   }
+
+  return resolveDuePirates(next, at);
+}
+
+function applyPirateWave(world: SimWorld, at: number): SimWorld {
+  const planet = planetById(world, world.empire.homePlanetId);
+  const counts = defenceCountsOf(planet);
+  const ships = pirateWaveSize(defenceUnitCount(counts));
+  const result = pirateCombat(counts, ships, planet.ore, planet.crystal);
+  const looted = applyDefenceCounts(planet, result.counts);
+  const nextPlanet: SimPlanet = {
+    ...looted,
+    ore: planet.ore - result.loot.ore,
+    crystal: planet.crystal - result.loot.crystal,
+  };
+  const held = result.piratesLeft <= 0;
+  const body = [
+    `${ships} pirate hull${ships === 1 ? "" : "s"} ATK ${result.pirateAtk} DEF ${result.pirateDef}.`,
+    `Planet ATK ${result.planetAtk} DEF ${result.planetDef}.`,
+    `Destroyed ${result.piratesLost} pirate${result.piratesLost === 1 ? "" : "s"}.`,
+    `Guns lost: ${formatLostGuns(result.lost)}.`,
+    held
+      ? "The hold held."
+      : `Looted ${result.loot.ore.toLocaleString()} ore, ${result.loot.crystal.toLocaleString()} crystal.`,
+  ].join(" ");
+  const remainingUnits = defenceUnitCount(result.counts);
+  return {
+    ...replacePlanet(world, nextPlanet),
+    empire: {
+      ...world.empire,
+      nextPirateAt: at + pirateIntervalSeconds(remainingUnits) * 1000,
+    },
+    reports: [
+      {
+        title: held ? "Pirate raid repelled" : "Pirate raid",
+        body,
+        lootOre: result.loot.ore,
+        lootCrystal: result.loot.crystal,
+        createdAt: at,
+      },
+      ...world.reports,
+    ],
+  };
+}
+
+function resolveDuePirates(world: SimWorld, at: number): SimWorld {
+  let next = world;
+  const home = planetById(next, next.empire.homePlanetId);
+  if (next.empire.nextPirateAt == null) {
+    const units = defenceUnitCount(defenceCountsOf(home));
+    return {
+      ...next,
+      empire: {
+        ...next.empire,
+        nextPirateAt: at + pirateIntervalSeconds(units) * 1000,
+      },
+    };
+  }
+
+  let waves = 0;
+  while (next.empire.nextPirateAt != null && next.empire.nextPirateAt <= at && waves < PIRATE_WAVE_CAP) {
+    next = applyPirateWave(next, next.empire.nextPirateAt);
+    waves += 1;
+  }
+  if (next.empire.nextPirateAt != null && next.empire.nextPirateAt <= at) {
+    const units = defenceUnitCount(defenceCountsOf(planetById(next, next.empire.homePlanetId)));
+    next = {
+      ...next,
+      empire: {
+        ...next.empire,
+        nextPirateAt: at + pirateIntervalSeconds(units) * 1000,
+      },
+    };
+  }
   return next;
+}
+
+export function spawnPirates(world: SimWorld, at: number): SimWorld {
+  const caught = catchUpWorld(world, at);
+  return applyPirateWave(caught, at);
 }
 
 export function startUpgrade(world: SimWorld, building: BuildingId, at: number): SimWorld {
@@ -239,6 +445,58 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   return replacePlanet(caught, upgraded);
 }
 
+export function cancelUpgrade(world: SimWorld, at: number): SimWorld {
+  const caught = catchUpWorld(world, at);
+  const planet = planetById(caught, caught.empire.homePlanetId);
+  if (!planet.upgradeBuilding) throw new Error("Nothing is being built.");
+  const level = planetLevel(planet, planet.upgradeBuilding);
+  const cost = buildingCost(planet.upgradeBuilding, level);
+  const refund = cancelRefund(
+    cost,
+    progressToward(planet.upgradeCompletesAt, buildingTimeSeconds(level) * 1000, at),
+  );
+  return replacePlanet(caught, {
+    ...planet,
+    ore: Math.min(storageCap(planet.oreMine), planet.ore + refund.ore),
+    crystal: Math.min(storageCap(planet.crystalMine), planet.crystal + refund.crystal),
+    upgradeBuilding: null,
+    upgradeCompletesAt: null,
+  });
+}
+
+export function resetEmpire(world: SimWorld, at: number): SimWorld {
+  const home = planetById(world, world.empire.homePlanetId);
+  return {
+    planets: world.planets.map((planet) =>
+      planet.id === home.id
+        ? {
+            ...planet,
+            ore: STARTING_ORE,
+            crystal: STARTING_CRYSTAL,
+            lastHarvestedAt: at,
+            oreMine: 1,
+            crystalMine: 1,
+            powerPlant: 1,
+            upgradeBuilding: null,
+            upgradeCompletesAt: null,
+            ...EMPTY_DEFENCES,
+          }
+        : planet,
+    ),
+    empire: {
+      ...world.empire,
+      propulsionLevel: 0,
+      raiders: STARTING_RAIDERS,
+      raidersQueued: 0,
+      raiderCompletesAt: null,
+      researchCompletesAt: null,
+      nextPirateAt: null,
+    },
+    fleets: world.fleets.filter((fleet) => fleet.ownerId !== world.empire.userId),
+    reports: [],
+  };
+}
+
 export function startResearch(world: SimWorld, at: number): SimWorld {
   const caught = catchUpWorld(world, at);
   if (caught.empire.researchCompletesAt) throw new Error("Research already running.");
@@ -256,6 +514,33 @@ export function startResearch(world: SimWorld, at: number): SimWorld {
       researchCompletesAt: at + researchTimeSeconds(caught.empire.propulsionLevel) * 1000,
     },
   };
+}
+
+export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: number): SimWorld {
+  if (!isDefenceId(id)) throw new Error("Unknown defence.");
+  if (count < 1) throw new Error("Build at least one.");
+  const spec = defenceSpec(id);
+  const caught = catchUpWorld(world, at);
+  const planet = planetById(caught, caught.empire.homePlanetId);
+  if (planet.defencesQueued > 0 && planet.defenceBuilding && planet.defenceBuilding !== id) {
+    throw new Error("Defence yard occupied.");
+  }
+  const pendingSame = planet.defenceBuilding === id ? planet.defencesQueued : 0;
+  if (spec.unique && defenceOwned(planet, id) + pendingSame + count > 1) {
+    throw new Error("Only one of those domes fits on this world.");
+  }
+  const ore = spec.cost.ore * count;
+  const crystal = spec.cost.crystal * count;
+  if (planet.ore < ore || planet.crystal < crystal) throw new Error("Not enough resources.");
+  const startsNow = planet.defencesQueued === 0;
+  return replacePlanet(caught, {
+    ...planet,
+    ore: planet.ore - ore,
+    crystal: planet.crystal - crystal,
+    defenceBuilding: id,
+    defencesQueued: planet.defencesQueued + count,
+    defenceCompletesAt: startsNow ? at + spec.buildSeconds * 1000 : planet.defenceCompletesAt,
+  });
 }
 
 export function queueRaiders(world: SimWorld, count: number, at: number): SimWorld {

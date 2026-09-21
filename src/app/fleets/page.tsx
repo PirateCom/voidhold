@@ -3,6 +3,8 @@
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { useEmpire } from "@/components/empire-provider";
+import { TimedStripedProgress } from "@/components/striped-progress";
+import { flightSeconds } from "@/lib/game/catalog";
 
 export default function FleetsPage() {
   const { state, error, now } = useEmpire();
@@ -28,6 +30,23 @@ export default function FleetsPage() {
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
                     {fleet.dest_name ?? "Unknown"} [{fleet.dest_system}:{fleet.dest_slot}]
                   </p>
+                  {fleet.dest_system != null && fleet.dest_slot != null ? (
+                    <TimedStripedProgress
+                      className="mt-3"
+                      until={fleet.arrives_at}
+                      durationMs={
+                        flightSeconds(
+                          state.planet.system,
+                          state.planet.slot,
+                          fleet.dest_system,
+                          fleet.dest_slot,
+                          state.empire.propulsion_level,
+                        ) * 1000
+                      }
+                      now={now}
+                      label={`${fleet.mission} fleet`}
+                    />
+                  ) : null}
                   <p className="mt-2 text-sm">
                     ETA <Countdown until={fleet.arrives_at} now={now} />
                   </p>

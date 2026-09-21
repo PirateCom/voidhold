@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 export default function PlanetPage() {
-  const { state, live, error, configured, refresh } = useEmpire();
+  const { state, live, error, configured, refresh, pending, resetProgress, spawnPirates } = useEmpire();
   const router = useRouter();
 
   async function signOut() {
@@ -45,6 +45,31 @@ export default function PlanetPage() {
             className="mt-4 h-11 w-full rounded-2xl bg-[var(--muted)] text-sm font-semibold"
           >
             Sync clocks
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Reset this empire to a fresh start? Buildings, stockpiles, research, raiders, and fleets will wipe.",
+                )
+              ) {
+                return;
+              }
+              void resetProgress();
+            }}
+            className="mt-2 h-11 w-full rounded-2xl border border-red-400/40 text-sm font-semibold text-red-300 disabled:opacity-50"
+          >
+            Debug: reset progress
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => void spawnPirates()}
+            className="mt-2 h-11 w-full rounded-2xl border border-amber-400/40 text-sm font-semibold text-amber-200 disabled:opacity-50"
+          >
+            Debug: deploy pirates
           </button>
           <button
             type="button"
