@@ -10,25 +10,25 @@ export default function FleetsPage() {
   const { state, error, now } = useEmpire();
 
   return (
-    <AppShell title="Fleets">
+    <AppShell title="Fleet">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       {!state ? (
         <p className="text-sm text-[var(--muted-fg)]">No empire loaded.</p>
       ) : (
         <>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted-fg)]">In flight</h2>
+          <h2 className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-cyan-300 uppercase">In flight</h2>
           {state.fleets.length === 0 ? (
             <p className="mt-2 text-sm text-[var(--muted-fg)]">No hulls away from dock.</p>
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
               {state.fleets.map((fleet) => (
-                <li key={fleet.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+                <li key={fleet.id} className="sci-card p-4">
                   <p className="font-semibold">
-                    {fleet.mission === "attack" ? "Raid" : "Return"} · {fleet.raiders} raider
-                    {fleet.raiders === 1 ? "" : "s"}
+                    {fleet.mission === "attack" ? "Raid" : "Return"} · {fleet.raiders} small cargo
                   </p>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    {fleet.dest_name ?? "Unknown"} [{fleet.dest_system}:{fleet.dest_slot}]
+                    {fleet.dest_name ?? "Unknown"} [
+                    {fleet.dest_galaxy ?? state.planet.galaxy}:{fleet.dest_system}:{fleet.dest_slot}]
                   </p>
                   {fleet.dest_system != null && fleet.dest_slot != null ? (
                     <TimedStripedProgress
@@ -41,6 +41,8 @@ export default function FleetsPage() {
                           fleet.dest_system,
                           fleet.dest_slot,
                           state.empire.propulsion_level,
+                          state.planet.galaxy,
+                          fleet.dest_galaxy ?? state.planet.galaxy,
                         ) * 1000
                       }
                       now={now}
@@ -60,19 +62,6 @@ export default function FleetsPage() {
             </ul>
           )}
 
-          <h2 className="mt-6 text-sm font-semibold uppercase tracking-wide text-[var(--muted-fg)]">Reports</h2>
-          {state.reports.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--muted-fg)]">No battle reports yet.</p>
-          ) : (
-            <ul className="mt-2 flex flex-col gap-2">
-              {state.reports.map((report) => (
-                <li key={report.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-                  <p className="font-semibold">{report.title}</p>
-                  <p className="mt-1 text-sm text-[var(--muted-fg)]">{report.body}</p>
-                </li>
-              ))}
-            </ul>
-          )}
         </>
       )}
     </AppShell>

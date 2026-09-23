@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
+  EMPTY_FACILITIES,
+  EMPTY_RESEARCH,
   catchUpWorld,
   cancelUpgrade,
   queueDefence,
@@ -11,6 +13,7 @@ import {
   spawnPirates,
   startResearch,
   startUpgrade,
+  fillResources,
   type SimPlanet,
   type SimWorld,
 } from "./simulate";
@@ -24,10 +27,17 @@ function world(at = 0): SimWorld {
     name: "Homeworld",
     ore: STARTING_ORE,
     crystal: STARTING_CRYSTAL,
+    deuterium: 0,
     lastHarvestedAt: at,
     oreMine: 1,
     crystalMine: 1,
+    deuteriumExtractor: 0,
     powerPlant: 1,
+    fusionReactor: 0,
+    oreStorage: 0,
+    crystalStorage: 0,
+    deuteriumStorage: 0,
+    ...EMPTY_FACILITIES,
     upgradeBuilding: null,
     upgradeCompletesAt: null,
     ...EMPTY_DEFENCES,
@@ -40,10 +50,17 @@ function world(at = 0): SimWorld {
     name: "Derelict Hulk",
     ore: 4000,
     crystal: 2000,
+    deuterium: 0,
     lastHarvestedAt: at,
     oreMine: 1,
     crystalMine: 1,
+    deuteriumExtractor: 0,
     powerPlant: 1,
+    fusionReactor: 0,
+    oreStorage: 0,
+    crystalStorage: 0,
+    deuteriumStorage: 0,
+    ...EMPTY_FACILITIES,
     upgradeBuilding: null,
     upgradeCompletesAt: null,
     ...EMPTY_DEFENCES,
@@ -54,6 +71,7 @@ function world(at = 0): SimWorld {
       userId: "u1",
       homePlanetId: 1,
       propulsionLevel: 0,
+      ...EMPTY_RESEARCH,
       raiders: 0,
       raidersQueued: 0,
       raiderCompletesAt: null,
@@ -66,6 +84,14 @@ function world(at = 0): SimWorld {
 }
 
 describe("time-skip simulation", () => {
+  it("raises ore storage after the timer", () => {
+    const started = startUpgrade(world(0), "ore_storage", 0);
+    expect(started.planets[0].ore).toBe(STARTING_ORE - buildingCost("ore_storage", 0).ore);
+    const finished = catchUpWorld(started, started.planets[0].upgradeCompletesAt!);
+    expect(finished.planets[0].oreStorage).toBe(1);
+    expect(finished.planets[0].upgradeBuilding).toBeNull();
+  });
+
   it("finishes a mine upgrade after the timer", () => {
     const started = startUpgrade(world(0), "ore_mine", 0);
     const home = started.planets[0];
@@ -77,9 +103,25 @@ describe("time-skip simulation", () => {
     expect(finished.planets[0].upgradeBuilding).toBeNull();
   });
 
+  it("builds a robotics factory and keeps the shipyard gated", () => {
+    expect(() => startUpgrade(world(0), "shipyard", 0)).toThrow(/Robotics factory 2/);
+    expect(() => startUpgrade(world(0), "lunar_base", 0)).toThrow(/moon/i);
+    const started = startUpgrade(world(0), "robotics_factory", 0);
+    expect(started.planets[0].ore).toBe(STARTING_ORE - 400);
+    const done = catchUpWorld(started, started.planets[0].upgradeCompletesAt!);
+    expect(done.planets[0].roboticsFactory).toBe(1);
+  });
+
   it("builds raiders and returns loot from an NPC raid", () => {
-    const queued = queueRaiders(world(0), 1, 0);
-    expect(queued.planets[0].ore).toBe(STARTING_ORE - RAIDER_COST.ore);
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) => (planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000 } : planet)),
+      empire: { ...base.empire, propulsionLevel: 2 },
+    };
+    const queued = queueRaiders(ready, 1, 0);
+    expect(queued.planets[0].ore).toBe(8000 - RAIDER_COST.ore);
+    expect(() => queueRaiders(world(0), 1, 0)).toThrow(/Combustion drive 2/);
     const built = catchUpWorld(queued, queued.empire.raiderCompletesAt!);
     expect(built.empire.raiders).toBe(1);
     const sent = sendRaid(built, 2, 1, built.empire.raiderCompletesAt!);
@@ -113,6 +155,7 @@ describe("time-skip simulation", () => {
     const wiped = resetEmpire(upgraded, 90_000);
     expect(wiped.planets[0].oreMine).toBe(1);
     expect(wiped.planets[0].powerPlant).toBe(1);
+    expect(wiped.planets[0].oreStorage).toBe(0);
     expect(wiped.planets[0].ore).toBe(STARTING_ORE);
     expect(wiped.planets[1].ore).toBe(4000);
     expect(wiped.empire.propulsionLevel).toBe(0);
@@ -120,7 +163,10 @@ describe("time-skip simulation", () => {
   });
 
   it("completes propulsion research on a time skip", () => {
-    const started = startResearch(world(0), 0);
+    const base = world(0);
+    const ready: SimWorld = { ...base, empire: { ...base.empire, energyTech: 1 } };
+    expect(() => startResearch(base, "combustion_drive", 0)).toThrow(/Energy technology 1/);
+    const started = startResearch(ready, "combustion_drive", 0);
     const done = catchUpWorld(started, started.empire.researchCompletesAt!);
     expect(done.empire.propulsionLevel).toBe(1);
     expect(done.empire.researchCompletesAt).toBeNull();
@@ -165,5 +211,19 @@ describe("time-skip simulation", () => {
     expect(after.reports.length).toBe(1);
     expect(after.reports[0].body).toMatch(/ATK/);
     expect(after.empire.nextPirateAt).toBeGreaterThan(1000);
+  });
+
+  it("fills ore, crystal, and deuterium to the storage caps", () => {
+    const base = world(0);
+    const tanks: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, oreStorage: 1, crystalStorage: 1, deuteriumStorage: 1 } : planet,
+      ),
+    };
+    const filled = fillResources(tanks, 0);
+    expect(filled.planets[0].ore).toBe(storageCap(1));
+    expect(filled.planets[0].crystal).toBe(storageCap(1));
+    expect(filled.planets[0].deuterium).toBe(storageCap(1));
   });
 });

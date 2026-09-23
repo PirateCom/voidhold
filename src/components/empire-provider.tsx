@@ -16,13 +16,14 @@ import {
   launchRaid,
   loadEmpireState,
   queueDefence as queueDefenceAction,
-  researchPropulsion,
+  startResearch,
   resetEmpireProgress,
   spawnPirateWave,
+  fillResources as fillResourcesAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { gameClock } from "@/lib/game/catalog";
-import type { BuildingId, DefenceId, EmpireState } from "@/lib/game/types";
+import type { BuildingId, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
 import { EMPTY_DEFENCES, livePlanet, type SimPlanet } from "@/lib/game/simulate";
 
 type EmpireContextValue = {
@@ -36,11 +37,12 @@ type EmpireContextValue = {
   upgrade: (building: BuildingId) => Promise<void>;
   cancelUpgrade: () => Promise<void>;
   resetProgress: () => Promise<void>;
-  research: () => Promise<void>;
+  research: (id: ResearchId) => Promise<void>;
   build: (count: number) => Promise<void>;
   buildDefence: (id: DefenceId, count: number) => Promise<void>;
   spawnPirates: () => Promise<void>;
-  raid: (system: number, slot: number, raiders: number) => Promise<void>;
+  fillResources: () => Promise<void>;
+  raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
 };
 
 const EmpireContext = createContext<EmpireContextValue | null>(null);
@@ -57,19 +59,39 @@ function nextDueAt(state: EmpireState): number | null {
   return Math.min(...due);
 }
 
-function toSimPlanet(planet: EmpireState["planet"]): SimPlanet {
+function toSimPlanet(planet: EmpireState["planet"], starType: EmpireState["star"]["type"]): SimPlanet {
   return {
     id: planet.id,
     ownerId: planet.owner_id,
+    galaxy: planet.galaxy,
     system: planet.system,
     slot: planet.slot,
+    starType,
+    maxFields: planet.max_fields,
     name: planet.name,
     ore: Number(planet.ore),
     crystal: Number(planet.crystal),
+    deuterium: Number(planet.deuterium ?? 0),
     lastHarvestedAt: new Date(planet.last_harvested_at).getTime(),
     oreMine: planet.ore_mine,
     crystalMine: planet.crystal_mine,
+    deuteriumExtractor: planet.deuterium_extractor ?? 0,
     powerPlant: planet.power_plant,
+    fusionReactor: planet.fusion_reactor ?? 0,
+    oreStorage: planet.ore_storage ?? 0,
+    crystalStorage: planet.crystal_storage ?? 0,
+    deuteriumStorage: planet.deuterium_storage ?? 0,
+    roboticsFactory: planet.robotics_factory ?? 0,
+    shipyard: planet.shipyard ?? 0,
+    researchLab: planet.research_lab ?? 0,
+    allianceDepot: planet.alliance_depot ?? 0,
+    missileSilo: planet.missile_silo ?? 0,
+    naniteFactory: planet.nanite_factory ?? 0,
+    terraformer: planet.terraformer ?? 0,
+    lunarBase: planet.lunar_base ?? 0,
+    phalanxSensor: planet.phalanx_sensor ?? 0,
+    stargate: planet.stargate ?? 0,
+    spaceStation: planet.space_station ?? 0,
     upgradeBuilding: planet.upgrade_building,
     upgradeCompletesAt: planet.upgrade_completes_at
       ? new Date(planet.upgrade_completes_at).getTime()
@@ -81,6 +103,9 @@ function toSimPlanet(planet: EmpireState["planet"]): SimPlanet {
     heavyLaser: planet.heavy_laser ?? 0,
     ionCannon: planet.ion_cannon ?? 0,
     gaussCannon: planet.gauss_cannon ?? 0,
+    plasmaTurret: planet.plasma_turret ?? 0,
+    antiballisticMissile: planet.antiballistic_missile ?? 0,
+    interplanetaryMissile: planet.interplanetary_missile ?? 0,
     defenceBuilding: planet.defence_building ?? EMPTY_DEFENCES.defenceBuilding,
     defencesQueued: planet.defences_queued ?? 0,
     defenceCompletesAt: planet.defence_completes_at
@@ -158,8 +183,8 @@ export function EmpireProvider({
   }, [state, fetchedAt, now]);
 
   const live = useMemo(() => {
-    if (!state) return null;
-    return livePlanet(toSimPlanet(state.planet), gameNow);
+    if (!state?.star || state.planet.max_fields == null) return null;
+    return livePlanet(toSimPlanet(state.planet, state.star.type), gameNow);
   }, [state, gameNow]);
 
   useEffect(() => {
@@ -194,11 +219,12 @@ export function EmpireProvider({
     upgrade: (building) => run(() => upgradeBuilding(building)),
     cancelUpgrade: () => run(() => cancelBuildingUpgrade()),
     resetProgress: () => run(() => resetEmpireProgress()),
-    research: () => run(() => researchPropulsion()),
+    research: (id) => run(() => startResearch(id)),
     build: (count) => run(() => buildRaiders(count)),
     buildDefence: (id, count) => run(() => queueDefenceAction(id, count)),
     spawnPirates: () => run(() => spawnPirateWave()),
-    raid: (system, slot, raiders) => run(() => launchRaid(system, slot, raiders)),
+    fillResources: () => run(() => fillResourcesAction()),
+    raid: (galaxy, system, slot, raiders) => run(() => launchRaid(galaxy, system, slot, raiders)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

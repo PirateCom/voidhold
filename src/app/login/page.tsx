@@ -14,7 +14,7 @@ export default async function LoginPage({
       <p className="text-[10px] uppercase tracking-[0.35em] text-[var(--accent)]">Voidhold</p>
       <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl">Hold a world in the dark.</h1>
       <p className="mt-3 text-sm text-[var(--muted-fg)]">
-        Mine ore and crystal, power the grid, build raiders, and strip derelicts across a 10×10 galaxy.
+        Mine ore and crystal, power the grid, build small cargo, and strip derelicts across nine galaxies.
       </p>
       {error ? (
         <p className="mt-6 rounded-2xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200">

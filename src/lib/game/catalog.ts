@@ -1,3 +1,5 @@
+import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat } from "./ogame-data";
+
 export const GALAXY = 1;
 export const SYSTEM_MAX = 10;
 export const SLOT_MAX = 10;
@@ -7,15 +9,42 @@ export const GAME_HOUR_SECONDS = 60;
 
 export const RAID_LOOT_MIN = 0.25;
 export const RAID_LOOT_MAX = 0.75;
-export const RAIDER_CARGO = 5000;
-export const RAIDER_COST = { ore: 400, crystal: 100 } as const;
+export type { FacilityId, FacilityRequirement, FacilityStat, ResearchGroup, ResearchId, ShipResearch, ShipStat, TechRequirement } from "./ogame-data";
+export { FACILITIES, RESEARCH_GROUPS, RESEARCHES, SHIPS } from "./ogame-data";
+
+const SMALL_CARGO = SHIPS.find((ship) => ship.id === "small_cargo") as ShipStat;
+export const RAIDER_CARGO = SMALL_CARGO.cargo;
+export const RAIDER_COST = { ore: SMALL_CARGO.cost.ore, crystal: SMALL_CARGO.cost.crystal } as const;
 export const RAIDER_BUILD_SECONDS = 15;
+
+export function shipSpec(id: string): ShipStat | undefined {
+  return SHIPS.find((ship) => ship.id === id);
+}
 
 export const STARTING_ORE = 1200;
 export const STARTING_CRYSTAL = 500;
 export const STARTING_RAIDERS = 0;
 
-export type BuildingId = "ore_mine" | "crystal_mine" | "power_plant";
+export type BuildingId =
+  | "ore_mine"
+  | "crystal_mine"
+  | "deuterium_extractor"
+  | "power_plant"
+  | "fusion_reactor"
+  | "ore_storage"
+  | "crystal_storage"
+  | "deuterium_storage"
+  | FacilityId;
+
+export type ResourceBuildingId =
+  | "ore_mine"
+  | "crystal_mine"
+  | "deuterium_extractor"
+  | "ore_storage"
+  | "crystal_storage"
+  | "deuterium_storage"
+  | "power_plant"
+  | "fusion_reactor";
 
 export type DefenceId =
   | "small_shield_dome"
@@ -23,23 +52,40 @@ export type DefenceId =
   | "rocket_launcher"
   | "light_laser"
   | "heavy_laser"
+  | "gauss_cannon"
   | "ion_cannon"
-  | "gauss_cannon";
+  | "plasma_turret"
+  | "antiballistic_missile"
+  | "interplanetary_missile";
+
+export type DefenceGroup = "dome" | "turret" | "missile";
+
+export const DEFENCE_GROUPS: { id: DefenceGroup; title: string }[] = [
+  { id: "dome", title: "Domes" },
+  { id: "turret", title: "Turrets" },
+  { id: "missile", title: "Missiles" },
+];
 
 export const BUILDINGS: {
-  id: BuildingId;
+  id: ResourceBuildingId;
   name: string;
   blurb: string;
 }[] = [
   { id: "ore_mine", name: "Ore mine", blurb: "Pulls metal from the crust." },
   { id: "crystal_mine", name: "Crystal mine", blurb: "Cuts lattice from the ice." },
-  { id: "power_plant", name: "Power plant", blurb: "Feeds the mines. Shortfalls slow production." },
+  { id: "deuterium_extractor", name: "Deuterium extractor", blurb: "The wiki synthesizer. Deuterium stays at 0 here." },
+  { id: "ore_storage", name: "Ore storage", blurb: "Raises the ore hold. Does not draw energy." },
+  { id: "crystal_storage", name: "Crystal storage", blurb: "Raises the crystal hold. Does not draw energy." },
+  { id: "deuterium_storage", name: "Deuterium storage", blurb: "The wiki deuterium tank. Unused while deuterium stays at 0." },
+  { id: "power_plant", name: "Solar plant", blurb: "Feeds the mines. Shortfalls slow production." },
+  { id: "fusion_reactor", name: "Fusion reactor", blurb: "Burns deuterium for energy. Needs Energy technology 3 and Deuterium extractor 5." },
 ];
 
 export const DEFENCES: {
   id: DefenceId;
   name: string;
   blurb: string;
+  group: DefenceGroup;
   unique: boolean;
   tier: number | null;
   attack: number;
@@ -51,6 +97,7 @@ export const DEFENCES: {
     id: "small_shield_dome",
     name: "Small shield dome",
     blurb: "One screen around the hold. Unique.",
+    group: "dome",
     unique: true,
     tier: null,
     attack: 0,
@@ -62,6 +109,7 @@ export const DEFENCES: {
     id: "large_shield_dome",
     name: "Large shield dome",
     blurb: "A heavier screen. Unique.",
+    group: "dome",
     unique: true,
     tier: null,
     attack: 0,
@@ -73,6 +121,7 @@ export const DEFENCES: {
     id: "rocket_launcher",
     name: "Rocket launcher",
     blurb: "Tier 1 turret. Cheap volley fire.",
+    group: "turret",
     unique: false,
     tier: 1,
     attack: 8,
@@ -84,6 +133,7 @@ export const DEFENCES: {
     id: "light_laser",
     name: "Light laser turret",
     blurb: "Tier 2 turret. Fast crystal beams.",
+    group: "turret",
     unique: false,
     tier: 2,
     attack: 10,
@@ -95,6 +145,7 @@ export const DEFENCES: {
     id: "heavy_laser",
     name: "Heavy laser turret",
     blurb: "Tier 3 turret. Harder burn.",
+    group: "turret",
     unique: false,
     tier: 3,
     attack: 25,
@@ -103,9 +154,22 @@ export const DEFENCES: {
     buildSeconds: 22,
   },
   {
+    id: "gauss_cannon",
+    name: "Gaussian cannon turret",
+    blurb: "Kinetic turret. Highest punch.",
+    group: "turret",
+    unique: false,
+    tier: 5,
+    attack: 110,
+    defence: 370,
+    cost: { ore: 1600, crystal: 1200 },
+    buildSeconds: 45,
+  },
+  {
     id: "ion_cannon",
     name: "Ion cannon",
-    blurb: "Tier 4. Crystal-heavy disruptor.",
+    blurb: "Crystal-heavy disruptor.",
+    group: "turret",
     unique: false,
     tier: 4,
     attack: 15,
@@ -114,15 +178,40 @@ export const DEFENCES: {
     buildSeconds: 28,
   },
   {
-    id: "gauss_cannon",
-    name: "Gaussian cannon turret",
-    blurb: "Tier 5. Highest kinetic punch.",
+    id: "plasma_turret",
+    name: "Plasma turret",
+    blurb: "Heaviest battery.",
+    group: "turret",
     unique: false,
-    tier: 5,
-    attack: 110,
-    defence: 370,
-    cost: { ore: 1600, crystal: 1200 },
-    buildSeconds: 45,
+    tier: 6,
+    attack: 280,
+    defence: 900,
+    cost: { ore: 4500, crystal: 4000 },
+    buildSeconds: 70,
+  },
+  {
+    id: "antiballistic_missile",
+    name: "Antiballistic missile",
+    blurb: "Stops one incoming interplanetary missile.",
+    group: "missile",
+    unique: false,
+    tier: null,
+    attack: 0,
+    defence: 40,
+    cost: { ore: 400, crystal: 0 },
+    buildSeconds: 16,
+  },
+  {
+    id: "interplanetary_missile",
+    name: "Interplanetary missile",
+    blurb: "Strikes guns on another hold.",
+    group: "missile",
+    unique: false,
+    tier: null,
+    attack: 80,
+    defence: 50,
+    cost: { ore: 1200, crystal: 400 },
+    buildSeconds: 32,
   },
 ];
 
@@ -137,6 +226,9 @@ export const DESTROY_ORDER: DefenceId[] = [
   "heavy_laser",
   "ion_cannon",
   "gauss_cannon",
+  "plasma_turret",
+  "antiballistic_missile",
+  "interplanetary_missile",
   "small_shield_dome",
   "large_shield_dome",
 ];
@@ -168,8 +260,11 @@ export function emptyDefenceCounts(): DefenceCounts {
     rocket_launcher: 0,
     light_laser: 0,
     heavy_laser: 0,
-    ion_cannon: 0,
     gauss_cannon: 0,
+    ion_cannon: 0,
+    plasma_turret: 0,
+    antiballistic_missile: 0,
+    interplanetary_missile: 0,
   };
 }
 
@@ -285,9 +380,25 @@ export function crystalProductionPerHour(level: number): number {
   return Math.floor(20 * level * Math.pow(1.1, level));
 }
 
-export function powerOutput(level: number): number {
+export type StarType = "young_hot" | "medium" | "old_cold" | "pulsar";
+
+export function starMultiplier(star: StarType = "medium"): number {
+  if (star === "young_hot") return 1.5;
+  if (star === "old_cold") return 0.75;
+  if (star === "pulsar") return 3;
+  return 1;
+}
+
+export function starLabel(star: StarType): string {
+  if (star === "young_hot") return "Young hot star";
+  if (star === "old_cold") return "Old cold star";
+  if (star === "pulsar") return "Pulsar";
+  return "Medium star";
+}
+
+export function powerOutput(level: number, star: StarType = "medium"): number {
   if (level <= 0) return 0;
-  return Math.floor(20 * level * Math.pow(1.1, level));
+  return Math.floor(20 * level * Math.pow(1.1, level) * starMultiplier(star));
 }
 
 export function mineEnergyDrain(level: number): number {
@@ -295,27 +406,67 @@ export function mineEnergyDrain(level: number): number {
   return Math.floor(10 * level * Math.pow(1.1, level));
 }
 
-export function energyFactor(oreMine: number, crystalMine: number, powerPlant: number): number {
-  const drain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine);
-  if (drain <= 0) return 1;
-  return Math.min(1, powerOutput(powerPlant) / drain);
+export function energyFactor(
+  oreMine: number,
+  crystalMine: number,
+  powerPlant: number,
+  star: StarType = "medium",
+  deutMine = 0,
+  fusion = 0,
+  energyTech = 0,
+): number {
+  return energyNow(oreMine, crystalMine, powerPlant, star, deutMine, fusion, energyTech).factor;
 }
 
-export function energyNow(oreMine: number, crystalMine: number, powerPlant: number): {
+export function fusionOutput(level: number, energyTech = 0): number {
+  const safe = Math.max(0, Math.floor(level));
+  if (safe <= 0) return 0;
+  return Math.floor(30 * safe * Math.pow(1.05 + 0.01 * Math.max(0, energyTech), safe));
+}
+
+export function deutEnergyDrain(level: number): number {
+  const safe = Math.max(0, Math.floor(level));
+  if (safe <= 0) return 0;
+  return Math.floor(20 * safe * Math.pow(1.1, safe));
+}
+
+export function energyNow(
+  oreMine: number,
+  crystalMine: number,
+  powerPlant: number,
+  star: StarType = "medium",
+  deutMine = 0,
+  fusion = 0,
+  energyTech = 0,
+): {
   output: number;
   drain: number;
   factor: number;
 } {
-  const output = powerOutput(powerPlant);
-  const drain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine);
-  return { output, drain, factor: energyFactor(oreMine, crystalMine, powerPlant) };
+  const output = powerOutput(powerPlant, star) + fusionOutput(fusion, energyTech);
+  const drain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine) + deutEnergyDrain(deutMine);
+  const factor = drain <= 0 ? 1 : Math.min(1, output / drain);
+  return { output, drain, factor };
 }
 
 /** Extra energy a building uses (mines) or makes (power plant) at the next level. */
-export function upgradeEnergyDelta(id: BuildingId, currentLevel: number): number {
+export function upgradeEnergyDelta(
+  id: BuildingId,
+  currentLevel: number,
+  star: StarType = "medium",
+  energyTech = 0,
+): number {
+  if (id === "ore_storage" || id === "crystal_storage" || id === "deuterium_storage") return 0;
   if (id === "power_plant") {
-    return powerOutput(currentLevel + 1) - powerOutput(currentLevel);
+    return powerOutput(currentLevel + 1, star) - powerOutput(currentLevel, star);
   }
+  if (id === "fusion_reactor") {
+    return fusionOutput(currentLevel + 1, energyTech) - fusionOutput(currentLevel, energyTech);
+  }
+  if (id === "deuterium_extractor") {
+    return deutEnergyDrain(currentLevel + 1) - deutEnergyDrain(currentLevel);
+  }
+  if (id !== "ore_mine" && id !== "crystal_mine") return 0;
   return mineEnergyDrain(currentLevel + 1) - mineEnergyDrain(currentLevel);
 }
 
@@ -324,25 +475,62 @@ export function energyAfterUpgrade(
   oreMine: number,
   crystalMine: number,
   powerPlant: number,
+  star: StarType = "medium",
 ): { output: number; drain: number; factor: number } {
-  if (id === "ore_mine") return energyNow(oreMine + 1, crystalMine, powerPlant);
-  if (id === "crystal_mine") return energyNow(oreMine, crystalMine + 1, powerPlant);
-  return energyNow(oreMine, crystalMine, powerPlant + 1);
+  if (id === "ore_mine") return energyNow(oreMine + 1, crystalMine, powerPlant, star);
+  if (id === "crystal_mine") return energyNow(oreMine, crystalMine + 1, powerPlant, star);
+  if (id === "power_plant") return energyNow(oreMine, crystalMine, powerPlant + 1, star);
+  return energyNow(oreMine, crystalMine, powerPlant, star);
 }
 
-export function storageCap(mineLevel: number): number {
-  return 10000 + 5000 * Math.max(mineLevel, 0);
+/** floor(2.5 * e^((20/33) * level)) * 5000. Level 0 is 10,000. */
+export function storageCap(level: number): number {
+  const safe = Math.max(0, Math.floor(level));
+  return Math.floor(2.5 * Math.exp((20 / 33) * safe)) * 5000;
 }
 
-export function buildingCost(id: BuildingId, currentLevel: number): { ore: number; crystal: number } {
+export function buildingCost(id: BuildingId, currentLevel: number): { ore: number; crystal: number; deuterium: number } {
   const mul = Math.pow(1.5, currentLevel);
   switch (id) {
     case "ore_mine":
-      return { ore: Math.floor(60 * mul), crystal: Math.floor(15 * mul) };
+      return { ore: Math.floor(60 * mul), crystal: Math.floor(15 * mul), deuterium: 0 };
     case "crystal_mine":
-      return { ore: Math.floor(48 * mul), crystal: Math.floor(24 * mul) };
+      return { ore: Math.floor(48 * mul), crystal: Math.floor(24 * mul), deuterium: 0 };
+    case "deuterium_extractor":
+      return { ore: Math.floor(225 * mul), crystal: Math.floor(75 * mul), deuterium: 0 };
     case "power_plant":
-      return { ore: Math.floor(75 * mul), crystal: Math.floor(30 * mul) };
+      return { ore: Math.floor(75 * mul), crystal: Math.floor(30 * mul), deuterium: 0 };
+    case "fusion_reactor": {
+      const fusionMul = Math.pow(1.8, currentLevel);
+      return {
+        ore: Math.floor(900 * fusionMul),
+        crystal: Math.floor(360 * fusionMul),
+        deuterium: Math.floor(180 * fusionMul),
+      };
+    }
+    case "ore_storage":
+      return { ore: Math.floor(1000 * Math.pow(2, currentLevel)), crystal: 0, deuterium: 0 };
+    case "crystal_storage":
+      return {
+        ore: Math.floor(1000 * Math.pow(2, currentLevel)),
+        crystal: Math.floor(500 * Math.pow(2, currentLevel)),
+        deuterium: 0,
+      };
+    case "deuterium_storage":
+      return {
+        ore: Math.floor(1000 * Math.pow(2, currentLevel)),
+        crystal: Math.floor(1000 * Math.pow(2, currentLevel)),
+        deuterium: 0,
+      };
+    default: {
+      const spec = FACILITY_BY_ID[id];
+      const factor = Math.pow(spec.costFactor, Math.max(0, currentLevel));
+      return {
+        ore: Math.floor(spec.cost.ore * factor),
+        crystal: Math.floor(spec.cost.crystal * factor),
+        deuterium: Math.floor(spec.cost.deuterium * factor),
+      };
+    }
   }
 }
 
@@ -350,9 +538,110 @@ export function buildingTimeSeconds(currentLevel: number): number {
   return Math.floor(20 * Math.pow(1.5, currentLevel));
 }
 
+const RESEARCH_BY_ID = Object.fromEntries(RESEARCHES.map((tech) => [tech.id, tech])) as Record<
+  ResearchId,
+  (typeof RESEARCHES)[number]
+>;
+
+const FACILITY_BY_ID = Object.fromEntries(FACILITIES.map((facility) => [facility.id, facility])) as Record<
+  FacilityId,
+  (typeof FACILITIES)[number]
+>;
+
+export function isFacilityId(id: string): id is FacilityId {
+  return id in FACILITY_BY_ID;
+}
+
+export function isBuildingId(id: string): id is BuildingId {
+  return (
+    id === "ore_mine" ||
+    id === "crystal_mine" ||
+    id === "deuterium_extractor" ||
+    id === "power_plant" ||
+    id === "fusion_reactor" ||
+    id === "ore_storage" ||
+    id === "crystal_storage" ||
+    id === "deuterium_storage" ||
+    isFacilityId(id)
+  );
+}
+
+export function facilitySpec(id: FacilityId) {
+  return FACILITY_BY_ID[id];
+}
+
+export function unmetFacility(
+  id: FacilityId,
+  facilityLevelOf: (facility: FacilityId) => number,
+  researchLevelOf: (research: ResearchId) => number,
+): { name: string; level: number }[] {
+  return FACILITY_BY_ID[id].requires
+    .filter((req) =>
+      req.kind === "facility" ? facilityLevelOf(req.id) < req.level : researchLevelOf(req.id) < req.level,
+    )
+    .map((req) => ({
+      name: req.kind === "facility" ? FACILITY_BY_ID[req.id].name : RESEARCH_BY_ID[req.id].name,
+      level: req.level,
+    }));
+}
+
+export function fieldsUsed(
+  oreMine: number,
+  crystalMine: number,
+  powerPlant: number,
+  oreStorage = 0,
+  crystalStorage = 0,
+  facilities = 0,
+  deutMine = 0,
+  deutStorage = 0,
+  fusion = 0,
+): number {
+  return (
+    oreMine +
+    crystalMine +
+    powerPlant +
+    oreStorage +
+    crystalStorage +
+    facilities +
+    deutMine +
+    deutStorage +
+    fusion
+  );
+}
+
+export function isResearchId(id: string): id is ResearchId {
+  return id in RESEARCH_BY_ID;
+}
+
+export function researchSpec(id: ResearchId) {
+  return RESEARCH_BY_ID[id];
+}
+
+export function researchTechCost(
+  id: ResearchId,
+  currentLevel: number,
+): { ore: number; crystal: number; deuterium: number } {
+  const spec = RESEARCH_BY_ID[id];
+  const mul = Math.pow(spec.costFactor, Math.max(0, currentLevel));
+  return {
+    ore: Math.floor(spec.baseOre * mul),
+    crystal: Math.floor(spec.baseCrystal * mul),
+    deuterium: Math.floor(spec.baseDeuterium * mul),
+  };
+}
+
+export function unmetResearch(
+  id: ResearchId,
+  levelOf: (research: ResearchId) => number,
+): { id: ResearchId; level: number; name: string }[] {
+  const spec = RESEARCH_BY_ID[id];
+  return spec.requires
+    .filter((req) => levelOf(req.id) < req.level)
+    .map((req) => ({ ...req, name: RESEARCH_BY_ID[req.id].name }));
+}
+
 export function researchCost(currentLevel: number): { ore: number; crystal: number } {
-  const mul = Math.pow(2, currentLevel);
-  return { ore: Math.floor(200 * mul), crystal: Math.floor(400 * mul) };
+  return researchTechCost("combustion_drive", currentLevel);
 }
 
 export function researchTimeSeconds(currentLevel: number): number {
@@ -369,10 +658,80 @@ export function flightSeconds(
   toSystem: number,
   toSlot: number,
   propulsionLevel: number,
+  fromGalaxy = 0,
+  toGalaxy = 0,
 ): number {
-  const distance = Math.abs(fromSystem - toSystem) + Math.abs(fromSlot - toSlot);
+  const distance =
+    Math.abs(fromGalaxy - toGalaxy) * 40 + Math.abs(fromSystem - toSystem) + Math.abs(fromSlot - toSlot);
   const raw = 20 + 12 * Math.max(distance, 1);
   return Math.max(15, Math.floor(raw / fleetSpeedMultiplier(propulsionLevel)));
+}
+
+/** Wiki base temperatures. A planet adds the same offset, from -10 to 10, to both ends. */
+export const SLOT_TEMPERATURE: Record<number, { min: number; max: number }> = {
+  1: { min: 200, max: 260 },
+  2: { min: 150, max: 190 },
+  3: { min: 100, max: 140 },
+  4: { min: 50, max: 90 },
+  5: { min: 40, max: 80 },
+  6: { min: 30, max: 70 },
+  7: { min: 20, max: 60 },
+  8: { min: 10, max: 50 },
+  9: { min: 0, max: 40 },
+  10: { min: -10, max: 30 },
+  11: { min: -20, max: 20 },
+  12: { min: -30, max: 10 },
+  13: { min: -70, max: -30 },
+  14: { min: -110, max: -70 },
+  15: { min: -180, max: -110 },
+};
+
+export function planetTemperature(slot: number, offset: number): { min: number; max: number } {
+  const base = SLOT_TEMPERATURE[slot] ?? SLOT_TEMPERATURE[8];
+  const shift = Math.max(-10, Math.min(10, Math.trunc(offset)));
+  return { min: base.min + shift, max: base.max + shift };
+}
+
+export function fieldBand(slot: number): { lo: number; hi: number } {
+  if (slot <= 3) return { lo: 40, hi: 70 };
+  if (slot <= 6) return { lo: 120, hi: 310 };
+  if (slot <= 9) return { lo: 125, hi: 255 };
+  if (slot <= 12) return { lo: 75, hi: 125 };
+  return { lo: 60, hi: 190 };
+}
+
+const MIN_FIELDS = 20;
+
+function inclusivePick(lo: number, hi: number, valueRoll: number): number {
+  if (hi <= lo) return lo;
+  const t = Math.min(1, Math.max(0, valueRoll));
+  return lo + Math.min(hi - lo, Math.floor(t * (hi - lo + 1)));
+}
+
+/** outerRoll below 0.8 stays in the band. Below 0.9 is the low tail. Otherwise the high tail. */
+export function rollMaxFields(slot: number, outerRoll: number, valueRoll: number): number {
+  const { lo, hi } = fieldBand(slot);
+  const width = hi - lo;
+  if (outerRoll < 0.8) return inclusivePick(lo, hi, valueRoll);
+  if (outerRoll < 0.9) {
+    const lowLo = Math.max(MIN_FIELDS, lo - width);
+    const lowHi = lo - 1;
+    if (lowHi < lowLo) return inclusivePick(hi + 1, hi + width, valueRoll);
+    return inclusivePick(lowLo, lowHi, valueRoll);
+  }
+  return inclusivePick(hi + 1, hi + width, valueRoll);
+}
+
+/** OGame homeworld diameter. Fields are floor((km / 1000)^2) plus the universe bonus. */
+export const HOMEWORLD_DIAMETER_KM = 12_800;
+export const PLANET_FIELD_BONUS = 10;
+
+export function fieldsFromDiameter(diameterKm: number, bonus = PLANET_FIELD_BONUS): number {
+  return Math.floor((diameterKm / 1000) ** 2) + bonus;
+}
+
+export function diameterKm(fields: number): number {
+  return Math.round(1000 * Math.sqrt(Math.max(fields, 0)));
 }
 
 export function harvestAmount(stored: number, perHour: number, elapsedSeconds: number, cap: number): number {

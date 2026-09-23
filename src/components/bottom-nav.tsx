@@ -1,115 +1,128 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const items = [
-  { href: "/", label: "Planet", icon: PlanetIcon },
-  { href: "/research", label: "Research", icon: ResearchIcon },
-  { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
-  { href: "/defences", label: "Defences", icon: DefencesIcon },
-  { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
-  { href: "/fleets", label: "Fleets", icon: FleetIcon },
+const rows = [
+  [
+    { href: "/", label: "Resources", icon: ResourcesIcon },
+    { href: "/buildings", label: "Facilities", icon: FacilitiesIcon },
+    { href: "/research", label: "Research", icon: ResearchIcon },
+    { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
+  ],
+  [
+    { href: "/defences", label: "Defence", icon: DefenceIcon },
+    { href: "/fleets", label: "Fleet", icon: FleetIcon },
+    { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
+    { href: "/communications", label: "Communications", icon: CommsIcon },
+  ],
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t border-[var(--border)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <ul className="grid grid-cols-6">
-        {items.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <li key={href}>
-              <Link
-                href={href}
-                className={`flex flex-col items-center gap-0.5 px-0.5 py-2 text-[10px] font-medium leading-tight ${
-                  active ? "text-[var(--accent)]" : "text-[var(--muted-fg)]"
-                }`}
-              >
-                <Icon active={active} />
-                {label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <footer className="relative z-30 shrink-0 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
+      <nav className="flex flex-col gap-0.5">
+        {rows.map((row) => (
+          <ul key={row[0].href} className="grid grid-cols-4 gap-0.5">
+            {row.map(({ href, label, icon: Icon }) => {
+              const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className={`flex flex-col items-center justify-center rounded px-0.5 py-1.5 text-[9px] leading-tight tracking-tight uppercase ${
+                      active
+                        ? "border border-cyan-500/40 bg-cyan-950/40 font-[family-name:var(--font-display)] font-bold text-cyan-300 shadow-[inset_0_0_15px_rgba(0,240,255,0.15),0_0_10px_rgba(0,240,255,0.2)]"
+                        : "font-[family-name:var(--font-display)] font-medium text-slate-400"
+                    }`}
+                  >
+                    <Icon />
+                    <span className="mt-1 text-center">{label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+      </nav>
+    </footer>
   );
 }
 
-function PlanetIcon({ active }: { active: boolean }) {
+function IconWrap({ children }: { children: ReactNode }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} />
-      <path d="M4 13.5c3.5-1 8.5-1 16 1" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      {children}
     </svg>
   );
 }
 
-function ResearchIcon({ active }: { active: boolean }) {
+function ResourcesIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M9 4h6M10 4v6.2L6.4 16.5A3.6 3.6 0 0 0 9.4 22h5.2a3.6 3.6 0 0 0 3-5.5L14 10.2V4"
-        stroke="currentColor"
-        strokeWidth={active ? 2.2 : 1.8}
-        strokeLinejoin="round"
-      />
-    </svg>
+    <IconWrap>
+      <path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.8" />
+    </IconWrap>
   );
 }
 
-function ShipyardIcon({ active }: { active: boolean }) {
+function FacilitiesIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5 19V8l7-4 7 4v11H5Z"
-        stroke="currentColor"
-        strokeWidth={active ? 2.2 : 1.8}
-        strokeLinejoin="round"
-      />
-      <path d="M9 19v-6h6v6" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} />
-    </svg>
+    <IconWrap>
+      <path d="M3 20h18M5 20V10l5 3V8l5 3V6l6 4v10" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
   );
 }
 
-function DefencesIcon({ active }: { active: boolean }) {
+function ResearchIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3 5 6v6c0 5 3.2 8.4 7 9.8C15.8 20.4 19 17 19 12V6l-7-3Z"
-        stroke="currentColor"
-        strokeWidth={active ? 2.2 : 1.8}
-        strokeLinejoin="round"
-      />
-    </svg>
+    <IconWrap>
+      <path d="M9 3h6M10 3v5.5L6.2 15A3.8 3.8 0 0 0 9.5 21h5a3.8 3.8 0 0 0 3.3-6L14 8.5V3" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
   );
 }
 
-function GalaxyIcon({ active }: { active: boolean }) {
+function ShipyardIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} />
-      <path
-        d="M5 8c2 4 5 6 7 6s5-2 7-6M5 16c2-4 5-6 7-6s5 2 7 6"
-        stroke="currentColor"
-        strokeWidth={active ? 2.2 : 1.8}
-      />
-    </svg>
+    <IconWrap>
+      <path d="M12 3 5 19h14L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 10v6" stroke="currentColor" strokeWidth="1.8" />
+    </IconWrap>
   );
 }
 
-function FleetIcon({ active }: { active: boolean }) {
+function DefenceIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 16 12 4l8 12-8 4-8-4Z"
-        stroke="currentColor"
-        strokeWidth={active ? 2.2 : 1.8}
-        strokeLinejoin="round"
-      />
-    </svg>
+    <IconWrap>
+      <path d="M12 3 5 6v6c0 4.6 2.9 7.8 7 9 4.1-1.2 7-4.4 7-9V6l-7-3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
+  );
+}
+
+function FleetIcon() {
+  return (
+    <IconWrap>
+      <path d="M3 12h13l4-4M16 12l4 4M5 8l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
+  );
+}
+
+function GalaxyIcon() {
+  return (
+    <IconWrap>
+      <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 8c2 4 5 6 7 6s5-2 7-6M5 16c2-4 5-6 7-6s5 2 7 6" stroke="currentColor" strokeWidth="1.8" />
+    </IconWrap>
+  );
+}
+
+function CommsIcon() {
+  return (
+    <IconWrap>
+      <path d="M5 6h14v9H8l-3 3V6Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
   );
 }

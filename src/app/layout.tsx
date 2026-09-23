@@ -1,18 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Exo_2, Source_Sans_3 } from "next/font/google";
+import { Orbitron, Rajdhani } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import "./globals.css";
 
-const display = Exo_2({
+const display = Orbitron({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: ["400", "600", "700"],
 });
 
-const body = Source_Sans_3({
+const body = Rajdhani({
   variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {

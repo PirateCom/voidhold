@@ -4,8 +4,10 @@ import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { useEmpire } from "@/components/empire-provider";
+import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
+  DEFENCE_GROUPS,
   DEFENCES,
   PIRATE_ATTACK,
   PIRATE_DEFENCE,
@@ -27,7 +29,7 @@ export default function DefencesPage() {
 
   if (!state || !live) {
     return (
-      <AppShell title="Defences">
+      <AppShell title="Defence">
         {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
         <p className="text-sm text-[var(--muted-fg)]">{state ? "Establishing a hold…" : "No empire loaded."}</p>
       </AppShell>
@@ -42,9 +44,9 @@ export default function DefencesPage() {
   const def = planetDefence(counts);
 
   return (
-    <AppShell title="Defences">
+    <AppShell title="Defence">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
-      <article className="mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+      <article className="sci-card mb-3 p-4">
         <h2 className="font-semibold">Hold strength</h2>
         <p className="mt-2 font-mono text-sm">
           Planet ATK {atk} · DEF {def} · {units} gun{units === 1 ? "" : "s"}
@@ -62,7 +64,12 @@ export default function DefencesPage() {
         )}
       </article>
       <div className="flex flex-col gap-3">
-        {DEFENCES.map((d) => {
+        {DEFENCE_GROUPS.map((group) => (
+          <section key={group.id} className="flex flex-col gap-3">
+            <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-[var(--muted-fg)] uppercase">
+              {group.title}
+            </h2>
+            {DEFENCES.filter((d) => d.group === group.id).map((d) => {
           const owned = countOf(d.id, live);
           const thisBusy = busyId === d.id && queued > 0;
           const yardBusy = queued > 0 && Boolean(busyId);
@@ -70,17 +77,20 @@ export default function DefencesPage() {
           const online = d.unique && owned >= 1;
           const badge = d.unique ? (online ? "Online" : "—") : `×${owned}`;
           return (
-            <article key={d.id} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold">{d.name}</h2>
+            <article key={d.id} className="sci-card p-4">
+              <div className="flex items-start gap-3">
+                <SpriteThumb id={d.id} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="font-semibold">{d.name}</h2>
+                    <span className="sci-badge">{badge}</span>
+                  </div>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">{d.blurb}</p>
                   <p className="mt-1 font-mono text-xs">
                     ATK {d.attack} · DEF {d.defence}
                     {owned > 1 ? ` · battery ATK ${d.attack * owned} DEF ${d.defence * owned}` : ""}
                   </p>
                 </div>
-                <span className="rounded-full bg-[var(--muted)] px-2 py-1 font-mono text-xs">{badge}</span>
               </div>
               {thisBusy ? (
                 <TimedStripedProgress
@@ -114,7 +124,7 @@ export default function DefencesPage() {
                     onChange={(e) =>
                       setQueues((prev) => ({ ...prev, [d.id]: Math.max(1, Number(e.target.value) || 1) }))
                     }
-                    className="mt-1 h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--background)] px-3"
+                    className="sci-input mt-1 h-11 w-full px-3"
                   />
                 </label>
               )}
@@ -122,13 +132,23 @@ export default function DefencesPage() {
                 type="button"
                 disabled={pending || online || (yardBusy && !thisBusy)}
                 onClick={() => void buildDefence(d.id, d.unique ? 1 : count)}
-                className="mt-3 h-11 w-full rounded-2xl bg-[var(--accent)] text-sm font-semibold text-[var(--accent-fg)] disabled:opacity-50"
+                className="sci-btn mt-3 h-11 w-full"
               >
-                {online ? "Online" : yardBusy && !thisBusy ? "Yard occupied" : d.unique ? "Raise dome" : "Build"}
+                {online
+                  ? "Online"
+                  : yardBusy && !thisBusy
+                    ? "Yard occupied"
+                    : d.group === "dome"
+                      ? "Raise dome"
+                      : d.group === "missile"
+                        ? "Load"
+                        : "Build"}
               </button>
             </article>
           );
         })}
+          </section>
+        ))}
       </div>
     </AppShell>
   );

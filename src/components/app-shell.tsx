@@ -1,5 +1,7 @@
 import { BottomNav } from "@/components/bottom-nav";
+import { PlanetHeader } from "@/components/planet-header";
 import { ResourceBar } from "@/components/resource-bar";
+import { Starfield } from "@/components/starfield";
 
 export function AppShell({
   children,
@@ -9,15 +11,15 @@ export function AppShell({
   title: string;
 }) {
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-[430px] bg-[var(--surface)] shadow-[0_0_80px_rgba(0,0,0,0.45)]">
-      <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)]/95 px-5 py-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="truncate font-[family-name:var(--font-display)] text-lg tracking-wide">{title}</h1>
-          <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted-fg)]">Voidhold</span>
-        </div>
+    <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden border-x border-cyan-900/30 bg-[#040814]">
+      <Starfield />
+      <div className="holo-grid pointer-events-none absolute inset-0 z-0" />
+      <div className="scanlines pointer-events-none absolute inset-0 z-10" />
+      <header className="relative z-20 shrink-0 border-b border-cyan-500/20 bg-slate-950/90 px-3 pt-2 pb-2.5 backdrop-blur-md">
+        <PlanetHeader title={title} />
         <ResourceBar />
       </header>
-      <div className="px-5 pt-4 pb-28">{children}</div>
+      <div className="relative z-10 flex-1 overflow-y-auto px-3 py-3">{children}</div>
       <BottomNav />
     </div>
   );
