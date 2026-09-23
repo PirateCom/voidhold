@@ -7,7 +7,6 @@ import "./globals.css";
 const display = Orbitron({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
 });
 
 const body = Rajdhani({

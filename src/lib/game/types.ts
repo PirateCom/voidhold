@@ -1,4 +1,5 @@
 import type { FacilityId } from "./ogame-data";
+import type { StarType } from "./catalog";
 
 export type BuildingId =
   | "ore_mine"
