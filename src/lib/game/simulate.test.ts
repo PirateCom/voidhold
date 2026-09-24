@@ -8,9 +8,12 @@ import {
   cancelUpgrade,
   queueDefence,
   queueRaiders,
+  queueShip,
   resetEmpire,
   sendRaid,
+  sendExpedition,
   spawnPirates,
+  recallFleet,
   startResearch,
   startUpgrade,
   fillResources,
@@ -75,6 +78,8 @@ function world(at = 0): SimWorld {
       raiders: 0,
       raidersQueued: 0,
       raiderCompletesAt: null,
+      ships: {},
+      shipBuilding: null,
       researchCompletesAt: null,
       nextPirateAt: null,
     },
@@ -150,6 +155,41 @@ describe("time-skip simulation", () => {
     expect(home.empire.raiders).toBe(1);
     expect(home.planets[0].ore).toBeGreaterThan(built.planets[0].ore);
     expect(home.reports.length).toBe(1);
+  });
+
+  it("builds a light fighter when Shipyard 1 and Combustion 1 are ready", () => {
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, shipyard: 1 } : planet,
+      ),
+      empire: { ...base.empire, propulsionLevel: 1 },
+    };
+    expect(() => queueShip(world(0), "light_fighter", 1, 0)).toThrow(/Shipyard 1/);
+    const queued = queueShip(ready, "light_fighter", 1, 0);
+    expect(queued.planets[0].ore).toBe(8000 - 3000);
+    expect(queued.empire.shipBuilding).toBe("light_fighter");
+    expect(() => queueShip(queued, "solar_satellite", 1, 0)).toThrow(/occupied/i);
+    const built = catchUpWorld(queued, queued.empire.raiderCompletesAt!);
+    expect(built.empire.ships.light_fighter).toBe(1);
+    expect(built.empire.raiders).toBe(0);
+  });
+
+  it("sends an expedition to outer space and lists it in flight", () => {
+    const base = world(0);
+    expect(() => sendExpedition(base, 1, 1, 1, 0)).toThrow(/Astrophysics 1/);
+    const ready: SimWorld = {
+      ...base,
+      empire: { ...base.empire, astrophysics: 1, raiders: 3 },
+    };
+    const sent = sendExpedition(ready, 1, 1, 2, 0);
+    expect(sent.empire.raiders).toBe(1);
+    expect(sent.fleets[0].mission).toBe("expedition");
+    expect(sent.fleets[0].destSlot).toBe(16);
+    expect(() => sendExpedition(sent, 1, 1, 1, 0)).toThrow(/expedition slots/);
+    const holding = catchUpWorld(sent, sent.fleets[0].arrivesAt!);
+    expect(holding.fleets[0].mission).toBe("expedition_hold");
   });
 
   it("refunds half the cost when an upgrade is cancelled at 50%", () => {
@@ -232,13 +272,34 @@ describe("time-skip simulation", () => {
     expect(after.reports[0].title).toMatch(/Pirate raid/);
     expect(after.empire.nextPirateAt).toBeGreaterThan(0);
     expect(after.planets[0].ore).toBeLessThanOrEqual(2000);
+    expect((after.planets[0].debrisOre ?? 0) + (after.planets[0].debrisCrystal ?? 0)).toBeGreaterThan(0);
+    expect(after.reports[0].body).toMatch(/Debris/);
   });
 
-  it("debug spawn deploys pirates immediately", () => {
+  it("debug spawn queues pirates for a 10 minute inbound strike", () => {
     const after = spawnPirates(world(0), 1000);
-    expect(after.reports.length).toBe(1);
-    expect(after.reports[0].body).toMatch(/ATK/);
-    expect(after.empire.nextPirateAt).toBeGreaterThan(1000);
+    expect(after.reports.length).toBe(0);
+    expect(after.fleets[0].ownerId).toBeNull();
+    expect(after.fleets[0].arrivesAt).toBe(1000 + 600_000);
+    const impact = catchUpWorld(after, after.fleets[0].arrivesAt);
+    expect(impact.reports[0].body).toMatch(/ATK/);
+    expect(impact.planets[0].debrisCrystal).toBeGreaterThan(0);
+  });
+
+  it("recalls an outbound raid before it hits", () => {
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, shipyard: 2 } : planet,
+      ),
+      empire: { ...base.empire, propulsionLevel: 2, raiders: 2 },
+    };
+    const sent = sendRaid(ready, 2, 1, 0);
+    const mid = sent.fleets[0].launchedAt! + (sent.fleets[0].arrivesAt - sent.fleets[0].launchedAt!) / 2;
+    const recalled = recallFleet(sent, sent.fleets[0].id, mid);
+    expect(recalled.fleets[0].mission).toBe("return");
+    expect(recalled.fleets[0].destPlanetId).toBe(1);
   });
 
   it("fills ore, crystal, and deuterium to the storage caps", () => {

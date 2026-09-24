@@ -20,6 +20,9 @@ import {
   resetEmpireProgress,
   spawnPirateWave,
   fillResources as fillResourcesAction,
+  queueShip as queueShipAction,
+  launchExpedition,
+  recallFleet as recallFleetAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { gameClock } from "@/lib/game/catalog";
@@ -39,10 +42,13 @@ type EmpireContextValue = {
   resetProgress: () => Promise<void>;
   research: (id: ResearchId) => Promise<void>;
   build: (count: number) => Promise<void>;
+  buildShip: (id: string, count: number) => Promise<void>;
   buildDefence: (id: DefenceId, count: number) => Promise<void>;
   spawnPirates: () => Promise<void>;
   fillResources: () => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
+  sendExpedition: (galaxy: number, system: number, ships: Record<string, number>) => Promise<boolean>;
+  recallFleet: (id: number) => Promise<void>;
 };
 
 const EmpireContext = createContext<EmpireContextValue | null>(null);
@@ -196,13 +202,15 @@ export function EmpireProvider({
     return () => window.clearTimeout(id);
   }, [state, refresh]);
 
-  async function run(mut: () => Promise<EmpireState>) {
+  async function run(mut: () => Promise<EmpireState>): Promise<boolean> {
     setPending(true);
     setError(null);
     try {
       commitState(await mut());
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
+      return false;
     } finally {
       setPending(false);
     }
@@ -221,10 +229,13 @@ export function EmpireProvider({
     resetProgress: () => run(() => resetEmpireProgress()),
     research: (id) => run(() => startResearch(id)),
     build: (count) => run(() => buildRaiders(count)),
+    buildShip: (id, count) => run(() => queueShipAction(id, count)),
     buildDefence: (id, count) => run(() => queueDefenceAction(id, count)),
     spawnPirates: () => run(() => spawnPirateWave()),
     fillResources: () => run(() => fillResourcesAction()),
     raid: (galaxy, system, slot, raiders) => run(() => launchRaid(galaxy, system, slot, raiders)),
+    sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),
+    recallFleet: (id) => run(() => recallFleetAction(id)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

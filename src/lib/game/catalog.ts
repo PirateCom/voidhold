@@ -262,7 +262,23 @@ export const PIRATE_ATTACK = 10;
 export const PIRATE_DEFENCE = 20;
 export const PIRATE_CARGO = 800;
 export const PIRATE_HOUR_SECONDS = 3600;
+export const PIRATE_FLIGHT_SECONDS = 600;
+/** Wiki: 30% of wrecked ships' metal and crystal. Deuterium never enters the field. */
+export const DEBRIS_RATIO = 0.3;
+/** Wiki: fields of 300 or less stay hidden on the galaxy map. */
+export const DEBRIS_VISIBLE_MIN = 300;
+/** Wiki: a fight with no wrecks still leaves 300 crystal (invisible). */
+export const EMPTY_BATTLE_DEBRIS_CRYSTAL = 300;
 export const PIRATE_WAVE_CAP = 8;
+
+export function isInboundFleet(
+  fleet: { owner_id?: string | null; dest_planet_id?: number | null; inbound?: boolean },
+  userId: string,
+  homeId: number,
+): boolean {
+  if (fleet.inbound != null) return fleet.inbound;
+  return fleet.dest_planet_id === homeId && fleet.owner_id !== userId;
+}
 export const DESTROY_ORDER: DefenceId[] = [
   "rocket_launcher",
   "light_laser",
@@ -327,6 +343,17 @@ export function planetDefence(counts: DefenceCounts): number {
 export function pirateWavesPerHour(units: number): number {
   if (units <= 0) return 1;
   return Math.min(2, 1 + units / 8);
+}
+
+export function debrisFromWrecks(shipsLost: number, hullOre: number, hullCrystal: number): { ore: number; crystal: number } {
+  const ore = Math.floor(Math.max(0, shipsLost) * hullOre * DEBRIS_RATIO);
+  const crystal = Math.floor(Math.max(0, shipsLost) * hullCrystal * DEBRIS_RATIO);
+  if (ore + crystal === 0) return { ore: 0, crystal: EMPTY_BATTLE_DEBRIS_CRYSTAL };
+  return { ore, crystal };
+}
+
+export function debrisVisible(ore: number, crystal: number): boolean {
+  return ore + crystal > DEBRIS_VISIBLE_MIN;
 }
 
 export function pirateIntervalSeconds(units: number, roll = Math.random()): number {
@@ -762,6 +789,46 @@ export function flightSeconds(
     Math.abs(fromGalaxy - toGalaxy) * 40 + Math.abs(fromSystem - toSystem) + Math.abs(fromSlot - toSlot);
   const raw = 20 + 12 * Math.max(distance, 1);
   return Math.max(15, Math.floor(raw / fleetSpeedMultiplier(propulsionLevel)));
+}
+
+export const EXPEDITION_SLOT = 16;
+export const EXPEDITION_HOLD_SECONDS = GAME_HOUR_SECONDS;
+
+export function expeditionFlightSeconds(
+  fromSystem: number,
+  fromSlot: number,
+  toSystem: number,
+  toSlot: number,
+  propulsionLevel: number,
+  fromGalaxy = 0,
+  toGalaxy = 0,
+): number {
+  return Math.min(30, flightSeconds(fromSystem, fromSlot, toSystem, toSlot, propulsionLevel, fromGalaxy, toGalaxy));
+}
+
+export function expeditionFleetCap(astrophysics: number): number {
+  return Math.floor(Math.sqrt(Math.max(0, astrophysics)));
+}
+
+export type ExpeditionKind = "nothing" | "resources" | "ships" | "pirates" | "aliens" | "lost" | "delay";
+
+/** Wiki-shaped odds: pirates ~5.6%, aliens ~2.6%, plus finds, delay, and black-hole loss. */
+export function rollExpeditionKind(roll: number): ExpeditionKind {
+  const t = Math.min(1, Math.max(0, roll));
+  if (t < 0.3) return "nothing";
+  if (t < 0.58) return "resources";
+  if (t < 0.68) return "ships";
+  if (t < 0.736) return "pirates";
+  if (t < 0.762) return "aliens";
+  if (t < 0.79) return "lost";
+  if (t < 0.89) return "delay";
+  return "nothing";
+}
+
+export function expeditionResourceAmount(ships: number, amountRoll: number): number {
+  const cargo = Math.max(1, Math.trunc(ships)) * RAIDER_CARGO;
+  const fraction = 0.15 + 0.35 * Math.min(1, Math.max(0, amountRoll));
+  return Math.max(1, Math.floor(cargo * fraction));
 }
 
 /** Wiki base temperatures. A planet adds the same offset, from -10 to 10, to both ends. */

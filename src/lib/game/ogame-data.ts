@@ -265,7 +265,6 @@ export type ShipResearch = TechRequirement & { upgrade?: boolean };
 export type ShipStat = {
   id: string;
   name: string;
-  buildable?: boolean;
   cost: { ore: number; crystal: number; deuterium: number };
   hull: number;
   shield: number;
@@ -508,7 +507,6 @@ export const SHIPS: ShipStat[] = [
   {
     id: "small_cargo",
     name: "Small cargo",
-    buildable: true,
     cost: { ore: 2000, crystal: 2000, deuterium: 0 },
     hull: 4000,
     shield: 10,

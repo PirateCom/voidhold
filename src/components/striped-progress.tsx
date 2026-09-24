@@ -1,7 +1,7 @@
 "use client";
 
 import { progressToward } from "@/lib/game/catalog";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function StripedProgress({
   value,
@@ -21,6 +21,7 @@ export function StripedProgress({
   size?: "sm" | "md";
 }) {
   const pct = disabled ? 0 : Math.min(100, Math.max(0, value * 100));
+  const running = animated && !disabled && pct > 0 && pct < 100;
   return (
     <div
       className={`progress-track overflow-hidden rounded-full ring-1 ring-[var(--border)] ${
@@ -34,10 +35,11 @@ export function StripedProgress({
       aria-valuenow={Math.round(pct)}
     >
       <div
-        className={`progress-stripes h-full rounded-full ${
-          animated && !disabled && pct > 0 && pct < 100 ? "progress-stripes-animated" : ""
-        }`}
-        style={{ width: `${pct}%`, backgroundColor: tone }}
+        className={`progress-stripes h-full ${running ? "progress-stripes-animated" : ""}`}
+        style={{
+          width: `${pct}%`,
+          backgroundColor: tone,
+        }}
       />
     </div>
   );
@@ -60,18 +62,25 @@ export function TimedStripedProgress({
   className?: string;
   size?: "sm" | "md";
 }) {
-  const [extra, setExtra] = useState(0);
+  const untilKey = until == null ? "" : String(until);
+  const origin = useRef({ untilKey, base: now, perf: performance.now() });
+  if (origin.current.untilKey !== untilKey) {
+    origin.current = { untilKey, base: now, perf: performance.now() };
+  }
+
+  const [clock, setClock] = useState(now);
 
   useEffect(() => {
-    setExtra(0);
-  }, [now, until]);
+    let raf = 0;
+    const loop = (t: number) => {
+      setClock(origin.current.base + (t - origin.current.perf));
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [untilKey]);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setExtra((ms) => ms + 100), 100);
-    return () => window.clearInterval(id);
-  }, [until]);
-
-  const value = progressToward(until, durationMs, now + extra);
+  const value = progressToward(until, durationMs, clock);
   return (
     <StripedProgress
       value={value}

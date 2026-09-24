@@ -25,6 +25,8 @@ import {
   raidHaul,
   raidLoot,
   RAIDER_CARGO,
+  expeditionFleetCap,
+  rollExpeditionKind,
   researchCost,
   researchTechCost,
   unmetResearch,
@@ -39,6 +41,8 @@ import {
   defenceTimeSeconds,
   emptyDefenceCounts,
   pirateCombat,
+  debrisFromWrecks,
+  debrisVisible,
   pirateWaveSize,
   pirateWavesPerHour,
   upgradeEnergyDelta,
@@ -140,9 +144,13 @@ describe("production formulas", () => {
     expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 0, () => 2).map((need) => need.name)).toEqual([
       "Shipyard",
     ]);
-    expect(
-      unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 2, (id) => (id === "combustion_drive" ? 2 : 0)),
-    ).toEqual([]);
+    expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "light_fighter")!, 1, (id) => (id === "combustion_drive" ? 1 : 0))).toEqual(
+      [],
+    );
+    expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "light_fighter")!, 0, () => 1)[0]).toMatchObject({
+      name: "Shipyard",
+      level: 1,
+    });
     expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "deathstar")!, 12, () => 0)[0]).toMatchObject({
       name: "Hyperspace drive",
       level: 7,
@@ -179,6 +187,14 @@ describe("production formulas", () => {
     expect(raidLoot(1000, 10_000, 1)).toBe(750);
     expect(raidHaul(1000, 1000, 100, 1, 1)).toEqual({ ore: 50, crystal: 50 });
     expect(RAIDER_CARGO).toBe(5000);
+    expect(expeditionFleetCap(0)).toBe(0);
+    expect(expeditionFleetCap(1)).toBe(1);
+    expect(expeditionFleetCap(4)).toBe(2);
+    expect(expeditionFleetCap(9)).toBe(3);
+    expect(rollExpeditionKind(0)).toBe("nothing");
+    expect(rollExpeditionKind(0.4)).toBe("resources");
+    expect(rollExpeditionKind(0.75)).toBe("aliens");
+    expect(rollExpeditionKind(0.78)).toBe("lost");
   });
 
   it("keeps the game clock aligned with the wall clock after a fetch", () => {
@@ -226,5 +242,12 @@ describe("production formulas", () => {
     expect(fight.piratesLeft).toBe(1);
     expect(fight.counts.rocket_launcher).toBe(4);
     expect(fight.loot).toEqual({ ore: 250, crystal: 250 });
+  });
+
+  it("turns 30% of wrecked hull metal and crystal into debris", () => {
+    expect(debrisFromWrecks(1, 3000, 1000)).toEqual({ ore: 900, crystal: 300 });
+    expect(debrisFromWrecks(0, 3000, 1000)).toEqual({ ore: 0, crystal: 300 });
+    expect(debrisVisible(0, 300)).toBe(false);
+    expect(debrisVisible(900, 300)).toBe(true);
   });
 });

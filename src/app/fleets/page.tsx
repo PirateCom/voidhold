@@ -1,13 +1,48 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { Countdown } from "@/components/countdown";
+import { FleetEventStrip } from "@/components/fleet-event";
 import { useEmpire } from "@/components/empire-provider";
-import { TimedStripedProgress } from "@/components/striped-progress";
-import { flightSeconds } from "@/lib/game/catalog";
+import {
+  expeditionFlightSeconds,
+  EXPEDITION_HOLD_SECONDS,
+  flightSeconds,
+  isInboundFleet,
+  PIRATE_FLIGHT_SECONDS,
+} from "@/lib/game/catalog";
+import type { FleetRow, PlanetRow } from "@/lib/game/types";
+
+function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbound: boolean): number {
+  if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
+  if (fleet.created_at) {
+    const start = new Date(fleet.created_at).getTime();
+    const end = new Date(fleet.arrives_at).getTime();
+    if (Number.isFinite(start) && end > start) return end - start;
+  }
+  if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
+  if (fleet.dest_system == null || fleet.dest_slot == null) return PIRATE_FLIGHT_SECONDS * 1000;
+  const fn = fleet.mission === "expedition" || fleet.mission === "expedition_return" ? expeditionFlightSeconds : flightSeconds;
+  return (
+    fn(
+      planet.system,
+      planet.slot,
+      fleet.dest_system,
+      fleet.dest_slot,
+      propulsion,
+      planet.galaxy,
+      fleet.dest_galaxy ?? planet.galaxy,
+    ) * 1000
+  );
+}
 
 export default function FleetsPage() {
-  const { state, error, now } = useEmpire();
+  const { state, error, now, pending, recallFleet } = useEmpire();
+  const incoming = state
+    ? state.fleets.filter((fleet) => isInboundFleet(fleet, state.empire.user_id, state.planet.id))
+    : [];
+  const outbound = state
+    ? state.fleets.filter((fleet) => !isInboundFleet(fleet, state.empire.user_id, state.planet.id))
+    : [];
 
   return (
     <AppShell title="Fleet">
@@ -16,52 +51,52 @@ export default function FleetsPage() {
         <p className="text-sm text-[var(--muted-fg)]">No empire loaded.</p>
       ) : (
         <>
-          <h2 className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-cyan-300 uppercase">In flight</h2>
-          {state.fleets.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--muted-fg)]">No hulls away from dock.</p>
+          <h2 className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-red-300 uppercase">
+            Incoming
+          </h2>
+          {incoming.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--muted-fg)]">No inbound strikes.</p>
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
-              {state.fleets.map((fleet) => (
-                <li key={fleet.id} className="sci-card p-4">
-                  <p className="font-semibold">
-                    {fleet.mission === "attack" ? "Raid" : "Return"} · {fleet.raiders} small cargo
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    {fleet.dest_name ?? "Unknown"} [
-                    {fleet.dest_galaxy ?? state.planet.galaxy}:{fleet.dest_system}:{fleet.dest_slot}]
-                  </p>
-                  {fleet.dest_system != null && fleet.dest_slot != null ? (
-                    <TimedStripedProgress
-                      className="mt-3"
-                      until={fleet.arrives_at}
-                      durationMs={
-                        flightSeconds(
-                          state.planet.system,
-                          state.planet.slot,
-                          fleet.dest_system,
-                          fleet.dest_slot,
-                          state.empire.propulsion_level,
-                          state.planet.galaxy,
-                          fleet.dest_galaxy ?? state.planet.galaxy,
-                        ) * 1000
-                      }
-                      now={now}
-                      label={`${fleet.mission} fleet`}
-                    />
-                  ) : null}
-                  <p className="mt-2 text-sm">
-                    ETA <Countdown until={fleet.arrives_at} now={now} />
-                  </p>
-                  {fleet.mission === "return" ? (
-                    <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                      Cargo {fleet.cargo_ore.toLocaleString()} ore · {fleet.cargo_crystal.toLocaleString()} crystal
-                    </p>
-                  ) : null}
-                </li>
+              {incoming.map((fleet) => (
+                <FleetEventStrip
+                  key={fleet.id}
+                  fleet={fleet}
+                  now={now}
+                  durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, true)}
+                  originName={fleet.attacker_name || "Pirates"}
+                  destName={state.planet.name}
+                  inbound
+                />
               ))}
             </ul>
           )}
 
+          <h2 className="mt-6 font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-cyan-300 uppercase">
+            Fleets
+          </h2>
+          {outbound.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--muted-fg)]">No hulls away from dock.</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-2">
+              {outbound.map((fleet) => {
+                const canReturn = fleet.mission === "attack" || fleet.mission === "expedition";
+                return (
+                  <FleetEventStrip
+                    key={fleet.id}
+                    fleet={fleet}
+                    now={now}
+                    durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, false)}
+                    originName={fleet.origin_name || state.planet.name}
+                    destName={fleet.dest_name || "Unknown"}
+                    canReturn={canReturn}
+                    pending={pending}
+                    onReturn={() => void recallFleet(fleet.id)}
+                  />
+                );
+              })}
+            </ul>
+          )}
         </>
       )}
     </AppShell>

@@ -115,6 +115,8 @@ export type EmpireRow = {
   raiders: number;
   raiders_queued: number;
   raider_completes_at: string | null;
+  ships?: Record<string, number>;
+  ship_building?: string | null;
   research_tech: ResearchId | null;
   research_completes_at: string | null;
   next_pirate_at: string | null;
@@ -122,20 +124,30 @@ export type EmpireRow = {
 
 export type FleetRow = {
   id: number;
-  owner_id: string;
+  owner_id: string | null;
   origin_planet_id: number;
-  dest_planet_id: number;
+  dest_planet_id: number | null;
   dest_name?: string;
   dest_galaxy?: number;
   dest_system?: number;
   dest_slot?: number;
+  origin_name?: string | null;
+  origin_galaxy?: number;
+  origin_system?: number;
+  origin_slot?: number;
+  created_at?: string;
   raiders: number;
-  mission: "attack" | "return";
+  mission: "attack" | "return" | "expedition" | "expedition_hold" | "expedition_return";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;
+  cargo_deuterium?: number;
   status: "en_route" | "completed";
   report: string | null;
+  inbound?: boolean;
+  attacker_name?: string | null;
+  ship_count?: number;
+  composition?: Record<string, number>;
 };
 
 export type ReportRow = {
@@ -153,6 +165,8 @@ export type SolarSlot = {
   planet_id: number | null;
   name: string | null;
   owner_name: string | null;
+  debris_ore?: number;
+  debris_crystal?: number;
 };
 
 export type SolarSystemView = {

@@ -1,10 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ExpeditionSheet } from "@/components/expedition-sheet";
 import { useEmpire } from "@/components/empire-provider";
 import { loadSolarSystem } from "@/lib/game/actions";
-import { flightSeconds, starLabel } from "@/lib/game/catalog";
+import { flightSeconds, starLabel, debrisVisible } from "@/lib/game/catalog";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
+
+function DebrisMark() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-500/50 bg-amber-950/80 text-[10px] text-amber-200"
+      title="Debris field"
+      aria-label="Debris field"
+    >
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden>
+        <path fill="currentColor" d="M3 11 6 5l3 4 2-3 3 5H3Zm1.5-1.2h7.2l-1.6-2.6-1.8 2.6-2.2-3-1.6 3Z" />
+        <circle cx="5" cy="12.5" r="0.9" fill="currentColor" />
+        <circle cx="11" cy="12.2" r="0.7" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
 
 function wrap(value: number, max: number) {
   return ((value - 1 + max) % max) + 1;
@@ -28,6 +45,7 @@ export function GalaxyGrid() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SolarSlot | null>(null);
   const [ships, setShips] = useState(1);
+  const [expeditionOpen, setExpeditionOpen] = useState(false);
 
   useEffect(() => {
     if (!state || ready) return;
@@ -161,7 +179,12 @@ export function GalaxyGrid() {
               >
                 <span className="w-6 font-mono text-xs">{slot.slot}</span>
                 <span className="font-semibold">{label}</span>
-                {slot.owner_name ? <span className="ml-auto text-xs">{slot.owner_name}</span> : null}
+                {debrisVisible(slot.debris_ore ?? 0, slot.debris_crystal ?? 0) ? <DebrisMark /> : null}
+                {slot.kind === "outer" ? (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-cyan-300">Expedition</span>
+                ) : slot.owner_name ? (
+                  <span className="ml-auto text-xs">{slot.owner_name}</span>
+                ) : null}
               </button>
             </li>
           );
@@ -183,9 +206,16 @@ export function GalaxyGrid() {
                     ? `Held by ${selected.owner_name}. Protected in v1.`
                     : "Another commander. Protected in v1."
                   : selected.kind === "outer"
-                    ? "Uncolonizable."
+                    ? "Uncolonizable. Expeditions launch from this slot."
                     : "No planet here."}
           </p>
+          {(selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0 ? (
+            <p className="mt-2 text-xs text-amber-200">
+              Debris field {Number(selected.debris_ore ?? 0).toLocaleString()} ore ·{" "}
+              {Number(selected.debris_crystal ?? 0).toLocaleString()} crystal
+              {debrisVisible(selected.debris_ore ?? 0, selected.debris_crystal ?? 0) ? "" : " (hidden on the map)"}
+            </p>
+          ) : null}
           {selected.kind === "npc" ? (
             <form
               className="mt-3 flex flex-col gap-2"
@@ -217,10 +247,25 @@ export function GalaxyGrid() {
               >
                 Launch raid
               </button>
-            </form>
+              </form>
+          ) : null}
+          {selected.kind === "outer" ? (
+            <button
+              type="button"
+              className="sci-btn mt-3 h-11 w-full"
+              onClick={() => setExpeditionOpen(true)}
+            >
+              Expedition
+            </button>
           ) : null}
         </section>
       ) : null}
+      <ExpeditionSheet
+        open={expeditionOpen}
+        galaxy={galaxy}
+        system={system}
+        onClose={() => setExpeditionOpen(false)}
+      />
     </div>
   );
 }

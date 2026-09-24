@@ -51,6 +51,10 @@ export async function buildRaiders(count: number): Promise<EmpireState> {
   return rpc("queue_raiders", { p_count: count });
 }
 
+export async function queueShip(id: string, count: number): Promise<EmpireState> {
+  return rpc("queue_ship", { p_id: id, p_count: count });
+}
+
 export async function launchRaid(
   galaxy: number,
   system: number,
@@ -58,6 +62,14 @@ export async function launchRaid(
   raiders: number,
 ): Promise<EmpireState> {
   return rpc("send_raid", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_raiders: raiders });
+}
+
+export async function launchExpedition(
+  galaxy: number,
+  system: number,
+  ships: Record<string, number>,
+): Promise<EmpireState> {
+  return rpc("send_expedition", { p_galaxy: galaxy, p_system: system, p_ships: ships });
 }
 
 export async function loadSolarSystem(galaxy: number, system: number): Promise<SolarSystemView> {
@@ -81,4 +93,8 @@ export async function spawnPirateWave(): Promise<EmpireState> {
 
 export async function fillResources(): Promise<EmpireState> {
   return rpc("debug_fill_resources");
+}
+
+export async function recallFleet(id: number): Promise<EmpireState> {
+  return rpc("recall_fleet", { p_id: id });
 }

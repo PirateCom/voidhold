@@ -14,6 +14,11 @@ function levelOf(id: ResearchId, empire: EmpireRow): number {
   return empire[id] ?? 0;
 }
 
+function dockedCount(shipId: string, empire: EmpireRow): number {
+  if (shipId === "small_cargo") return empire.raiders;
+  return empire.ships?.[shipId] ?? 0;
+}
+
 function rapidFire(pairs: ShipStat["rapidFireAgainst"]): string {
   if (pairs.length === 0) return "—";
   return pairs.map(([name, factor]) => `${name} ×${factor.toLocaleString()}`).join(", ");
@@ -67,8 +72,8 @@ function ShipStats({
 }
 
 export default function ShipyardPage() {
-  const { state, pending, error, build, now } = useEmpire();
-  const [count, setCount] = useState(1);
+  const { state, pending, error, buildShip, now } = useEmpire();
+  const [queues, setQueues] = useState<Record<string, number>>({});
 
   if (!state) {
     return (
@@ -78,40 +83,46 @@ export default function ShipyardPage() {
     );
   }
 
-  const cargo = SHIPS.find((ship) => ship.id === "small_cargo")!;
-  const cargoMissing = unmetShipBuild(cargo, state.planet.shipyard ?? 0, (id) => levelOf(id, state.empire));
-  const cargoReady = cargoMissing.length === 0;
+  const busyId = state.empire.ship_building || (state.empire.raiders_queued > 0 ? "small_cargo" : null);
+  const queued = state.empire.raiders_queued ?? 0;
+  const yardBusy = queued > 0 && Boolean(busyId);
 
   return (
     <AppShell title="Shipyard">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <div className="flex flex-col gap-3">
-        {SHIPS.map((ship) =>
-          ship.buildable ? (
+        {SHIPS.map((ship) => {
+          const missing = unmetShipBuild(ship, state.planet.shipyard ?? 0, (id) => levelOf(id, state.empire));
+          const ready = missing.length === 0;
+          const thisBusy = busyId === ship.id && queued > 0;
+          const count = Math.max(1, queues[ship.id] ?? 1);
+          const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
+          return (
             <article key={ship.id} className="sci-card p-4">
               <div className="flex items-start gap-3">
                 <SpriteThumb id={ship.id} />
                 <div className="min-w-0 flex-1">
                   <h2 className="font-semibold">{ship.name}</h2>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    Docked: {state.empire.raiders}. In yard: {state.empire.raiders_queued}.
+                    Docked: {dockedCount(ship.id, state.empire)}.
+                    {thisBusy ? ` In yard: ${queued}.` : ""}
                   </p>
                   <ShipStats ship={ship} empire={state.empire} shipyardLevel={state.planet.shipyard ?? 0} />
                 </div>
               </div>
-              {state.empire.raiders_queued > 0 ? (
+              {thisBusy ? (
                 <TimedStripedProgress
                   className="mt-3"
                   until={state.empire.raider_completes_at}
                   durationMs={RAIDER_BUILD_SECONDS * 1000}
                   now={now}
                   tone="var(--ore)"
-                  label="Small cargo"
+                  label={ship.name}
                 />
               ) : (
-                <StripedProgress className="mt-3" value={0} tone="var(--ore)" animated={false} disabled label="Small cargo" />
+                <StripedProgress className="mt-3" value={0} tone="var(--ore)" animated={false} disabled label={ship.name} />
               )}
-              {state.empire.raiders_queued > 0 ? (
+              {thisBusy ? (
                 <p className="mt-3 text-sm">
                   Next hull <Countdown until={state.empire.raider_completes_at} now={now} />
                 </p>
@@ -123,34 +134,21 @@ export default function ShipyardPage() {
                   min={1}
                   max={20}
                   value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
+                  onChange={(e) => setQueues((prev) => ({ ...prev, [ship.id]: Math.max(1, Number(e.target.value) || 1) }))}
                   className="sci-input mt-1 h-11 w-full px-3"
                 />
               </label>
               <button
                 type="button"
-                disabled={pending || !cargoReady}
-                onClick={() => void build(count)}
+                disabled={pending || !ready || (yardBusy && !thisBusy)}
+                onClick={() => void buildShip(ship.id, count)}
                 className="sci-btn mt-3 h-11 w-full"
               >
-                {cargoReady ? "Build" : cargoMissing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked"}
+                {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : "Build"}
               </button>
             </article>
-          ) : (
-            <article key={ship.id} className="sci-card p-4">
-              <div className="flex items-start gap-3">
-                <SpriteThumb id={ship.id} />
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-semibold">{ship.name}</h2>
-                  <ShipStats ship={ship} empire={state.empire} shipyardLevel={state.planet.shipyard ?? 0} />
-                </div>
-              </div>
-              <button type="button" disabled className="sci-btn mt-3 h-11 w-full">
-                Build
-              </button>
-            </article>
-          ),
-        )}
+          );
+        })}
       </div>
     </AppShell>
   );

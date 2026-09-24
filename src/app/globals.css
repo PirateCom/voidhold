@@ -60,6 +60,14 @@ button {
   }
 }
 
+.fleet-grid {
+  background-color: #020617;
+  background-image:
+    linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+
 .progress-track {
   background-color: var(--muted);
   background-image: linear-gradient(
@@ -76,6 +84,7 @@ button {
 }
 
 .progress-stripes {
+  transform: translateZ(0);
   background-image: linear-gradient(
     45deg,
     rgba(255, 255, 255, 0.22) 25%,
