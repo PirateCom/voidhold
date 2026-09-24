@@ -216,6 +216,10 @@ export function EmpireProvider({
     }
   }
 
+  async function runAction(mut: () => Promise<EmpireState>): Promise<void> {
+    await run(mut);
+  }
+
   const value: EmpireContextValue = {
     state,
     error,
@@ -224,18 +228,18 @@ export function EmpireProvider({
     now: gameNow,
     live,
     refresh,
-    upgrade: (building) => run(() => upgradeBuilding(building)),
-    cancelUpgrade: () => run(() => cancelBuildingUpgrade()),
-    resetProgress: () => run(() => resetEmpireProgress()),
-    research: (id) => run(() => startResearch(id)),
-    build: (count) => run(() => buildRaiders(count)),
-    buildShip: (id, count) => run(() => queueShipAction(id, count)),
-    buildDefence: (id, count) => run(() => queueDefenceAction(id, count)),
-    spawnPirates: () => run(() => spawnPirateWave()),
-    fillResources: () => run(() => fillResourcesAction()),
-    raid: (galaxy, system, slot, raiders) => run(() => launchRaid(galaxy, system, slot, raiders)),
+    upgrade: (building) => runAction(() => upgradeBuilding(building)),
+    cancelUpgrade: () => runAction(() => cancelBuildingUpgrade()),
+    resetProgress: () => runAction(() => resetEmpireProgress()),
+    research: (id) => runAction(() => startResearch(id)),
+    build: (count) => runAction(() => buildRaiders(count)),
+    buildShip: (id, count) => runAction(() => queueShipAction(id, count)),
+    buildDefence: (id, count) => runAction(() => queueDefenceAction(id, count)),
+    spawnPirates: () => runAction(() => spawnPirateWave()),
+    fillResources: () => runAction(() => fillResourcesAction()),
+    raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),
-    recallFleet: (id) => run(() => recallFleetAction(id)),
+    recallFleet: (id) => runAction(() => recallFleetAction(id)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;
