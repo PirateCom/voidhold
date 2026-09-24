@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BuildingList } from "@/components/building-list";
+import { DebugInfoDialog } from "@/components/debug-info-dialog";
 import { useEmpire } from "@/components/empire-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 export default function BuildingsPage() {
   const { state, live, error, configured, refresh, pending, resetProgress, spawnPirates, fillResources } = useEmpire();
+  const [infoOpen, setInfoOpen] = useState(false);
   const router = useRouter();
 
   async function signOut() {
@@ -83,11 +86,19 @@ export default function BuildingsPage() {
           </button>
           <button
             type="button"
+            onClick={() => setInfoOpen(true)}
+            className="sci-btn sci-btn-warn mt-2 h-11 w-full"
+          >
+            Debug: info
+          </button>
+          <button
+            type="button"
             onClick={() => void signOut()}
             className="sci-btn sci-btn-quiet mt-2 h-11 w-full"
           >
             Sign out
           </button>
+          <DebugInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} />
         </>
       ) : state && !state.star ? (
         <p className="text-sm text-[var(--muted-fg)]">
