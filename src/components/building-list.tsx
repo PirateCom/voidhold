@@ -88,7 +88,7 @@ function UpgradeCard({
         : 0;
   const busy = Boolean(state.planet.upgrade_building);
   const thisBusy = state.planet.upgrade_building === id;
-  const durationMs = buildingTimeSeconds(level) * 1000;
+  const durationMs = buildingTimeSeconds(level, live.roboticsFactory, live.naniteFactory) * 1000;
   const refund = thisBusy
     ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
     : null;
@@ -136,7 +136,7 @@ function UpgradeCard({
           </>
         ) : null}
         {" · "}
-        {formatDuration(buildingTimeSeconds(level))}
+        {formatDuration(buildingTimeSeconds(level, live.roboticsFactory, live.naniteFactory))}
       </p>
       {extra}
       {thisBusy ? (

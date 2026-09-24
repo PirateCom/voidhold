@@ -1,4 +1,4 @@
-import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat } from "./ogame-data";
+import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat, type TechRequirement } from "./ogame-data";
 
 export const GALAXY = 1;
 export const SYSTEM_MAX = 10;
@@ -92,6 +92,9 @@ export const DEFENCES: {
   defence: number;
   cost: { ore: number; crystal: number };
   buildSeconds: number;
+  shipyard: number;
+  silo: number;
+  research: TechRequirement[];
 }[] = [
   {
     id: "small_shield_dome",
@@ -104,6 +107,9 @@ export const DEFENCES: {
     defence: 200,
     cost: { ore: 800, crystal: 800 },
     buildSeconds: 30,
+    shipyard: 1,
+    silo: 0,
+    research: [{ id: "shielding_tech", level: 2 }],
   },
   {
     id: "large_shield_dome",
@@ -116,6 +122,9 @@ export const DEFENCES: {
     defence: 1000,
     cost: { ore: 4000, crystal: 4000 },
     buildSeconds: 75,
+    shipyard: 6,
+    silo: 0,
+    research: [{ id: "shielding_tech", level: 6 }],
   },
   {
     id: "rocket_launcher",
@@ -128,6 +137,9 @@ export const DEFENCES: {
     defence: 20,
     cost: { ore: 120, crystal: 30 },
     buildSeconds: 10,
+    shipyard: 1,
+    silo: 0,
+    research: [],
   },
   {
     id: "light_laser",
@@ -140,6 +152,12 @@ export const DEFENCES: {
     defence: 25,
     cost: { ore: 180, crystal: 60 },
     buildSeconds: 14,
+    shipyard: 2,
+    silo: 0,
+    research: [
+      { id: "energy_tech", level: 1 },
+      { id: "laser_tech", level: 3 },
+    ],
   },
   {
     id: "heavy_laser",
@@ -152,6 +170,12 @@ export const DEFENCES: {
     defence: 90,
     cost: { ore: 480, crystal: 160 },
     buildSeconds: 22,
+    shipyard: 4,
+    silo: 0,
+    research: [
+      { id: "energy_tech", level: 3 },
+      { id: "laser_tech", level: 6 },
+    ],
   },
   {
     id: "gauss_cannon",
@@ -164,6 +188,13 @@ export const DEFENCES: {
     defence: 370,
     cost: { ore: 1600, crystal: 1200 },
     buildSeconds: 45,
+    shipyard: 6,
+    silo: 0,
+    research: [
+      { id: "energy_tech", level: 6 },
+      { id: "weapons_tech", level: 3 },
+      { id: "shielding_tech", level: 1 },
+    ],
   },
   {
     id: "ion_cannon",
@@ -176,6 +207,9 @@ export const DEFENCES: {
     defence: 130,
     cost: { ore: 160, crystal: 480 },
     buildSeconds: 28,
+    shipyard: 4,
+    silo: 0,
+    research: [{ id: "ion_tech", level: 4 }],
   },
   {
     id: "plasma_turret",
@@ -188,6 +222,9 @@ export const DEFENCES: {
     defence: 900,
     cost: { ore: 4500, crystal: 4000 },
     buildSeconds: 70,
+    shipyard: 8,
+    silo: 0,
+    research: [{ id: "plasma_tech", level: 7 }],
   },
   {
     id: "antiballistic_missile",
@@ -200,6 +237,9 @@ export const DEFENCES: {
     defence: 40,
     cost: { ore: 400, crystal: 0 },
     buildSeconds: 16,
+    shipyard: 1,
+    silo: 2,
+    research: [],
   },
   {
     id: "interplanetary_missile",
@@ -212,6 +252,9 @@ export const DEFENCES: {
     defence: 50,
     cost: { ore: 1200, crystal: 400 },
     buildSeconds: 32,
+    shipyard: 1,
+    silo: 4,
+    research: [{ id: "impulse_drive", level: 1 }],
   },
 ];
 
@@ -534,8 +577,15 @@ export function buildingCost(id: BuildingId, currentLevel: number): { ore: numbe
   }
 }
 
-export function buildingTimeSeconds(currentLevel: number): number {
-  return Math.floor(20 * Math.pow(1.5, currentLevel));
+export function buildingTimeSeconds(
+  currentLevel: number,
+  roboticsLevel = 0,
+  naniteLevel = 0,
+): number {
+  const base = Math.floor(20 * Math.pow(1.5, currentLevel));
+  const robotics = Math.max(0, Math.trunc(roboticsLevel));
+  const nanites = Math.max(0, Math.trunc(naniteLevel));
+  return Math.max(1, Math.floor(base / (1 + robotics) / 2 ** nanites));
 }
 
 const RESEARCH_BY_ID = Object.fromEntries(RESEARCHES.map((tech) => [tech.id, tech])) as Record<
@@ -630,14 +680,61 @@ export function researchTechCost(
   };
 }
 
+export function unmetShipBuild(
+  ship: ShipStat,
+  shipyardLevel: number,
+  levelOf: (id: ResearchId) => number,
+): { name: string; level: number }[] {
+  const missing: { name: string; level: number }[] = [];
+  if (shipyardLevel < ship.shipyard) {
+    missing.push({ name: "Shipyard", level: ship.shipyard });
+  }
+  for (const req of ship.research) {
+    if (req.upgrade) continue;
+    if (levelOf(req.id) < req.level) {
+      missing.push({ name: RESEARCH_BY_ID[req.id].name, level: req.level });
+    }
+  }
+  return missing;
+}
+
+export function unmetDefenceBuild(
+  spec: (typeof DEFENCES)[number],
+  shipyardLevel: number,
+  siloLevel: number,
+  levelOf: (id: ResearchId) => number,
+): { name: string; level: number }[] {
+  const missing: { name: string; level: number }[] = [];
+  if (shipyardLevel < spec.shipyard) {
+    missing.push({ name: "Shipyard", level: spec.shipyard });
+  }
+  if (spec.silo > 0 && siloLevel < spec.silo) {
+    missing.push({ name: facilitySpec("missile_silo").name, level: spec.silo });
+  }
+  for (const req of spec.research) {
+    if (levelOf(req.id) < req.level) {
+      missing.push({ name: RESEARCH_BY_ID[req.id].name, level: req.level });
+    }
+  }
+  return missing;
+}
+
 export function unmetResearch(
   id: ResearchId,
   levelOf: (research: ResearchId) => number,
-): { id: ResearchId; level: number; name: string }[] {
+  labLevel: number,
+): { id?: ResearchId; level: number; name: string }[] {
   const spec = RESEARCH_BY_ID[id];
-  return spec.requires
-    .filter((req) => levelOf(req.id) < req.level)
-    .map((req) => ({ ...req, name: RESEARCH_BY_ID[req.id].name }));
+  const missing: { id?: ResearchId; level: number; name: string }[] = [];
+  if (labLevel < spec.lab) {
+    missing.push({ level: spec.lab, name: "Research lab" });
+  }
+  for (const req of spec.requires) {
+    if (levelOf(req.id) < req.level) {
+      missing.push({ ...req, name: RESEARCH_BY_ID[req.id].name });
+    }
+  }
+  return missing;
 }
 
 export function researchCost(currentLevel: number): { ore: number; crystal: number } {

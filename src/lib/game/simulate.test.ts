@@ -108,20 +108,35 @@ describe("time-skip simulation", () => {
     expect(() => startUpgrade(world(0), "lunar_base", 0)).toThrow(/moon/i);
     const started = startUpgrade(world(0), "robotics_factory", 0);
     expect(started.planets[0].ore).toBe(STARTING_ORE - 400);
-    const done = catchUpWorld(started, started.planets[0].upgradeCompletesAt!);
+    const doneAt = started.planets[0].upgradeCompletesAt!;
+    const done = catchUpWorld(started, doneAt);
     expect(done.planets[0].roboticsFactory).toBe(1);
+    const next = startUpgrade(done, "ore_mine", doneAt);
+    expect(next.planets[0].upgradeCompletesAt! - doneAt).toBe(15_000);
   });
 
   it("builds raiders and returns loot from an NPC raid", () => {
     const base = world(0);
     const ready: SimWorld = {
       ...base,
-      planets: base.planets.map((planet) => (planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000 } : planet)),
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, shipyard: 2 } : planet,
+      ),
       empire: { ...base.empire, propulsionLevel: 2 },
     };
     const queued = queueRaiders(ready, 1, 0);
     expect(queued.planets[0].ore).toBe(8000 - RAIDER_COST.ore);
-    expect(() => queueRaiders(world(0), 1, 0)).toThrow(/Combustion drive 2/);
+    expect(() => queueRaiders(world(0), 1, 0)).toThrow(/Shipyard 2/);
+    expect(() =>
+      queueRaiders(
+        {
+          ...base,
+          planets: base.planets.map((planet) => (planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, shipyard: 2 } : planet)),
+        },
+        1,
+        0,
+      ),
+    ).toThrow(/Combustion drive 2/);
     const built = catchUpWorld(queued, queued.empire.raiderCompletesAt!);
     expect(built.empire.raiders).toBe(1);
     const sent = sendRaid(built, 2, 1, built.empire.raiderCompletesAt!);
@@ -164,8 +179,14 @@ describe("time-skip simulation", () => {
 
   it("completes propulsion research on a time skip", () => {
     const base = world(0);
-    const ready: SimWorld = { ...base, empire: { ...base.empire, energyTech: 1 } };
-    expect(() => startResearch(base, "combustion_drive", 0)).toThrow(/Energy technology 1/);
+    const withLab: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) => (planet.id === 1 ? { ...planet, researchLab: 1 } : planet)),
+    };
+    const ready: SimWorld = { ...withLab, empire: { ...withLab.empire, energyTech: 1 } };
+    expect(() => startResearch(base, "energy_tech", 0)).toThrow(/Research lab 1/);
+    expect(() => startResearch(withLab, "weapons_tech", 0)).toThrow(/Research lab 4/);
+    expect(() => startResearch(withLab, "combustion_drive", 0)).toThrow(/Energy technology 1/);
     const started = startResearch(ready, "combustion_drive", 0);
     const done = catchUpWorld(started, started.empire.researchCompletesAt!);
     expect(done.empire.propulsionLevel).toBe(1);
@@ -175,14 +196,21 @@ describe("time-skip simulation", () => {
   it("builds a rocket launcher and will not raise a second small dome", () => {
     const richer: SimWorld = {
       ...world(0),
-      planets: world(0).planets.map((p) => (p.id === 1 ? { ...p, ore: 5000, crystal: 5000 } : p)),
+      planets: world(0).planets.map((p) =>
+        p.id === 1 ? { ...p, ore: 5000, crystal: 5000, shipyard: 1 } : p,
+      ),
     };
+    expect(() => queueDefence(world(0), "rocket_launcher", 1, 0)).toThrow(/Shipyard 1/);
     const started = queueDefence(richer, "rocket_launcher", 2, 0);
     expect(started.planets[0].ore).toBe(5000 - defenceCost("rocket_launcher").ore * 2);
     const done = catchUpWorld(started, started.planets[0].defenceCompletesAt! + 10_000);
     expect(done.planets[0].rocketLauncher).toBe(2);
     expect(done.planets[0].defencesQueued).toBe(0);
-    const dome = queueDefence(done, "small_shield_dome", 1, done.planets[0].lastHarvestedAt);
+    expect(() => queueDefence(done, "small_shield_dome", 1, done.planets[0].lastHarvestedAt)).toThrow(
+      /Shielding technology 2/,
+    );
+    const readyDome: SimWorld = { ...done, empire: { ...done.empire, shieldingTech: 2 } };
+    const dome = queueDefence(readyDome, "small_shield_dome", 1, done.planets[0].lastHarvestedAt);
     const raised = catchUpWorld(dome, dome.planets[0].defenceCompletesAt!);
     expect(raised.planets[0].smallShieldDome).toBe(1);
     expect(() => queueDefence(raised, "small_shield_dome", 1, raised.planets[0].lastHarvestedAt)).toThrow(

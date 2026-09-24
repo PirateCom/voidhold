@@ -5,7 +5,7 @@ import { Countdown } from "@/components/countdown";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
-import { RAIDER_BUILD_SECONDS, SHIPS, researchSpec, type ResearchId, type ShipStat } from "@/lib/game/catalog";
+import { RAIDER_BUILD_SECONDS, SHIPS, researchSpec, unmetShipBuild, type ResearchId, type ShipStat } from "@/lib/game/catalog";
 import type { EmpireRow } from "@/lib/game/types";
 import { useState } from "react";
 
@@ -19,11 +19,20 @@ function rapidFire(pairs: ShipStat["rapidFireAgainst"]): string {
   return pairs.map(([name, factor]) => `${name} ×${factor.toLocaleString()}`).join(", ");
 }
 
-function ShipStats({ ship, empire }: { ship: ShipStat; empire: EmpireRow }) {
+function ShipStats({
+  ship,
+  empire,
+  shipyardLevel,
+}: {
+  ship: ShipStat;
+  empire: EmpireRow;
+  shipyardLevel: number;
+}) {
   const speed =
     ship.speedUpgraded != null ? `${ship.speed.toLocaleString()} (${ship.speedUpgraded.toLocaleString()})` : ship.speed.toLocaleString();
   const fuel =
     ship.fuelUpgraded != null ? `${ship.fuel.toLocaleString()} (${ship.fuelUpgraded.toLocaleString()})` : ship.fuel.toLocaleString();
+  const yardReady = shipyardLevel >= ship.shipyard;
   return (
     <div className="mt-2 space-y-1 text-xs text-[var(--muted-fg)]">
       <p>
@@ -36,20 +45,20 @@ function ShipStats({ ship, empire }: { ship: ShipStat; empire: EmpireRow }) {
       <p>
         Cargo {ship.cargo.toLocaleString()} · Speed {speed} · Fuel {fuel}
       </p>
-      <p>Shipyard {ship.shipyard}</p>
-      {ship.research.length > 0 ? (
-        <ul className="space-y-0.5">
-          {ship.research.map((req) => {
-            const met = levelOf(req.id, empire) >= req.level;
-            const label = `${researchSpec(req.id).name} ${req.level}${req.upgrade ? " (drive upgrade)" : ""}`;
-            return (
-              <li key={`${req.id}-${req.level}`} className={met ? "text-emerald-300" : "text-amber-200"}>
-                {met ? "Ready" : "Needs"} {label}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      <ul className="space-y-0.5">
+        <li className={yardReady ? "text-emerald-300" : "text-amber-200"}>
+          {yardReady ? "Ready" : "Needs"} Shipyard {ship.shipyard}
+        </li>
+        {ship.research.map((req) => {
+          const met = levelOf(req.id, empire) >= req.level;
+          const label = `${researchSpec(req.id).name} ${req.level}${req.upgrade ? " (drive upgrade)" : ""}`;
+          return (
+            <li key={`${req.id}-${req.level}`} className={met ? "text-emerald-300" : "text-amber-200"}>
+              {met ? "Ready" : "Needs"} {label}
+            </li>
+          );
+        })}
+      </ul>
       <p>Rapid fire: {rapidFire(ship.rapidFireAgainst)}</p>
       <p>Shot by: {rapidFire(ship.rapidFireFrom)}</p>
       {ship.note ? <p>{ship.note}</p> : null}
@@ -69,9 +78,9 @@ export default function ShipyardPage() {
     );
   }
 
-  const cargoReady = (SHIPS.find((ship) => ship.id === "small_cargo")?.research ?? [])
-    .filter((req) => !req.upgrade)
-    .every((req) => levelOf(req.id, state.empire) >= req.level);
+  const cargo = SHIPS.find((ship) => ship.id === "small_cargo")!;
+  const cargoMissing = unmetShipBuild(cargo, state.planet.shipyard ?? 0, (id) => levelOf(id, state.empire));
+  const cargoReady = cargoMissing.length === 0;
 
   return (
     <AppShell title="Shipyard">
@@ -87,7 +96,7 @@ export default function ShipyardPage() {
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
                     Docked: {state.empire.raiders}. In yard: {state.empire.raiders_queued}.
                   </p>
-                  <ShipStats ship={ship} empire={state.empire} />
+                  <ShipStats ship={ship} empire={state.empire} shipyardLevel={state.planet.shipyard ?? 0} />
                 </div>
               </div>
               {state.empire.raiders_queued > 0 ? (
@@ -124,7 +133,7 @@ export default function ShipyardPage() {
                 onClick={() => void build(count)}
                 className="sci-btn mt-3 h-11 w-full"
               >
-                {cargoReady ? "Build" : "Research locked"}
+                {cargoReady ? "Build" : cargoMissing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked"}
               </button>
             </article>
           ) : (
@@ -133,7 +142,7 @@ export default function ShipyardPage() {
                 <SpriteThumb id={ship.id} />
                 <div className="min-w-0 flex-1">
                   <h2 className="font-semibold">{ship.name}</h2>
-                  <ShipStats ship={ship} empire={state.empire} />
+                  <ShipStats ship={ship} empire={state.empire} shipyardLevel={state.planet.shipyard ?? 0} />
                 </div>
               </div>
               <button type="button" disabled className="sci-btn mt-3 h-11 w-full">

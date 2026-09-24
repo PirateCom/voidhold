@@ -39,8 +39,8 @@ export default function ResearchPage() {
     <AppShell title="Research">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is listed and is not taken from the planet. Research-lab levels are
-        recorded on each technology and are not required here.
+        Costs follow the OGame wiki. Deuterium is listed and is not taken from the planet. Each technology needs the
+        listed research-lab level.
       </p>
       <div className="flex flex-col gap-3">
         {RESEARCH_GROUPS.map((group) => (
@@ -51,7 +51,11 @@ export default function ResearchPage() {
             {RESEARCHES.filter((tech) => tech.group === group.id).map((tech) => {
               const level = levelOf(tech.id, state.empire);
               const cost = researchTechCost(tech.id, level);
-              const missing = unmetResearch(tech.id, (id) => levelOf(id, state.empire));
+              const missing = unmetResearch(
+                tech.id,
+                (id) => levelOf(id, state.empire),
+                state.planet.research_lab ?? 0,
+              );
               const thisBusy = labBusy && active === tech.id;
               return (
                 <article key={tech.id} className="sci-card p-4">

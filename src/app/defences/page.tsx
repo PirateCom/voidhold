@@ -15,12 +15,21 @@ import {
   formatDuration,
   planetAttack,
   planetDefence,
+  researchSpec,
+  unmetDefenceBuild,
   type DefenceId,
+  type ResearchId,
 } from "@/lib/game/catalog";
 import { defenceCountsOf, defenceOwned, type SimPlanet } from "@/lib/game/simulate";
+import type { EmpireRow } from "@/lib/game/types";
 
 function countOf(id: DefenceId, planet: SimPlanet): number {
   return defenceOwned(planet, id);
+}
+
+function levelOf(id: ResearchId, empire: EmpireRow): number {
+  if (id === "combustion_drive") return empire.propulsion_level ?? 0;
+  return empire[id] ?? 0;
 }
 
 export default function DefencesPage() {
@@ -76,6 +85,20 @@ export default function DefencesPage() {
           const count = d.unique ? 1 : Math.max(1, queues[d.id] ?? 1);
           const online = d.unique && owned >= 1;
           const badge = d.unique ? (online ? "Online" : "—") : `×${owned}`;
+          const missing = unmetDefenceBuild(
+            d,
+            state.planet.shipyard ?? 0,
+            state.planet.missile_silo ?? 0,
+            (id) => levelOf(id, state.empire),
+          );
+          const yardReady = (state.planet.shipyard ?? 0) >= d.shipyard;
+          const siloReady = d.silo === 0 || (state.planet.missile_silo ?? 0) >= d.silo;
+          const lockLabel =
+            missing[0]?.name === "Shipyard"
+              ? "Shipyard locked"
+              : missing[0]?.name === "Missile silo"
+                ? "Silo locked"
+                : "Research locked";
           return (
             <article key={d.id} className="sci-card p-4">
               <div className="flex items-start gap-3">
@@ -108,6 +131,24 @@ export default function DefencesPage() {
                 {formatDuration(d.buildSeconds)}
                 {thisBusy ? ` · in yard ${queued}` : ""}
               </p>
+              <ul className="mt-1 space-y-0.5 text-xs">
+                <li className={yardReady ? "text-emerald-300" : "text-amber-200"}>
+                  {yardReady ? "Ready" : "Needs"} Shipyard {d.shipyard}
+                </li>
+                {d.silo > 0 ? (
+                  <li className={siloReady ? "text-emerald-300" : "text-amber-200"}>
+                    {siloReady ? "Ready" : "Needs"} Missile silo {d.silo}
+                  </li>
+                ) : null}
+                {d.research.map((req) => {
+                  const met = levelOf(req.id, state.empire) >= req.level;
+                  return (
+                    <li key={`${req.id}-${req.level}`} className={met ? "text-emerald-300" : "text-amber-200"}>
+                      {met ? "Ready" : "Needs"} {researchSpec(req.id).name} {req.level}
+                    </li>
+                  );
+                })}
+              </ul>
               {thisBusy ? (
                 <p className="mt-3 text-sm">
                   Building… <Countdown until={state.planet.defence_completes_at} now={now} />
@@ -130,19 +171,21 @@ export default function DefencesPage() {
               )}
               <button
                 type="button"
-                disabled={pending || online || (yardBusy && !thisBusy)}
+                disabled={pending || online || missing.length > 0 || (yardBusy && !thisBusy)}
                 onClick={() => void buildDefence(d.id, d.unique ? 1 : count)}
                 className="sci-btn mt-3 h-11 w-full"
               >
                 {online
                   ? "Online"
-                  : yardBusy && !thisBusy
-                    ? "Yard occupied"
-                    : d.group === "dome"
-                      ? "Raise dome"
-                      : d.group === "missile"
-                        ? "Load"
-                        : "Build"}
+                  : missing.length > 0
+                    ? lockLabel
+                    : yardBusy && !thisBusy
+                      ? "Yard occupied"
+                      : d.group === "dome"
+                        ? "Raise dome"
+                        : d.group === "missile"
+                          ? "Load"
+                          : "Build"}
               </button>
             </article>
           );

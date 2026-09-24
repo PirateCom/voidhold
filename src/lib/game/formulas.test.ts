@@ -27,6 +27,11 @@ import {
   RAIDER_CARGO,
   researchCost,
   researchTechCost,
+  unmetResearch,
+  unmetShipBuild,
+  unmetDefenceBuild,
+  SHIPS,
+  DEFENCES,
   storageCap,
   cancelRefund,
   defenceCost,
@@ -115,11 +120,54 @@ describe("production formulas", () => {
     expect(buildingCost("crystal_storage", 0)).toEqual({ ore: 1000, crystal: 500, deuterium: 0 });
     expect(buildingCost("ore_storage", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
     expect(buildingTimeSeconds(1)).toBeGreaterThan(buildingTimeSeconds(0));
+    expect(buildingTimeSeconds(0)).toBe(20);
+    expect(buildingTimeSeconds(0, 1)).toBe(10);
+    expect(buildingTimeSeconds(0, 2)).toBe(6);
+    expect(buildingTimeSeconds(1, 1)).toBe(15);
+    expect(buildingTimeSeconds(0, 0, 1)).toBe(10);
+    expect(buildingTimeSeconds(0, 1, 1)).toBe(5);
     expect(researchCost(1).crystal).toBe(researchCost(0).crystal * 2);
     expect(researchTechCost("energy_tech", 0)).toEqual({ ore: 0, crystal: 800, deuterium: 400 });
     expect(researchTechCost("armour_tech", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
     expect(researchTechCost("combustion_drive", 0)).toEqual({ ore: 400, crystal: 0, deuterium: 600 });
     expect(researchTechCost("astrophysics", 1).ore).toBe(Math.floor(4000 * 1.75));
+    expect(unmetResearch("energy_tech", () => 0, 0).map((need) => need.name)).toEqual(["Research lab"]);
+    expect(unmetResearch("weapons_tech", () => 0, 3)[0]).toMatchObject({ name: "Research lab", level: 4 });
+    expect(unmetResearch("shielding_tech", () => 0, 6).map((need) => `${need.name} ${need.level}`)).toEqual([
+      "Energy technology 3",
+    ]);
+    expect(unmetResearch("graviton_tech", () => 0, 12)).toEqual([]);
+    expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 0, () => 2).map((need) => need.name)).toEqual([
+      "Shipyard",
+    ]);
+    expect(
+      unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 2, (id) => (id === "combustion_drive" ? 2 : 0)),
+    ).toEqual([]);
+    expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "deathstar")!, 12, () => 0)[0]).toMatchObject({
+      name: "Hyperspace drive",
+      level: 7,
+    });
+    expect(SHIPS.find((ship) => ship.id === "reaper")?.research.map((req) => req.id)).toEqual([
+      "hyperspace_drive",
+      "hyperspace_tech",
+      "shielding_tech",
+    ]);
+    expect(SHIPS.find((ship) => ship.id === "pathfinder")?.research.map((req) => req.id)).toEqual(["hyperspace_drive"]);
+    expect(unmetDefenceBuild(DEFENCES.find((d) => d.id === "rocket_launcher")!, 0, 0, () => 0)[0]).toMatchObject({
+      name: "Shipyard",
+      level: 1,
+    });
+    expect(unmetDefenceBuild(DEFENCES.find((d) => d.id === "light_laser")!, 2, 0, () => 0).map((n) => n.name)).toEqual([
+      "Energy technology",
+      "Laser technology",
+    ]);
+    expect(unmetDefenceBuild(DEFENCES.find((d) => d.id === "antiballistic_missile")!, 1, 0, () => 0)[0]).toMatchObject({
+      name: "Missile silo",
+      level: 2,
+    });
+    expect(
+      unmetDefenceBuild(DEFENCES.find((d) => d.id === "plasma_turret")!, 8, 0, (id) => (id === "plasma_tech" ? 7 : 0)),
+    ).toEqual([]);
   });
 
   it("shortens flights with propulsion and caps raid loot by cargo", () => {

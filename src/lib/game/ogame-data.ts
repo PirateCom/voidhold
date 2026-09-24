@@ -618,7 +618,6 @@ export const SHIPS: ShipStat[] = [
       { id: "hyperspace_drive", level: 7 },
       { id: "hyperspace_tech", level: 6 },
       { id: "shielding_tech", level: 6 },
-      { id: "energy_tech", level: 5 },
     ],
     rapidFireAgainst: [
       ["Battleship", 7],
@@ -643,10 +642,7 @@ export const SHIPS: ShipStat[] = [
     speed: 12000,
     fuel: 300,
     shipyard: 5,
-    research: [
-      { id: "hyperspace_drive", level: 2 },
-      { id: "shielding_tech", level: 4 },
-    ],
+    research: [{ id: "hyperspace_drive", level: 2 }],
     rapidFireAgainst: [
       ["Cruiser", 3],
       ["Light fighter", 3],
@@ -657,7 +653,7 @@ export const SHIPS: ShipStat[] = [
       ["Battleship", 5],
       ["Deathstar", 30],
     ],
-    note: "The ship's own page lists cargo 10,000 and speed 12,000. The overview table swaps those. The shielding page lists this hull at shielding 5; the ship page lists 4.",
+    note: "The ship's own page lists cargo 10,000 and speed 12,000. The overview table swaps those.",
   },
   {
     id: "crawler",
@@ -736,7 +732,7 @@ export const FACILITIES: FacilityStat[] = [
   {
     id: "robotics_factory",
     name: "Robotics factory",
-    blurb: "Divides building time by 1 plus this level. Required for the shipyard.",
+    blurb: "Divides building time by 1 plus this level (level 1 halves it). Required for the shipyard.",
     cost: { ore: 400, crystal: 120, deuterium: 200 },
     costFactor: 2,
     moon: false,

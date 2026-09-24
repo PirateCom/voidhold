@@ -36,6 +36,8 @@ import {
   shipSpec,
   unmetFacility,
   unmetResearch,
+  unmetShipBuild,
+  unmetDefenceBuild,
   researchTimeSeconds,
   type ResearchId,
   STARTING_CRYSTAL,
@@ -738,12 +740,13 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   const level = planetLevel(planet, building);
   const cost = buildingCost(building, level);
   if (planet.ore < cost.ore || planet.crystal < cost.crystal) throw new Error("Not enough resources.");
+  const duration = buildingTimeSeconds(level, planet.roboticsFactory, planet.naniteFactory);
   const upgraded: SimPlanet = {
     ...planet,
     ore: planet.ore - cost.ore,
     crystal: planet.crystal - cost.crystal,
     upgradeBuilding: building,
-    upgradeCompletesAt: at + buildingTimeSeconds(level) * 1000,
+    upgradeCompletesAt: at + duration * 1000,
   };
   return replacePlanet(caught, upgraded);
 }
@@ -756,7 +759,11 @@ export function cancelUpgrade(world: SimWorld, at: number): SimWorld {
   const cost = buildingCost(planet.upgradeBuilding, level);
   const refund = cancelRefund(
     cost,
-    progressToward(planet.upgradeCompletesAt, buildingTimeSeconds(level) * 1000, at),
+    progressToward(
+      planet.upgradeCompletesAt,
+      buildingTimeSeconds(level, planet.roboticsFactory, planet.naniteFactory) * 1000,
+      at,
+    ),
   );
   return replacePlanet(caught, {
     ...planet,
@@ -813,7 +820,11 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
   if (caught.empire.researchCompletesAt) throw new Error("Research already running.");
   const planet = planetById(caught, caught.empire.homePlanetId);
   const level = researchLevel(caught.empire, id);
-  const missing = unmetResearch(id, (research) => researchLevel(caught.empire, research));
+  const missing = unmetResearch(
+    id,
+    (research) => researchLevel(caught.empire, research),
+    planet.researchLab,
+  );
   if (missing.length > 0) throw new Error(`Needs ${missing[0].name} ${missing[0].level}.`);
   const cost = researchTechCost(id, level);
   if (planet.ore < cost.ore || planet.crystal < cost.crystal) throw new Error("Not enough resources.");
@@ -844,6 +855,13 @@ export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: 
   if (spec.unique && defenceOwned(planet, id) + pendingSame + count > 1) {
     throw new Error("Only one of those domes fits on this world.");
   }
+  const blocked = unmetDefenceBuild(
+    spec,
+    planet.shipyard,
+    planet.missileSilo,
+    (research) => researchLevel(caught.empire, research),
+  )[0];
+  if (blocked) throw new Error(`Needs ${blocked.name} ${blocked.level}.`);
   const ore = spec.cost.ore * count;
   const crystal = spec.cost.crystal * count;
   if (planet.ore < ore || planet.crystal < crystal) throw new Error("Not enough resources.");
@@ -862,11 +880,14 @@ export function queueRaiders(world: SimWorld, count: number, at: number): SimWor
   if (count < 1) throw new Error("Build at least one small cargo.");
   const caught = catchUpWorld(world, at);
   const hull = shipSpec("small_cargo");
-  const blocked = hull?.research.find(
-    (req) => !req.upgrade && researchLevel(caught.empire, req.id) < req.level,
-  );
-  if (blocked) throw new Error(`Needs ${researchSpec(blocked.id).name} ${blocked.level}.`);
+  if (!hull) throw new Error("Unknown hull.");
   const planet = planetById(caught, caught.empire.homePlanetId);
+  const blocked = unmetShipBuild(
+    hull,
+    planet.shipyard,
+    (id) => researchLevel(caught.empire, id),
+  )[0];
+  if (blocked) throw new Error(`Needs ${blocked.name} ${blocked.level}.`);
   const ore = RAIDER_COST.ore * count;
   const crystal = RAIDER_COST.crystal * count;
   if (planet.ore < ore || planet.crystal < crystal) throw new Error("Not enough resources.");
