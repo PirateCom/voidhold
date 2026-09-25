@@ -1,0 +1,303 @@
+OGame formulas (merged)
+Sources:
+  https://ogame.fandom.com/wiki/Formulas
+  https://punisher.forumotion.com/t13-ogame-formulas
+  plus the later production, storage, and research formulas compared on 2026-09-22
+Retrieved: 2026-09-22
+
+S_E is the universe economy speed. It is 1 on a normal-speed universe.
+S_F is the universe fleet speed. It is 1 on a normal-speed universe.
+Resource-per-hour rates scale with S_E. Energy production and energy draw do not,
+so a faster universe keeps the same energy balance and yields more resources.
+Level 1 of a building costs its base cost. Costs are floored to integers.
+
+Notation
+  L = structure level being produced or currently active
+  T = max temperature of the planet
+
+================================================================================
+MINES / POWER PLANTS
+================================================================================
+
+Production per hour
+  Metal mine term       = round(30 * S_E * L * 1.1^L * (1 + 0.01 * Plasma_level))
+  Crystal mine term     = round(20 * S_E * L * 1.1^L * (1 + 0.0066 * Plasma_level))
+  Deuterium mine term   = round(10 * S_E * L * 1.1^L * (1.44 - 0.004 * T) * (1 + 0.0033 * Plasma_level))
+
+  Metal per hour        = metal mine term + round(30 * S_E)
+  Crystal per hour      = crystal mine term + round(15 * S_E)
+  Deuterium per hour    = deuterium mine term
+
+  The 30 metal and 15 crystal are the planet's base income. Plasma does not apply to them.
+  Item and lifeform bonuses, when present, apply to the mine term.
+  With Plasma at 0 and S_E at 1, metal is round(30 * L * 1.1^L) + 30
+  and crystal is round(20 * L * 1.1^L) + 15.
+
+  On a planet whose min and max temperatures differ by 40 degrees,
+  (1.44 - 0.004 * T_max) equals (1.36 - 0.004 * average temperature).
+  Colder planets produce more deuterium. The factor is 0 at 360 degrees max.
+
+  Solar Plant energy        = 20 * L * 1.1^L
+  Fusion Reactor energy     = 30 * L * (1.05 + Energy_Technology_level * 0.01)^L
+  Solar Satellites          = floor(T / 4) + 20     energy per satellite
+
+The pre-v0.78a fusion reactor produced 50 * L * 1.1^L energy and did not use Energy Technology.
+
+Cost of one level
+  cost = floor(base * factor^(L - 1))
+  Cumulative cost from level 1 through L, before per-level flooring:
+    base * (1 - factor^L) / (1 - factor)
+  Flooring each level makes the true cumulative total slightly lower than that sum.
+
+  Metal Mine                 factor 1.5    metal 60,    crystal 15
+  Crystal Mine               factor 1.6    metal 48,    crystal 24
+  Deuterium Synthesizer      factor 1.5    metal 225,   crystal 75
+  Solar Plant                factor 1.5    metal 75,    crystal 30
+  Fusion Reactor             factor 1.8    metal 900,   crystal 360,  deuterium 180
+  Graviton Technology        factor 3
+  Astrophysics               factor 1.75
+  Every other building and research   factor 2
+
+  Metal Mine level 10 costs floor(60 * 1.5^9) = 2306 metal
+  and floor(15 * 1.5^9) = 576 crystal.
+
+Consumption per hour
+  Metal Mine energy             = 10 * L * 1.1^L
+  Crystal Mine energy           = 10 * L * 1.1^L
+  Deuterium Synthesizer energy  = 20 * L * 1.1^L
+  Fusion Reactor deuterium      = round(10 * S_E * L * 1.1^L)
+
+Storage capacity (metal, crystal, and deuterium storages)
+  floor(2.5 * e^((20 / 33) * L)) * 5000
+  Economy speed does not change capacity.
+  Level 0 = 10000. Level 1 = 20000. Level 12 = 18005000.
+
+================================================================================
+PRODUCTION TIME
+================================================================================
+
+Result of each fraction is hours. Convert with
+  seconds = max(1, floor(hours * 3600))
+Each ship or defense unit takes at least 1 second. Deuterium cost is not part of build time.
+
+Buildings
+  (Metal + Crystal)
+    / (2500 * (1 + Robotic_Factory_level) * 2^(Nanite_Factory_level) * S_E)
+
+Ships and defense
+  (Metal + Crystal)
+    / (2500 * (1 + Shipyard_level) * 2^(Nanite_Factory_level) * S_E)
+  Metal + Crystal is the unit's structural integrity.
+
+Research
+  (Metal + Crystal)
+    / (1000 * (1 + Lab_sum) * S_E)
+  Lab_sum is the lab on the planet doing the research, plus the Intergalactic
+  Research Network level's worth of the highest labs on other planets.
+  With IRN at 0, Lab_sum is that one lab.
+  Nanite Factory does not change research time.
+
+================================================================================
+POINTS, PROTECTION, PLANET SIZE
+================================================================================
+
+Points
+  1 point per 1000 resources spent on completed ships, buildings, research, and defense.
+  Deuterium spent on construction and research counts.
+  Deuterium spent as fuel, on a Sensor Phalanx scan, on a Fusion Reactor, or on viewing the galaxy does not count.
+  Losing a unit or building removes the points it gave.
+  Deconstruction grants no points. The points of the removed building are lost.
+
+Separate rankings from the same era
+  Research points = sum of all technology levels.
+  Fleet points    = number of ships, of any type.
+
+Noob protection (2008 brackets)
+  Under 5000 points:
+    You cannot attack a player above 500% of your points or below 20% of your points.
+    Those players cannot attack you.
+  From 5000 points upward:
+    You cannot attack a player who is under 5000 points and below 20% of your points.
+    That player cannot attack you. Anyone else can attack you, and you can attack them.
+  From 25000 points upward:
+    You can attack anyone above 5000 points, and they can attack you.
+
+Universe
+  9 galaxies. Each galaxy has systems 1 through 499.
+  Each system has colonizable slots 1 through 15, plus an uncolonizable Outer Space slot.
+  A new homeworld is usually in slots 4 through 12.
+  90% of homeworlds roll there, 5% roll in slots 1 through 3, and 5% roll in slots 13 through 15.
+
+Stars
+  One star per solar system. It changes solar energy only. Temperatures stay on the slot table.
+  Young hot star    solar plant and solar satellites ×1.5     25% of systems
+  Medium star       ×1                                        50% of systems
+  Old cold star     ×0.75                                     22% of systems
+  Pulsar            ×3                                        3% of systems
+  Mine energy draw does not change.
+
+Temperature by slot
+  Source: https://ogame.fandom.com/wiki/Temperature
+  These are the base minimum and maximum. A planet then shifts both ends by the same
+  integer from -10 to +10, so the span stays 40 degrees, 60 on slot 1, and 70 on slot 15.
+  Slots 1–3 are hot. Slots 13–15 are cold.
+  Slot   Min     Max
+  1      200     260
+  2      150     190
+  3      100     140
+  4       50      90
+  5       40      80
+  6       30      70
+  7       20      60
+  8       10      50
+  9        0      40
+  10     -10      30
+  11     -20      20
+  12     -30      10
+  13     -70     -30
+  14    -110     -70
+  15    -180    -110
+
+Planet fields by slot
+  80% of planets roll inside the band. The other 20% roll in the next band of the same
+  width just outside it, and the result is never below 20 fields.
+  Slots 7–9 use 125 to 255. The label 200+/-45 does not describe that interval.
+  Slots    80% of planets          Center
+  1 to 3   40 to 70 fields         55+/-15
+  4 to 6   120 to 310 fields       215+/-95
+  7 to 9   125 to 255 fields       200+/-45
+  10 to 12 75 to 125 fields        100+/-25
+  13 to 15 60 to 190 fields        125+/-65
+
+  Fields from diameter = floor((diameter_km / 1000)^2), rounded down.
+  A 12,800 km world is floor(12.8^2) = 163 fields.
+  Universe field bonus is added after that. The checked homeworld is 12,800 km and
+  163 + 10 = 173 fields, shown as (used/173). Temperature still comes from the slot.
+  Homeworlds use that fixed size. Other worlds roll a field count, then
+  diameter_km = round(1000 * sqrt(max fields)).
+  Each building level occupies one field. Further fields from terraforming come later.
+
+Fields on a moon
+  (diameter_in_km / 1000)^2
+
+Fields usable on a moon
+  1 + 3 * Lunar_Base_level
+  The base itself occupies one field per level. The raw grant is 1 + 4 * level, and subtracting the occupied fields leaves 1 + 3 * level.
+
+================================================================================
+ESPIONAGE
+================================================================================
+
+Probes required
+  probes = max(1, X + Y * (your_espionage - enemy_espionage)^2)
+  Y = -1 when your Espionage Technology is higher
+  Y =  1 when the target's Espionage Technology is higher
+  Y =  0 when the levels are equal
+
+  X = 2   ships
+  X = 3   ships and defense
+  X = 5   ships, defense, and buildings
+  X = 7   ships, defense, buildings, and research
+  Resources are shown no matter how many probes you send.
+  A counter-espionage that destroys the probes still delivers the report.
+
+Worked check, research view (X = 7), enemy level minus your level:
+  -3 -> 1    -2 -> 3    -1 -> 6    0 -> 7    +1 -> 8    +2 -> 11    +3 -> 16
+
+Incoming-fleet detail from your own Espionage Technology
+  Level 2   number of ships
+  Level 4   ship types as well
+  Level 8   how many of each type
+
+================================================================================
+FLEET MOVEMENT
+================================================================================
+
+Distance
+  Same planet, moon, or debris field          5
+  Same system      1000 + 5 * |planet difference|
+  Same galaxy      2700 + 95 * |system difference|
+  Other galaxy     20000 * |galaxy difference|
+
+Ship speed
+  actual_speed = base_speed * (1 + drive_level * drive_bonus)
+  drive_bonus = 0.1 combustion, 0.2 impulse, 0.3 hyperspace
+  Fleet speed for the trip is the slowest ship in the fleet.
+
+Flight time, in seconds
+  round((35000 / speed_percent * sqrt(distance * 1000 / fleet_speed) + 10) / S_F)
+  speed_percent is the chosen setting from 10 to 100.
+
+Fuel for the flight, in deuterium
+  1 + round(total_base_fuel * distance / 35000 * (speed_percent / 100 + 1)^2)
+  total_base_fuel = sum over ships of (count * that ship's base fuel use)
+  This matches a fleet whose ships share one speed. The 2008 post does not specify mixed-speed fleets.
+
+Deuterium per hour while holding for an ACS defend or an expedition
+  Small Cargo        5
+  Large Cargo        5
+  Light Fighter      2
+  Heavy Fighter      7
+  Cruiser            30
+  Battleship         50
+  Colony Ship        100
+  Recycler           30
+  Espionage Probe    0.1
+  Bomber             100
+  Solar Satellite    none
+  Destroyer          100
+  Deathstar          0.1
+  Battlecruiser      25
+
+Interplanetary missiles
+  Range in systems = Impulse_Drive_level * 5 - 1
+  Flight time = 30 seconds, plus 60 seconds for every system crossed
+  Missiles cannot cross galaxies.
+
+Expeditions
+  Concurrent expeditions = floor(sqrt(Astrophysics_level))
+  Hold time is a whole number of hours from 1 up to the technology level.
+  Astrophysics is the later name of Expedition Technology. Its cost factor is 1.75.
+
+================================================================================
+MOON, PHALANX, PLUNDER
+================================================================================
+
+Chance to create a moon
+  Percent = debris / 100000, and the listed ship formula uses a 30% debris rate.
+  Ships of one type for an X% chance
+    = (100000 * X) / ((metal + crystal of one ship) * 0.3)
+
+Moon destruction
+  Chance the moon is destroyed, in percent
+    = (100 - sqrt(Moonsize)) * sqrt(number of Death Stars)
+  Chance the entire attacking fleet is destroyed, in percent
+    = sqrt(Moonsize) / 2
+
+Sensor Phalanx
+  Range in systems = Phalanx_level^2 - 1
+
+  Scanning the origin planet shows:
+    outbound fleets except deployment
+    fleets on the return leg
+    recalled fleets except recalled deployment
+    The time shown is the time left in the mission.
+  Scanning the target planet shows inbound fleets.
+  Hidden from a target scan:
+    recalled deployments
+    fleets going to that planet's moon or debris field
+    fleets on the return leg
+  Hidden from an origin scan:
+    recalled deployments
+
+Plunder
+  Default cap is 50% of each resource, which is also 50% of the planet's total.
+  A universe or target class can raise that same per-resource cap to 75% or 100%.
+  Example at 50%: 20000 metal, 20000 crystal, 10000 deuterium can yield at most 25000 resources.
+
+  Fill cargo in this order, stopping at each resource's cap:
+    1. Metal, up to 1/3 of cargo.
+    2. Crystal, up to half of the cargo still empty.
+    3. Deuterium, with whatever cargo is still empty.
+    4. If cargo remains, metal for half of what remains.
+    5. Crystal for the rest.

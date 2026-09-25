@@ -11,6 +11,7 @@ import {
   formatDuration,
   researchTechCost,
   researchTimeSeconds,
+  canPayResources,
   unmetResearch,
   type ResearchId,
 } from "@/lib/game/catalog";
@@ -22,7 +23,7 @@ function levelOf(id: ResearchId, empire: EmpireRow): number {
 }
 
 export default function ResearchPage() {
-  const { state, pending, error, research, now } = useEmpire();
+  const { state, live, pending, error, research, now } = useEmpire();
 
   if (!state) {
     return (
@@ -39,7 +40,7 @@ export default function ResearchPage() {
     <AppShell title="Research">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is listed and is not taken from the planet. Each technology needs the
+        Costs follow the OGame wiki. Deuterium is taken from the tank. Each technology needs the
         listed research-lab level.
       </p>
       <div className="flex flex-col gap-3">
@@ -57,6 +58,7 @@ export default function ResearchPage() {
                 state.planet.research_lab ?? 0,
               );
               const thisBusy = labBusy && active === tech.id;
+              const poor = live ? !canPayResources(live, cost) : true;
               return (
                 <article key={tech.id} className="sci-card p-4">
                   <div className="flex items-start gap-3">
@@ -89,8 +91,18 @@ export default function ResearchPage() {
                     />
                   )}
                   <p className="mt-3 text-xs text-[var(--muted-fg)]">
-                    Next: {cost.ore.toLocaleString()} ore · {cost.crystal.toLocaleString()} crystal ·{" "}
-                    {cost.deuterium.toLocaleString()} deut
+                    Next:{" "}
+                    <span className={live && live.ore < cost.ore ? "text-red-400" : undefined}>
+                      {cost.ore.toLocaleString()} ore
+                    </span>
+                    {" · "}
+                    <span className={live && live.crystal < cost.crystal ? "text-red-400" : undefined}>
+                      {cost.crystal.toLocaleString()} crystal
+                    </span>
+                    {" · "}
+                    <span className={live && live.deuterium < cost.deuterium ? "text-red-400" : undefined}>
+                      {cost.deuterium.toLocaleString()} deut
+                    </span>
                     {tech.energy ? ` · ${tech.energy.toLocaleString()} energy` : ""} · {formatDuration(researchTimeSeconds(level))}
                     {" · "}lab {tech.lab}
                   </p>
@@ -106,11 +118,17 @@ export default function ResearchPage() {
                   ) : null}
                   <button
                     type="button"
-                    disabled={pending || missing.length > 0 || (labBusy && !thisBusy)}
+                    disabled={pending || missing.length > 0 || poor || (labBusy && !thisBusy)}
                     onClick={() => void research(tech.id)}
                     className="sci-btn mt-3 h-11 w-full"
                   >
-                    {labBusy && !thisBusy ? "Lab occupied" : "Research"}
+                    {labBusy && !thisBusy
+                      ? "Lab occupied"
+                      : missing.length > 0
+                        ? "Research locked"
+                        : poor
+                          ? "Need resources"
+                          : "Research"}
                   </button>
                 </article>
               );

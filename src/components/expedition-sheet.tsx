@@ -9,6 +9,7 @@ import {
   SHIPS,
   expeditionFleetCap,
   expeditionFlightSeconds,
+  fleetFuelRoundTrip,
 } from "@/lib/game/catalog";
 
 export function ExpeditionSheet({
@@ -49,6 +50,17 @@ export function ExpeditionSheet({
     state.planet.galaxy,
     galaxy,
   );
+  const fuel = fleetFuelRoundTrip(
+    cargo,
+    state.planet.galaxy,
+    state.planet.system,
+    state.planet.slot,
+    galaxy,
+    system,
+    EXPEDITION_SLOT,
+    "small_cargo",
+    state.empire.impulse_drive ?? 0,
+  );
   const blocked =
     astro < 1
       ? "Needs Astrophysics 1."
@@ -58,7 +70,9 @@ export function ExpeditionSheet({
           ? "Send at least one small cargo."
           : cargo > state.empire.raiders
             ? "Not enough small cargo."
-            : null;
+            : Number(state.planet.deuterium) < fuel
+              ? "Not enough deuterium for fuel."
+              : null;
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3">
@@ -104,7 +118,7 @@ export function ExpeditionSheet({
           })}
         </ul>
         <p className="mt-3 text-xs text-[var(--muted-fg)]">
-          Flight ~{flight}s each way · now {new Date(now).toLocaleTimeString()}
+          Flight ~{flight}s each way · fuel {fuel.toLocaleString()} deut round trip · now {new Date(now).toLocaleTimeString()}
         </p>
         {blocked ? <p className="mt-2 text-sm text-amber-200">{blocked}</p> : null}
         <button

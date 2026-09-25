@@ -10,7 +10,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 export default function BuildingsPage() {
-  const { state, live, error, configured, refresh, pending, resetProgress, spawnPirates, fillResources } = useEmpire();
+  const { state, live, error, configured, refresh, pending, resetProgress, spawnPirates, setPirateRaids, fillResources } =
+    useEmpire();
+  const pirateRaidsOn = state?.empire.pirate_raids_enabled !== false;
   const [infoOpen, setInfoOpen] = useState(false);
   const router = useRouter();
 
@@ -84,6 +86,29 @@ export default function BuildingsPage() {
           >
             Debug: deploy pirates
           </button>
+          <div className="mt-2">
+            <p className="mb-2 text-center text-xs font-semibold tracking-wide text-[#fde68a] uppercase">
+              Debug: pirate raids {pirateRaidsOn ? "on" : "off"}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={pending || pirateRaidsOn}
+                onClick={() => void setPirateRaids(true)}
+                className={`sci-btn h-11 w-full ${pirateRaidsOn ? "sci-btn-warn" : "sci-btn-muted"}`}
+              >
+                On
+              </button>
+              <button
+                type="button"
+                disabled={pending || !pirateRaidsOn}
+                onClick={() => void setPirateRaids(false)}
+                className={`sci-btn h-11 w-full ${!pirateRaidsOn ? "sci-btn-warn" : "sci-btn-muted"}`}
+              >
+                Off
+              </button>
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => setInfoOpen(true)}

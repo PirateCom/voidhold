@@ -91,6 +91,10 @@ export async function spawnPirateWave(): Promise<EmpireState> {
   return rpc("spawn_pirates");
 }
 
+export async function setPirateRaids(enabled: boolean): Promise<EmpireState> {
+  return rpc("set_pirate_raids", { p_enabled: enabled });
+}
+
 export async function fillResources(): Promise<EmpireState> {
   return rpc("debug_fill_resources");
 }

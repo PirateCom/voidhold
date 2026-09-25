@@ -693,7 +693,7 @@ export const SHIPS: ShipStat[] = [
       ["Most ships", 5],
       ["Deathstar", 1250],
     ],
-    note: "Does not fly. Energy is floor((average temperature + 160) / 6).",
+    note: "Stays in orbit. Wiki energy is floor((average temperature + 160) / 6) each, then the system star bonus.",
   },
 ];
 

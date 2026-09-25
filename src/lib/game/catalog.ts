@@ -73,10 +73,10 @@ export const BUILDINGS: {
 }[] = [
   { id: "ore_mine", name: "Ore mine", blurb: "Pulls metal from the crust." },
   { id: "crystal_mine", name: "Crystal mine", blurb: "Cuts lattice from the ice." },
-  { id: "deuterium_extractor", name: "Deuterium extractor", blurb: "The wiki synthesizer. Deuterium stays at 0 here." },
+  { id: "deuterium_extractor", name: "Deuterium extractor", blurb: "The wiki synthesizer. Colder worlds make more deuterium. Draws energy." },
   { id: "ore_storage", name: "Ore storage", blurb: "Raises the ore hold. Does not draw energy." },
   { id: "crystal_storage", name: "Crystal storage", blurb: "Raises the crystal hold. Does not draw energy." },
-  { id: "deuterium_storage", name: "Deuterium storage", blurb: "The wiki deuterium tank. Unused while deuterium stays at 0." },
+  { id: "deuterium_storage", name: "Deuterium storage", blurb: "The wiki deuterium tank. Caps deuterium like the metal and crystal holds." },
   { id: "power_plant", name: "Solar plant", blurb: "Feeds the mines. Shortfalls slow production." },
   { id: "fusion_reactor", name: "Fusion reactor", blurb: "Burns deuterium for energy. Needs Energy technology 3 and Deuterium extractor 5." },
 ];
@@ -450,6 +450,68 @@ export function crystalProductionPerHour(level: number): number {
   return Math.floor(20 * level * Math.pow(1.1, level));
 }
 
+/** Wiki synthesizer: floor(10 * L * 1.44^L * (1.36 - 0.004 * Tmax)). */
+export function deuteriumProductionPerHour(level: number, tempMax = 30): number {
+  const safe = Math.max(0, Math.floor(level));
+  if (safe <= 0) return 0;
+  const climate = 1.36 - 0.004 * tempMax;
+  return Math.max(0, Math.floor(10 * safe * Math.pow(1.44, safe) * climate));
+}
+
+/** Wiki fusion plant consumption: floor(10 * L * 1.1^L) deut per hour. */
+export function fusionDeuteriumBurnPerHour(level: number): number {
+  const safe = Math.max(0, Math.floor(level));
+  if (safe <= 0) return 0;
+  return Math.floor(10 * safe * Math.pow(1.1, safe));
+}
+
+export function wikiFlightDistance(
+  fromGalaxy: number,
+  fromSystem: number,
+  fromSlot: number,
+  toGalaxy: number,
+  toSystem: number,
+  toSlot: number,
+): number {
+  const gal = Math.abs(fromGalaxy - toGalaxy);
+  if (gal > 0) return 20000 * gal;
+  const sys = Math.abs(fromSystem - toSystem);
+  if (sys > 0) return 2700 + 95 * sys;
+  const slot = Math.abs(fromSlot - toSlot);
+  if (slot > 0) return 1000 + 5 * slot;
+  return 5;
+}
+
+export function hullFuelUse(shipId: string, impulseLevel = 0): number {
+  const hull = shipSpec(shipId);
+  if (!hull) return 0;
+  if (hull.fuelUpgraded != null && impulseLevel >= 5) return hull.fuelUpgraded;
+  return hull.fuel;
+}
+
+/** One-way wiki fuel at 100% speed: round(ships * consumption * distance / 35000 * 4). */
+export function fleetFuelOneWay(ships: number, consumption: number, distance: number): number {
+  const n = Math.max(0, Math.trunc(ships));
+  const use = Math.max(0, consumption);
+  if (n <= 0 || use <= 0) return 0;
+  return Math.max(1, Math.round(((n * use * Math.max(1, distance)) / 35000) * 4));
+}
+
+export function fleetFuelRoundTrip(
+  ships: number,
+  fromGalaxy: number,
+  fromSystem: number,
+  fromSlot: number,
+  toGalaxy: number,
+  toSystem: number,
+  toSlot: number,
+  shipId = "small_cargo",
+  impulseLevel = 0,
+): number {
+  const distance = wikiFlightDistance(fromGalaxy, fromSystem, fromSlot, toGalaxy, toSystem, toSlot);
+  return 2 * fleetFuelOneWay(ships, hullFuelUse(shipId, impulseLevel), distance);
+}
+
 export type StarType = "young_hot" | "medium" | "old_cold" | "pulsar";
 
 export function starMultiplier(star: StarType = "medium"): number {
@@ -476,6 +538,20 @@ export function mineEnergyDrain(level: number): number {
   return Math.floor(10 * level * Math.pow(1.1, level));
 }
 
+/** Wiki v1.0: floor((average temperature + 160) / 6), then the system star bonus. */
+export function solarSatelliteEnergy(
+  tempMin: number,
+  tempMax: number,
+  star: StarType = "medium",
+  count = 1,
+): number {
+  const sats = Math.max(0, Math.floor(count));
+  if (sats <= 0) return 0;
+  const avg = (tempMin + tempMax) / 2;
+  const per = Math.max(0, Math.floor((avg + 160) / 6));
+  return Math.floor(per * starMultiplier(star)) * sats;
+}
+
 export function energyFactor(
   oreMine: number,
   crystalMine: number,
@@ -484,8 +560,22 @@ export function energyFactor(
   deutMine = 0,
   fusion = 0,
   energyTech = 0,
+  satellites = 0,
+  tempMin = 30,
+  tempMax = 30,
 ): number {
-  return energyNow(oreMine, crystalMine, powerPlant, star, deutMine, fusion, energyTech).factor;
+  return energyNow(
+    oreMine,
+    crystalMine,
+    powerPlant,
+    star,
+    deutMine,
+    fusion,
+    energyTech,
+    satellites,
+    tempMin,
+    tempMax,
+  ).factor;
 }
 
 export function fusionOutput(level: number, energyTech = 0): number {
@@ -508,12 +598,18 @@ export function energyNow(
   deutMine = 0,
   fusion = 0,
   energyTech = 0,
+  satellites = 0,
+  tempMin = 30,
+  tempMax = 30,
 ): {
   output: number;
   drain: number;
   factor: number;
 } {
-  const output = powerOutput(powerPlant, star) + fusionOutput(fusion, energyTech);
+  const output =
+    powerOutput(powerPlant, star) +
+    fusionOutput(fusion, energyTech) +
+    solarSatelliteEnergy(tempMin, tempMax, star, satellites);
   const drain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine) + deutEnergyDrain(deutMine);
   const factor = drain <= 0 ? 1 : Math.min(1, output / drain);
   return { output, drain, factor };
@@ -546,17 +642,65 @@ export function energyAfterUpgrade(
   crystalMine: number,
   powerPlant: number,
   star: StarType = "medium",
+  deutMine = 0,
+  fusion = 0,
+  energyTech = 0,
+  satellites = 0,
+  tempMin = 30,
+  tempMax = 30,
 ): { output: number; drain: number; factor: number } {
-  if (id === "ore_mine") return energyNow(oreMine + 1, crystalMine, powerPlant, star);
-  if (id === "crystal_mine") return energyNow(oreMine, crystalMine + 1, powerPlant, star);
-  if (id === "power_plant") return energyNow(oreMine, crystalMine, powerPlant + 1, star);
-  return energyNow(oreMine, crystalMine, powerPlant, star);
+  const ore = id === "ore_mine" ? oreMine + 1 : oreMine;
+  const crystal = id === "crystal_mine" ? crystalMine + 1 : crystalMine;
+  const plant = id === "power_plant" ? powerPlant + 1 : powerPlant;
+  const deut = id === "deuterium_extractor" ? deutMine + 1 : deutMine;
+  const fus = id === "fusion_reactor" ? fusion + 1 : fusion;
+  return energyNow(ore, crystal, plant, star, deut, fus, energyTech, satellites, tempMin, tempMax);
+}
+
+export function upgradeWouldCauseEnergyDeficit(
+  id: BuildingId,
+  oreMine: number,
+  crystalMine: number,
+  powerPlant: number,
+  star: StarType = "medium",
+  deutMine = 0,
+  fusion = 0,
+  energyTech = 0,
+  satellites = 0,
+  tempMin = 30,
+  tempMax = 30,
+): boolean {
+  const after = energyAfterUpgrade(
+    id,
+    oreMine,
+    crystalMine,
+    powerPlant,
+    star,
+    deutMine,
+    fusion,
+    energyTech,
+    satellites,
+    tempMin,
+    tempMax,
+  );
+  return after.drain > after.output;
 }
 
 /** floor(2.5 * e^((20/33) * level)) * 5000. Level 0 is 10,000. */
 export function storageCap(level: number): number {
   const safe = Math.max(0, Math.floor(level));
   return Math.floor(2.5 * Math.exp((20 / 33) * safe)) * 5000;
+}
+
+export type ResourceStock = { ore: number; crystal: number; deuterium?: number };
+
+export function canPayResources(have: ResourceStock, cost: ResourceStock, count = 1): boolean {
+  const n = Math.max(1, Math.floor(count));
+  return (
+    have.ore >= (cost.ore ?? 0) * n &&
+    have.crystal >= (cost.crystal ?? 0) * n &&
+    (have.deuterium ?? 0) >= (cost.deuterium ?? 0) * n
+  );
 }
 
 export function buildingCost(id: BuildingId, currentLevel: number): { ore: number; crystal: number; deuterium: number } {
@@ -968,12 +1112,13 @@ export function progressToward(
 
 /** Remaining construction returns this share of the original cost. 50% done → 50% back. */
 export function cancelRefund(
-  cost: { ore: number; crystal: number },
+  cost: { ore: number; crystal: number; deuterium?: number },
   progress: number,
-): { ore: number; crystal: number } {
+): { ore: number; crystal: number; deuterium: number } {
   const remaining = 1 - Math.min(1, Math.max(0, progress));
   return {
     ore: Math.floor(cost.ore * remaining),
     crystal: Math.floor(cost.crystal * remaining),
+    deuterium: Math.floor((cost.deuterium ?? 0) * remaining),
   };
 }

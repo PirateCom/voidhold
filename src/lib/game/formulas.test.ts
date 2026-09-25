@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   buildingCost,
+  canPayResources,
   buildingTimeSeconds,
   crystalProductionPerHour,
+  deuteriumProductionPerHour,
+  fusionDeuteriumBurnPerHour,
+  fleetFuelOneWay,
+  fleetFuelRoundTrip,
+  wikiFlightDistance,
   diameterKm,
   fieldsFromDiameter,
   HOMEWORLD_DIAMETER_KM,
   energyAfterUpgrade,
+  solarSatelliteEnergy,
+  upgradeWouldCauseEnergyDeficit,
   energyFactor,
   energyNow,
   fieldsUsed,
@@ -47,6 +55,15 @@ import {
   pirateWavesPerHour,
   upgradeEnergyDelta,
 } from "./catalog";
+
+describe("resource costs", () => {
+  it("blocks robotics L2 when the tank is short of 400 deut", () => {
+    const cost = buildingCost("robotics_factory", 1);
+    expect(cost.deuterium).toBe(400);
+    expect(canPayResources({ ore: 10_000, crystal: 10_000, deuterium: 177 }, cost)).toBe(false);
+    expect(canPayResources({ ore: 10_000, crystal: 10_000, deuterium: 400 }, cost)).toBe(true);
+  });
+});
 
 describe("production formulas", () => {
   it("scales solar output by the system star", () => {
@@ -98,6 +115,12 @@ describe("production formulas", () => {
     expect(upgradeEnergyDelta("crystal_mine", 3)).toBe(mineEnergyDrain(4) - mineEnergyDrain(3));
     expect(upgradeEnergyDelta("power_plant", 1)).toBe(powerOutput(2) - powerOutput(1));
     expect(energyAfterUpgrade("crystal_mine", 3, 1, 1).drain).toBe(mineEnergyDrain(3) + mineEnergyDrain(2));
+    expect(upgradeWouldCauseEnergyDeficit("ore_mine", 1, 1, 1)).toBe(true);
+    expect(upgradeWouldCauseEnergyDeficit("ore_mine", 1, 1, 8)).toBe(false);
+    expect(solarSatelliteEnergy(20, 20)).toBe(30);
+    expect(solarSatelliteEnergy(204, 264)).toBe(65);
+    expect(solarSatelliteEnergy(204, 264, "pulsar", 1)).toBe(195);
+    expect(energyNow(3, 1, 1, "medium", 0, 0, 0, 1, 20, 20).output).toBe(52);
   });
 
   it("produces 30 ore per game-hour at ore mine L1", () => {
@@ -105,6 +128,14 @@ describe("production formulas", () => {
     expect(crystalProductionPerHour(1)).toBe(22);
     expect(harvestAmount(0, 30, GAME_HOUR_SECONDS, 10000)).toBe(30);
     expect(harvestAmount(0, 30, GAME_HOUR_SECONDS * 2, 10000)).toBe(60);
+  });
+
+  it("makes deuterium from the synthesizer, burns fusion, and charges wiki fleet fuel", () => {
+    expect(deuteriumProductionPerHour(1, 30)).toBe(17);
+    expect(fusionDeuteriumBurnPerHour(1)).toBe(11);
+    expect(wikiFlightDistance(1, 1, 1, 1, 2, 1)).toBe(2795);
+    expect(fleetFuelOneWay(1, 10, 2795)).toBe(3);
+    expect(fleetFuelRoundTrip(1, 1, 1, 1, 1, 2, 1)).toBe(6);
   });
 
   it("caps storage with the exponential hold", () => {
@@ -211,9 +242,14 @@ describe("production formulas", () => {
   });
 
   it("refunds the remaining share of an upgrade cost", () => {
-    expect(cancelRefund({ ore: 90, crystal: 22 }, 0)).toEqual({ ore: 90, crystal: 22 });
-    expect(cancelRefund({ ore: 90, crystal: 22 }, 0.5)).toEqual({ ore: 45, crystal: 11 });
-    expect(cancelRefund({ ore: 90, crystal: 22 }, 1)).toEqual({ ore: 0, crystal: 0 });
+    expect(cancelRefund({ ore: 90, crystal: 22 }, 0)).toEqual({ ore: 90, crystal: 22, deuterium: 0 });
+    expect(cancelRefund({ ore: 90, crystal: 22 }, 0.5)).toEqual({ ore: 45, crystal: 11, deuterium: 0 });
+    expect(cancelRefund({ ore: 90, crystal: 22 }, 1)).toEqual({ ore: 0, crystal: 0, deuterium: 0 });
+    expect(cancelRefund({ ore: 400, crystal: 120, deuterium: 200 }, 0.5)).toEqual({
+      ore: 200,
+      crystal: 60,
+      deuterium: 100,
+    });
   });
 
   it("prices defences from cheap rockets up to the gaussian turret", () => {

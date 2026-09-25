@@ -5,7 +5,7 @@ import { Countdown } from "@/components/countdown";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
-import { RAIDER_BUILD_SECONDS, SHIPS, researchSpec, unmetShipBuild, type ResearchId, type ShipStat } from "@/lib/game/catalog";
+import { RAIDER_BUILD_SECONDS, SHIPS, canPayResources, researchSpec, solarSatelliteEnergy, unmetShipBuild, type ResearchId, type ShipStat } from "@/lib/game/catalog";
 import type { EmpireRow } from "@/lib/game/types";
 import { useState } from "react";
 
@@ -28,10 +28,12 @@ function ShipStats({
   ship,
   empire,
   shipyardLevel,
+  satEnergy,
 }: {
   ship: ShipStat;
   empire: EmpireRow;
   shipyardLevel: number;
+  satEnergy?: { each: number; docked: number; count: number };
 }) {
   const speed =
     ship.speedUpgraded != null ? `${ship.speed.toLocaleString()} (${ship.speedUpgraded.toLocaleString()})` : ship.speed.toLocaleString();
@@ -50,6 +52,14 @@ function ShipStats({
       <p>
         Cargo {ship.cargo.toLocaleString()} · Speed {speed} · Fuel {fuel}
       </p>
+      {satEnergy ? (
+        <p className="text-emerald-300">
+          Energy {satEnergy.each.toLocaleString()} each
+          {satEnergy.count > 0
+            ? ` · ${satEnergy.docked.toLocaleString()} from ${satEnergy.count.toLocaleString()} in orbit`
+            : ""}
+        </p>
+      ) : null}
       <ul className="space-y-0.5">
         <li className={yardReady ? "text-emerald-300" : "text-amber-200"}>
           {yardReady ? "Ready" : "Needs"} Shipyard {ship.shipyard}
@@ -72,7 +82,7 @@ function ShipStats({
 }
 
 export default function ShipyardPage() {
-  const { state, pending, error, buildShip, now } = useEmpire();
+  const { state, live, pending, error, buildShip, now } = useEmpire();
   const [queues, setQueues] = useState<Record<string, number>>({});
 
   if (!state) {
@@ -96,6 +106,7 @@ export default function ShipyardPage() {
           const ready = missing.length === 0;
           const thisBusy = busyId === ship.id && queued > 0;
           const count = Math.max(1, queues[ship.id] ?? 1);
+          const poor = live ? !canPayResources(live, ship.cost, count) : true;
           const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
           return (
             <article key={ship.id} className="sci-card p-4">
@@ -107,7 +118,30 @@ export default function ShipyardPage() {
                     Docked: {dockedCount(ship.id, state.empire)}.
                     {thisBusy ? ` In yard: ${queued}.` : ""}
                   </p>
-                  <ShipStats ship={ship} empire={state.empire} shipyardLevel={state.planet.shipyard ?? 0} />
+                  <ShipStats
+                    ship={ship}
+                    empire={state.empire}
+                    shipyardLevel={state.planet.shipyard ?? 0}
+                    satEnergy={
+                      ship.id === "solar_satellite"
+                        ? {
+                            each: solarSatelliteEnergy(
+                              state.planet.temp_min,
+                              state.planet.temp_max,
+                              state.star?.type,
+                              1,
+                            ),
+                            docked: solarSatelliteEnergy(
+                              state.planet.temp_min,
+                              state.planet.temp_max,
+                              state.star?.type,
+                              dockedCount("solar_satellite", state.empire),
+                            ),
+                            count: dockedCount("solar_satellite", state.empire),
+                          }
+                        : undefined
+                    }
+                  />
                 </div>
               </div>
               {thisBusy ? (
@@ -140,11 +174,11 @@ export default function ShipyardPage() {
               </label>
               <button
                 type="button"
-                disabled={pending || !ready || (yardBusy && !thisBusy)}
+                disabled={pending || !ready || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildShip(ship.id, count)}
                 className="sci-btn mt-3 h-11 w-full"
               >
-                {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : "Build"}
+                {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : poor ? "Need resources" : "Build"}
               </button>
             </article>
           );

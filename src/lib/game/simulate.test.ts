@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, GAME_HOUR_SECONDS, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
@@ -17,6 +17,7 @@ import {
   startResearch,
   startUpgrade,
   fillResources,
+  livePlanet,
   type SimPlanet,
   type SimWorld,
 } from "./simulate";
@@ -30,8 +31,9 @@ function world(at = 0): SimWorld {
     name: "Homeworld",
     ore: STARTING_ORE,
     crystal: STARTING_CRYSTAL,
-    deuterium: 0,
+    deuterium: 50000,
     lastHarvestedAt: at,
+    tempMax: 30,
     oreMine: 1,
     crystalMine: 1,
     deuteriumExtractor: 0,
@@ -55,6 +57,7 @@ function world(at = 0): SimWorld {
     crystal: 2000,
     deuterium: 0,
     lastHarvestedAt: at,
+    tempMax: 30,
     oreMine: 1,
     crystalMine: 1,
     deuteriumExtractor: 0,
@@ -82,6 +85,7 @@ function world(at = 0): SimWorld {
       shipBuilding: null,
       researchCompletesAt: null,
       nextPirateAt: null,
+      pirateRaidsEnabled: true,
     },
     fleets: [],
     reports: [],
@@ -276,6 +280,38 @@ describe("time-skip simulation", () => {
     expect(after.reports[0].body).toMatch(/Debris/);
   });
 
+  it("adds wiki solar satellite energy to the grid", () => {
+    const base = world(0).planets[0];
+    const strained = {
+      ...base,
+      oreMine: 3,
+      crystalMine: 1,
+      powerPlant: 1,
+      tempMin: 20,
+      tempMax: 20,
+      solarSatellites: 0,
+    };
+    expect(livePlanet(strained, 0).energy.output).toBe(22);
+    const powered = livePlanet({ ...strained, solarSatellites: 1 }, 0);
+    expect(powered.energy.output).toBe(52);
+    expect(powered.energy.factor).toBe(1);
+  });
+
+  it("skips automatic pirate waves when raids are off", () => {
+    const base = world(0);
+    const armed: SimWorld = {
+      ...base,
+      planets: base.planets.map((p) =>
+        p.id === 1 ? { ...p, rocketLauncher: 2, ore: 2000, crystal: 800 } : p,
+      ),
+      empire: { ...base.empire, nextPirateAt: 0, pirateRaidsEnabled: false },
+    };
+    const after = catchUpWorld(armed, 0);
+    expect(after.reports.length).toBe(0);
+    expect(after.empire.nextPirateAt).toBeNull();
+    expect(after.planets[0].ore).toBe(2000);
+  });
+
   it("debug spawn queues pirates for a 10 minute inbound strike", () => {
     const after = spawnPirates(world(0), 1000);
     expect(after.reports.length).toBe(0);
@@ -314,5 +350,37 @@ describe("time-skip simulation", () => {
     expect(filled.planets[0].ore).toBe(storageCap(1));
     expect(filled.planets[0].crystal).toBe(storageCap(1));
     expect(filled.planets[0].deuterium).toBe(storageCap(1));
+  });
+
+  it("produces deuterium into the tank and spends it on research and fuel", () => {
+    const base = world(0);
+    const synth: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, deuterium: 0, deuteriumExtractor: 1, deuteriumStorage: 0 } : planet,
+      ),
+    };
+    const grown = catchUpWorld(synth, GAME_HOUR_SECONDS * 1000);
+    expect(grown.planets[0].deuterium).toBeGreaterThan(0);
+    expect(grown.planets[0].deuterium).toBeLessThanOrEqual(storageCap(0));
+    const dry: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, deuterium: 0, researchLab: 1 } : planet,
+      ),
+    };
+    expect(() => startResearch({ ...dry, empire: { ...dry.empire, energyTech: 0 } }, "energy_tech", 0)).toThrow(
+      /Not enough resources/,
+    );
+    const ready: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1
+          ? { ...planet, ore: 8000, crystal: 8000, deuterium: 0, shipyard: 2 }
+          : planet,
+      ),
+      empire: { ...base.empire, propulsionLevel: 2, raiders: 1 },
+    };
+    expect(() => sendRaid(ready, 2, 1, 0)).toThrow(/Not enough resources/);
   });
 });

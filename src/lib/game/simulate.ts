@@ -7,12 +7,16 @@ import {
   PIRATE_WAVE_CAP,
   FACILITIES,
   type FacilityId,
+  GAME_HOUR_SECONDS,
   RAIDER_CARGO,
   RAIDER_BUILD_SECONDS,
   buildingCost,
   buildingTimeSeconds,
   crystalProductionPerHour,
   debrisFromWrecks,
+  deuteriumProductionPerHour,
+  fleetFuelRoundTrip,
+  fusionDeuteriumBurnPerHour,
   expeditionFleetCap,
   expeditionFlightSeconds,
   EXPEDITION_HOLD_SECONDS,
@@ -22,7 +26,6 @@ import {
   defenceSpec,
   defenceTimeSeconds,
   defenceUnitCount,
-  energyFactor,
   energyNow,
   facilitySpec,
   fieldsUsed,
@@ -69,6 +72,10 @@ export type SimPlanet = {
   crystal: number;
   deuterium: number;
   lastHarvestedAt: number;
+  tempMin?: number;
+  tempMax?: number;
+  energyTech?: number;
+  solarSatellites?: number;
   oreMine: number;
   crystalMine: number;
   deuteriumExtractor: number;
@@ -306,6 +313,7 @@ export type SimEmpire = {
   researchTech: ResearchId | null;
   researchCompletesAt: number | null;
   nextPirateAt: number | null;
+  pirateRaidsEnabled: boolean;
 };
 
 export const EMPTY_RESEARCH = {
@@ -380,16 +388,34 @@ export function planetLevel(planet: SimPlanet, id: BuildingId): number {
   return facilityLevel(planet, id);
 }
 
-export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
-  const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000);
-  const factor = energyFactor(
+function planetEnergy(planet: SimPlanet, fusion = planet.fusionReactor) {
+  return energyNow(
     planet.oreMine,
     planet.crystalMine,
     planet.powerPlant,
     planet.starType,
     planet.deuteriumExtractor,
-    planet.fusionReactor,
+    fusion,
+    planet.energyTech ?? 0,
+    planet.solarSatellites ?? 0,
+    planet.tempMin ?? 30,
+    planet.tempMax ?? 30,
   );
+}
+
+export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
+  const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000);
+  const tempMax = planet.tempMax ?? 30;
+  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax);
+  const burn = fusionDeuteriumBurnPerHour(planet.fusionReactor);
+  const withFusion = planetEnergy(planet);
+  const producedWith = (synth * withFusion.factor * elapsed) / GAME_HOUR_SECONDS;
+  const burnAmt = (burn * elapsed) / GAME_HOUR_SECONDS;
+  const fusionLive = planet.fusionReactor <= 0 || planet.deuterium + producedWith + 1e-9 >= burnAmt;
+  const energy = fusionLive ? withFusion : planetEnergy(planet, 0);
+  const factor = energy.factor;
+  const deutAdd = Math.floor((synth * factor * elapsed) / GAME_HOUR_SECONDS);
+  const deutBurn = fusionLive ? Math.floor((burn * elapsed) / GAME_HOUR_SECONDS) : 0;
   return {
     ...planet,
     ore: harvestAmount(
@@ -403,6 +429,10 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
       crystalProductionPerHour(planet.crystalMine) * factor,
       elapsed,
       storageCap(planet.crystalStorage),
+    ),
+    deuterium: Math.min(
+      storageCap(planet.deuteriumStorage),
+      Math.max(0, planet.deuterium + deutAdd - deutBurn),
     ),
     lastHarvestedAt: at,
   };
@@ -785,9 +815,16 @@ export function catchUpWorld(world: SimWorld, at: number): SimWorld {
   let next: SimWorld = {
     ...world,
     empire: catchUpEmpire(world.empire, at),
-    planets: world.planets.map((p) =>
-      p.id === world.empire.homePlanetId || p.ownerId === world.empire.userId ? catchUpPlanet(p, at) : p,
-    ),
+    planets: world.planets.map((p) => {
+      const tagged = {
+        ...p,
+        energyTech: world.empire.energyTech,
+        solarSatellites: world.empire.ships.solar_satellite ?? 0,
+      };
+      return p.id === world.empire.homePlanetId || p.ownerId === world.empire.userId
+        ? catchUpPlanet(tagged, at)
+        : tagged;
+    }),
   };
 
   let guard = 0;
@@ -855,6 +892,13 @@ function applyPirateWave(world: SimWorld, at: number, shipCount?: number): SimWo
 
 function resolveDuePirates(world: SimWorld, at: number): SimWorld {
   let next = world;
+  if (next.empire.pirateRaidsEnabled === false) {
+    if (next.empire.nextPirateAt == null) return next;
+    return {
+      ...next,
+      empire: { ...next.empire, nextPirateAt: null },
+    };
+  }
   const home = planetById(next, next.empire.homePlanetId);
   if (next.empire.nextPirateAt == null) {
     const units = defenceUnitCount(defenceCountsOf(home));
@@ -910,7 +954,12 @@ export function spawnPirates(world: SimWorld, at: number): SimWorld {
     ...caught,
     empire: {
       ...caught.empire,
-      nextPirateAt: at + PIRATE_FLIGHT_SECONDS * 1000 + pirateIntervalSeconds(defenceUnitCount(defenceCountsOf(planet))) * 1000,
+      nextPirateAt:
+        caught.empire.pirateRaidsEnabled === false
+          ? null
+          : at +
+            PIRATE_FLIGHT_SECONDS * 1000 +
+            pirateIntervalSeconds(defenceUnitCount(defenceCountsOf(planet))) * 1000,
     },
     fleets: [...caught.fleets, fleet],
   };
@@ -965,12 +1014,15 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   }
   const level = planetLevel(planet, building);
   const cost = buildingCost(building, level);
-  if (planet.ore < cost.ore || planet.crystal < cost.crystal) throw new Error("Not enough resources.");
+  if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
+    throw new Error("Not enough resources.");
+  }
   const duration = buildingTimeSeconds(level, planet.roboticsFactory, planet.naniteFactory);
   const upgraded: SimPlanet = {
     ...planet,
     ore: planet.ore - cost.ore,
     crystal: planet.crystal - cost.crystal,
+    deuterium: planet.deuterium - cost.deuterium,
     upgradeBuilding: building,
     upgradeCompletesAt: at + duration * 1000,
   };
@@ -995,6 +1047,7 @@ export function cancelUpgrade(world: SimWorld, at: number): SimWorld {
     ...planet,
     ore: Math.min(storageCap(planet.oreStorage), planet.ore + refund.ore),
     crystal: Math.min(storageCap(planet.crystalStorage), planet.crystal + refund.crystal),
+    deuterium: Math.min(storageCap(planet.deuteriumStorage), planet.deuterium + refund.deuterium),
     upgradeBuilding: null,
     upgradeCompletesAt: null,
   });
@@ -1037,6 +1090,7 @@ export function resetEmpire(world: SimWorld, at: number): SimWorld {
       shipBuilding: null,
       researchCompletesAt: null,
       nextPirateAt: null,
+      pirateRaidsEnabled: true,
     },
     fleets: world.fleets.filter((fleet) => fleet.ownerId !== world.empire.userId),
     reports: [],
@@ -1055,12 +1109,15 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
   );
   if (missing.length > 0) throw new Error(`Needs ${missing[0].name} ${missing[0].level}.`);
   const cost = researchTechCost(id, level);
-  if (planet.ore < cost.ore || planet.crystal < cost.crystal) throw new Error("Not enough resources.");
+  if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
+    throw new Error("Not enough resources.");
+  }
   return {
     ...replacePlanet(caught, {
       ...planet,
       ore: planet.ore - cost.ore,
       crystal: planet.crystal - cost.crystal,
+      deuterium: planet.deuterium - cost.deuterium,
     }),
     empire: {
       ...caught.empire,
@@ -1120,10 +1177,18 @@ export function queueShip(world: SimWorld, id: string, count: number, at: number
   if (caught.empire.raidersQueued > 0 && busy !== id) throw new Error("Shipyard occupied.");
   const ore = hull.cost.ore * count;
   const crystal = hull.cost.crystal * count;
-  if (planet.ore < ore || planet.crystal < crystal) throw new Error("Not enough resources.");
+  const deuterium = hull.cost.deuterium * count;
+  if (planet.ore < ore || planet.crystal < crystal || planet.deuterium < deuterium) {
+    throw new Error("Not enough resources.");
+  }
   const startsNow = caught.empire.raidersQueued === 0;
   return {
-    ...replacePlanet(caught, { ...planet, ore: planet.ore - ore, crystal: planet.crystal - crystal }),
+    ...replacePlanet(caught, {
+      ...planet,
+      ore: planet.ore - ore,
+      crystal: planet.crystal - crystal,
+      deuterium: planet.deuterium - deuterium,
+    }),
     empire: {
       ...caught.empire,
       shipBuilding: id,
@@ -1157,6 +1222,18 @@ export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, a
     origin.galaxy ?? 0,
     dest.galaxy ?? 0,
   );
+  const fuel = fleetFuelRoundTrip(
+    ships,
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    dest.galaxy ?? 1,
+    dest.system,
+    dest.slot,
+    "small_cargo",
+    caught.empire.impulseDrive,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
   const fleet: SimFleet = {
     id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
     ownerId: caught.empire.userId,
@@ -1175,7 +1252,7 @@ export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, a
     report: null,
   };
   return {
-    ...caught,
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
     empire: {
       ...caught.empire,
       raiders: caught.empire.raiders - ships,
@@ -1215,6 +1292,18 @@ export function sendExpedition(
     origin.galaxy ?? 0,
     galaxy,
   );
+  const fuel = fleetFuelRoundTrip(
+    ships,
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    galaxy,
+    system,
+    EXPEDITION_SLOT,
+    "small_cargo",
+    caught.empire.impulseDrive,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
   const fleet: SimFleet = {
     id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
     ownerId: caught.empire.userId,
@@ -1234,7 +1323,7 @@ export function sendExpedition(
     report: null,
   };
   return {
-    ...caught,
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
     empire: {
       ...caught.empire,
       raiders: caught.empire.raiders - ships,
@@ -1246,20 +1335,20 @@ export function sendExpedition(
 
 export function livePlanet(planet: SimPlanet, at: number) {
   const preview = catchUpPlanet(planet, at);
-  const energy = energyNow(
-    preview.oreMine,
-    preview.crystalMine,
-    preview.powerPlant,
-    preview.starType,
-    preview.deuteriumExtractor,
-    preview.fusionReactor,
-  );
+  const tempMax = preview.tempMax ?? 30;
+  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax);
+  const burn = fusionDeuteriumBurnPerHour(preview.fusionReactor);
+  const withFusion = planetEnergy(preview);
+  const fusionLive =
+    preview.fusionReactor <= 0 || preview.deuterium > 0 || synth * withFusion.factor >= burn;
+  const energy = fusionLive ? withFusion : planetEnergy(preview, 0);
   const factor = energy.factor;
   return {
     ...preview,
     energy,
     orePerHour: mineProductionPerHour(preview.oreMine) * factor,
     crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor,
+    deuteriumPerHour: synth * factor - (fusionLive ? burn : 0),
     oreCap: storageCap(preview.oreStorage),
     crystalCap: storageCap(preview.crystalStorage),
     deuteriumCap: storageCap(preview.deuteriumStorage),

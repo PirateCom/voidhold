@@ -46,11 +46,14 @@ export function ResourceBar() {
 
   const oreRate = `+${Math.floor(live.orePerHour).toLocaleString()}/h`;
   const crystalRate = `+${Math.floor(live.crystalPerHour).toLocaleString()}/h`;
+  const deutNet = live.deuteriumPerHour ?? 0;
+  const deutRate = `${deutNet >= 0 ? "+" : ""}${Math.floor(deutNet).toLocaleString()}/h`;
   const solar = live.energy.output;
   const drain = live.energy.drain;
   const short = drain > solar;
+  const sats = live.solarSatellites ?? 0;
   const star = state?.star.multiplier;
-  const solarLabel = star && star !== 1 ? `SOL ×${star}` : "SOL";
+  const solarLabel = sats > 0 ? `SOL +${sats}` : star && star !== 1 ? `SOL ×${star}` : "SOL";
 
   return (
     <div className="grid grid-cols-4 gap-1.5">
@@ -76,7 +79,8 @@ export function ResourceBar() {
       />
       <Chip
         label="DEUT"
-        rate="+0/h"
+        rate={deutRate}
+        rateClass={deutNet < 0 ? "text-red-400" : "text-emerald-400"}
         value={Math.floor(live.deuterium ?? 0).toLocaleString()}
         border="border-blue-900/60"
         iconClass="border-blue-400/40 bg-blue-950 text-blue-300"

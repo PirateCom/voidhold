@@ -11,6 +11,7 @@ import {
   DEFENCES,
   PIRATE_ATTACK,
   PIRATE_DEFENCE,
+  canPayResources,
   defenceUnitCount,
   formatDuration,
   planetAttack,
@@ -64,7 +65,9 @@ export default function DefencesPage() {
           NPC pirates ATK {PIRATE_ATTACK} · DEF {PIRATE_DEFENCE} each. More guns draw more hulls, 1–2 waves
           per hour.
         </p>
-        {state.empire.next_pirate_at ? (
+        {state.empire.pirate_raids_enabled === false ? (
+          <p className="mt-2 text-sm text-[var(--muted-fg)]">Pirate raids off.</p>
+        ) : state.empire.next_pirate_at ? (
           <p className="mt-2 text-sm">
             Next pirate scan <Countdown until={state.empire.next_pirate_at} now={now} />
           </p>
@@ -85,6 +88,7 @@ export default function DefencesPage() {
           const count = d.unique ? 1 : Math.max(1, queues[d.id] ?? 1);
           const online = d.unique && owned >= 1;
           const badge = d.unique ? (online ? "Online" : "—") : `×${owned}`;
+          const poor = !canPayResources(live, d.cost, count);
           const missing = unmetDefenceBuild(
             d,
             state.planet.shipyard ?? 0,
@@ -171,7 +175,7 @@ export default function DefencesPage() {
               )}
               <button
                 type="button"
-                disabled={pending || online || missing.length > 0 || (yardBusy && !thisBusy)}
+                disabled={pending || online || missing.length > 0 || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildDefence(d.id, d.unique ? 1 : count)}
                 className="sci-btn mt-3 h-11 w-full"
               >
@@ -181,11 +185,13 @@ export default function DefencesPage() {
                     ? lockLabel
                     : yardBusy && !thisBusy
                       ? "Yard occupied"
-                      : d.group === "dome"
-                        ? "Raise dome"
-                        : d.group === "missile"
-                          ? "Load"
-                          : "Build"}
+                      : poor
+                        ? "Need resources"
+                        : d.group === "dome"
+                          ? "Raise dome"
+                          : d.group === "missile"
+                            ? "Load"
+                            : "Build"}
               </button>
             </article>
           );

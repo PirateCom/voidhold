@@ -9,6 +9,7 @@ import {
   BUILDINGS,
   FACILITIES,
   buildingCost,
+  canPayResources,
   buildingTimeSeconds,
   cancelRefund,
   facilitySpec,
@@ -20,6 +21,7 @@ import {
   storageCap,
   unmetFacility,
   upgradeEnergyDelta,
+  upgradeWouldCauseEnergyDeficit,
   type FacilityId,
   type ResearchId,
   type ResourceBuildingId,
@@ -80,6 +82,21 @@ function UpgradeCard({
   const energyDelta = upgradeEnergyDelta(id as never, level, state.star.type, state.empire.energy_tech ?? 0);
   const makesPower = id === "power_plant" || id === "fusion_reactor";
   const usesEnergy = id === "ore_mine" || id === "crystal_mine" || id === "deuterium_extractor";
+  const energyGoesShort =
+    usesEnergy &&
+    upgradeWouldCauseEnergyDeficit(
+      id as never,
+      live.oreMine,
+      live.crystalMine,
+      live.powerPlant,
+      state.star.type,
+      live.deuteriumExtractor,
+      live.fusionReactor,
+      state.empire.energy_tech ?? 0,
+      live.solarSatellites ?? 0,
+      live.tempMin ?? 30,
+      live.tempMax ?? 30,
+    );
   const currentPower =
     id === "power_plant"
       ? powerOutput(level, state.star.type)
@@ -93,6 +110,17 @@ function UpgradeCard({
     ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
     : null;
   const full = totalFieldsUsed(live) >= state.planet.max_fields;
+  const poor = !canPayResources(live, cost);
+  const blocked = pending || busy || full || locked || poor;
+  const actionLabel = lockLabel
+    ? lockLabel
+    : full
+      ? "No free fields"
+      : busy
+        ? "Yard occupied"
+        : poor
+          ? "Need resources"
+          : "Upgrade";
   return (
     <article className="sci-card p-4">
       <div className="flex items-start gap-3">
@@ -119,8 +147,21 @@ function UpgradeCard({
       )}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
         {stores ? `Holds ${storageCap(level).toLocaleString()}, next ${storageCap(level + 1).toLocaleString()}. ` : null}
-        {cost.ore.toLocaleString()} ore · {cost.crystal.toLocaleString()} crystal
-        {cost.deuterium > 0 ? ` · ${cost.deuterium.toLocaleString()} deut` : ""}
+        <span className={live.ore < cost.ore ? "text-red-400" : undefined}>
+          {cost.ore.toLocaleString()} ore
+        </span>
+        {" · "}
+        <span className={live.crystal < cost.crystal ? "text-red-400" : undefined}>
+          {cost.crystal.toLocaleString()} crystal
+        </span>
+        {cost.deuterium > 0 ? (
+          <>
+            {" · "}
+            <span className={live.deuterium < cost.deuterium ? "text-red-400" : undefined}>
+              {cost.deuterium.toLocaleString()} deut
+            </span>
+          </>
+        ) : null}
         {makesPower ? (
           <>
             {" · "}
@@ -132,7 +173,7 @@ function UpgradeCard({
         ) : usesEnergy ? (
           <>
             {" · "}
-            <span className="text-red-400">-{energyDelta} energy</span>
+            <span className={energyGoesShort ? "text-red-400" : undefined}>-{energyDelta} energy</span>
           </>
         ) : null}
         {" · "}
@@ -159,11 +200,11 @@ function UpgradeCard({
       ) : (
         <button
           type="button"
-          disabled={pending || busy || full || locked}
+          disabled={blocked}
           onClick={() => void upgrade(id as never)}
           className="sci-btn mt-3 h-11 w-full"
         >
-          {lockLabel ?? (full ? "No free fields" : busy ? "Yard occupied" : "Upgrade")}
+          {actionLabel}
         </button>
       )}
     </article>
@@ -207,7 +248,7 @@ export function BuildingList() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is listed and is not taken from the planet. Moon buildings stay locked.
+        Costs follow the OGame wiki. Deuterium is taken from the tank. Moon buildings stay locked.
       </p>
       {FACILITIES.map((facility) => {
         const missing = unmetFacility(

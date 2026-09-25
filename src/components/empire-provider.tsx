@@ -19,6 +19,7 @@ import {
   startResearch,
   resetEmpireProgress,
   spawnPirateWave,
+  setPirateRaids as setPirateRaidsAction,
   fillResources as fillResourcesAction,
   queueShip as queueShipAction,
   launchExpedition,
@@ -45,6 +46,7 @@ type EmpireContextValue = {
   buildShip: (id: string, count: number) => Promise<void>;
   buildDefence: (id: DefenceId, count: number) => Promise<void>;
   spawnPirates: () => Promise<void>;
+  setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   sendExpedition: (galaxy: number, system: number, ships: Record<string, number>) => Promise<boolean>;
@@ -79,6 +81,9 @@ function toSimPlanet(planet: EmpireState["planet"], starType: EmpireState["star"
     crystal: Number(planet.crystal),
     deuterium: Number(planet.deuterium ?? 0),
     lastHarvestedAt: new Date(planet.last_harvested_at).getTime(),
+    tempMin: planet.temp_min,
+    tempMax: planet.temp_max,
+    energyTech: 0,
     oreMine: planet.ore_mine,
     crystalMine: planet.crystal_mine,
     deuteriumExtractor: planet.deuterium_extractor ?? 0,
@@ -190,7 +195,14 @@ export function EmpireProvider({
 
   const live = useMemo(() => {
     if (!state?.star || state.planet.max_fields == null) return null;
-    return livePlanet(toSimPlanet(state.planet, state.star.type), gameNow);
+    return livePlanet(
+      {
+        ...toSimPlanet(state.planet, state.star.type),
+        energyTech: state.empire.energy_tech ?? 0,
+        solarSatellites: state.empire.ships?.solar_satellite ?? 0,
+      },
+      gameNow,
+    );
   }, [state, gameNow]);
 
   useEffect(() => {
@@ -236,6 +248,7 @@ export function EmpireProvider({
     buildShip: (id, count) => runAction(() => queueShipAction(id, count)),
     buildDefence: (id, count) => runAction(() => queueDefenceAction(id, count)),
     spawnPirates: () => runAction(() => spawnPirateWave()),
+    setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),

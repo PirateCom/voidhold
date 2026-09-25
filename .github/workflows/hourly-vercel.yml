@@ -1,0 +1,108 @@
+name: Hourly Vercel check
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hourly-vercel
+  cancel-in-progress: true
+
+jobs:
+  deploy-if-changed:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_hdwlCMzCmMQrPSmgB1ZVjOsH
+      VERCEL_PROJECT_ID: prj_bO60rUHkVXIz29kuV41DHik4txE9
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Require Vercel token
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "Add a GitHub Actions secret named VERCEL_TOKEN (create a token at vercel.com/account/tokens)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Skip if production already has this commit
+        id: check
+        run: |
+          python3 <<'PY'
+          import json, os, sys, urllib.parse, urllib.request
+
+          token = os.environ["VERCEL_TOKEN"]
+          org = os.environ["VERCEL_ORG_ID"]
+          project = os.environ["VERCEL_PROJECT_ID"]
+          head = os.environ["GITHUB_SHA"]
+
+          def fetch(extra):
+              q = urllib.parse.urlencode(
+                  {
+                      "projectId": project,
+                      "teamId": org,
+                      "target": "production",
+                      "limit": "20",
+                      **extra,
+                  }
+              )
+              req = urllib.request.Request(
+                  f"https://api.vercel.com/v6/deployments?{q}",
+                  headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+              )
+              with urllib.request.urlopen(req, timeout=30) as res:
+                  return json.load(res)
+
+          def shas(dep):
+              meta = dep.get("meta") or {}
+              git = dep.get("gitSource") or {}
+              return {
+                  meta.get("githubCommitSha"),
+                  meta.get("gitCommitSha"),
+                  git.get("sha"),
+              }
+
+          try:
+              by_sha = fetch({"sha": head})
+          except Exception as err:
+              print(f"Vercel API error: {err}", file=sys.stderr)
+              sys.exit(1)
+
+          live = {"READY", "BUILDING", "QUEUED", "INITIALIZING"}
+          for dep in by_sha.get("deployments") or []:
+              if dep.get("readyState") in live or dep.get("state") in live:
+                  print(f"Production already has {head[:7]} ({dep.get('readyState') or dep.get('state')}). Skip.")
+                  with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                      out.write("changed=false\n")
+                  sys.exit(0)
+
+          latest = fetch({})
+          for dep in latest.get("deployments") or []:
+              if (dep.get("readyState") == "READY" or dep.get("state") == "READY") and head in shas(dep):
+                  print(f"Latest production matches {head[:7]}. Skip.")
+                  with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                      out.write("changed=false\n")
+                  sys.exit(0)
+
+          print(f"No production deployment for {head[:7]}. Deploy.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write("changed=true\n")
+          PY
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.changed == 'true'
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Deploy to Vercel production
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          npm install --global vercel
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

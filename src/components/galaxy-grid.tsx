@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
 import { useEmpire } from "@/components/empire-provider";
 import { loadSolarSystem } from "@/lib/game/actions";
-import { flightSeconds, starLabel, debrisVisible } from "@/lib/game/catalog";
+import { flightSeconds, starLabel, debrisVisible, fleetFuelRoundTrip } from "@/lib/game/catalog";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
 
 function DebrisMark() {
@@ -92,6 +92,21 @@ export function GalaxyGrid() {
       galaxy,
     );
   }, [state, selected, home, system, galaxy]);
+
+  const raidFuel = useMemo(() => {
+    if (!state || !selected || !home || selected.kind !== "npc") return 0;
+    return fleetFuelRoundTrip(
+      Math.max(1, ships),
+      home.galaxy,
+      home.system,
+      home.slot,
+      galaxy,
+      system,
+      selected.slot,
+      "small_cargo",
+      state.empire.impulse_drive ?? 0,
+    );
+  }, [state, selected, home, ships, galaxy, system]);
 
   if (!state) return null;
 
@@ -237,12 +252,13 @@ export function GalaxyGrid() {
               </label>
               {flight != null ? (
                 <p className="text-xs text-[var(--muted-fg)]">
-                  Flight ~{flight}s each way · now {new Date(now).toLocaleTimeString()}
+                  Flight ~{flight}s each way · fuel {raidFuel.toLocaleString()} deut round trip · now{" "}
+                  {new Date(now).toLocaleTimeString()}
                 </p>
               ) : null}
               <button
                 type="submit"
-                disabled={pending || state.empire.raiders < 1}
+                disabled={pending || state.empire.raiders < 1 || Number(state.planet.deuterium) < raidFuel}
                 className="sci-btn h-11"
               >
                 Launch raid

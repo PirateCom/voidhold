@@ -35,7 +35,7 @@ export function PlanetHeader({ title }: { title: string }) {
         <div className="pt-0.5 text-right font-mono text-[9px] leading-[1.2] text-cyan-200">
           <p className="whitespace-nowrap">
             [{planet.galaxy}:{planet.system}:{planet.slot}] {planet.name} · ore {Math.floor(live.orePerHour)}/h · crystal{" "}
-            {Math.floor(live.crystalPerHour)}/h
+            {Math.floor(live.crystalPerHour)}/h · deut {Math.floor(live.deuteriumPerHour ?? 0)}/h
           </p>
           <p className="text-slate-400">Fields {used}/{max}</p>
         </div>
