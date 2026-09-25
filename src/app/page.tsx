@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { ResourceBuildings } from "@/components/building-list";
 import { useEmpire } from "@/components/empire-provider";
 import { starLabel } from "@/lib/game/catalog";
-import { totalFieldsUsed } from "@/lib/game/simulate";
+import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -32,6 +32,7 @@ export default function OverviewPage() {
   const planet = state?.planet;
   const ready = Boolean(state?.star && planet && planet.diameter_km != null && planet.max_fields != null);
   const used = live ? totalFieldsUsed(live) : 0;
+  const fieldCap = live ? planetFieldCapOf(live) : planet?.max_fields;
 
   return (
     <AppShell title="Resources">
@@ -44,7 +45,7 @@ export default function OverviewPage() {
           <dl className="sci-card mb-4 px-4">
             <Fact
               label="Diameter"
-              value={`${planet.diameter_km.toLocaleString()} km (${used}/${planet.max_fields})`}
+              value={`${planet.diameter_km.toLocaleString()} km (${used}/${fieldCap})`}
             />
             <Fact label="Temperature" value={`${planet.temp_min}°C to ${planet.temp_max}°C`} />
             <Fact label="Position" value={`[${planet.galaxy}:${planet.system}:${planet.slot}]`} />

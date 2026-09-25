@@ -1,7 +1,7 @@
 "use client";
 
 import { useEmpire } from "@/components/empire-provider";
-import { totalFieldsUsed } from "@/lib/game/simulate";
+import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 
 export function PlanetHeader({ title }: { title: string }) {
   const { state, live } = useEmpire();
@@ -9,7 +9,7 @@ export function PlanetHeader({ title }: { title: string }) {
   const name = (planet?.name ?? title).toUpperCase();
   const strained = Boolean(live && live.energy.factor < 1);
   const used = live ? totalFieldsUsed(live) : 0;
-  const max = planet?.max_fields;
+  const max = live ? planetFieldCapOf(live) : planet?.max_fields;
 
   return (
     <div className="mb-2 flex items-start justify-between gap-2">

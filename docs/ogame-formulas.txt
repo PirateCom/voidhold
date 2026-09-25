@@ -175,7 +175,12 @@ Planet fields by slot
   163 + 10 = 173 fields, shown as (used/173). Temperature still comes from the slot.
   Homeworlds use that fixed size. Other worlds roll a field count, then
   diameter_km = round(1000 * sqrt(max fields)).
-  Each building level occupies one field. Further fields from terraforming come later.
+  Each building level occupies one field.
+  Terraformer extra fields = floor(5.5 * terraformer_level). Odd levels add 5, even levels add 6.
+  The building occupies 1 field per level, so usable extra is extra fields minus level
+  (4 at L1, 9 at L2, 45 at L10). Costs 0 metal, 50,000 crystal, 100,000 deuterium, 1,000 energy,
+  doubling each level. Energy is total production at click, not leftover after mines.
+  One free field is still required to start the upgrade.
 
 Fields on a moon
   (diameter_in_km / 1000)^2
@@ -301,3 +306,31 @@ Plunder
     3. Deuterium, with whatever cargo is still empty.
     4. If cargo remains, metal for half of what remains.
     5. Crystal for the rest.
+
+================================================================================
+DEFENCES (wiki)
+================================================================================
+
+  Rocket Launcher           2000 metal
+  Light Laser               1500 metal, 500 crystal
+  Heavy Laser               6000 metal, 2000 crystal
+  Ion Cannon                5000 metal, 3000 crystal   (since OGame 7; older was 2000/6000)
+  Gauss Cannon              20000 metal, 15000 crystal, 2000 deuterium
+  Plasma Turret             50000 metal, 50000 crystal, 30000 deuterium
+  Small Shield Dome         10000 metal, 10000 crystal
+  Large Shield Dome         50000 metal, 50000 crystal
+  Anti-Ballistic Missile    8000 metal, 2000 deuterium
+  Interplanetary Missile    12500 metal, 2500 crystal, 10000 deuterium
+
+  Structural integrity / shield / weapon (firepower):
+  Rocket Launcher           2000 / 20 / 80
+  Light Laser               2000 / 25 / 100
+  Heavy Laser               8000 / 100 / 250
+  Ion Cannon                8000 / 500 / 150
+  Gauss Cannon              35000 / 200 / 1100
+  Plasma Turret             100000 / 300 / 3000
+  Small Shield Dome         20000 / 2000 / 1
+  Large Shield Dome         100000 / 10000 / 1
+  Anti-Ballistic Missile    8000 / 1 / 1
+  Interplanetary Missile    15000 / 1 / 12000
+

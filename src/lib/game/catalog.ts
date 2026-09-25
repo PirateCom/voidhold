@@ -88,9 +88,10 @@ export const DEFENCES: {
   group: DefenceGroup;
   unique: boolean;
   tier: number | null;
+  hull: number;
+  shield: number;
   attack: number;
-  defence: number;
-  cost: { ore: number; crystal: number };
+  cost: { ore: number; crystal: number; deuterium: number };
   buildSeconds: number;
   shipyard: number;
   silo: number;
@@ -103,9 +104,10 @@ export const DEFENCES: {
     group: "dome",
     unique: true,
     tier: null,
-    attack: 0,
-    defence: 200,
-    cost: { ore: 800, crystal: 800 },
+    hull: 20000,
+    shield: 2000,
+    attack: 1,
+    cost: { ore: 10000, crystal: 10000, deuterium: 0 },
     buildSeconds: 30,
     shipyard: 1,
     silo: 0,
@@ -118,9 +120,10 @@ export const DEFENCES: {
     group: "dome",
     unique: true,
     tier: null,
-    attack: 0,
-    defence: 1000,
-    cost: { ore: 4000, crystal: 4000 },
+    hull: 100000,
+    shield: 10000,
+    attack: 1,
+    cost: { ore: 50000, crystal: 50000, deuterium: 0 },
     buildSeconds: 75,
     shipyard: 6,
     silo: 0,
@@ -133,9 +136,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 1,
-    attack: 8,
-    defence: 20,
-    cost: { ore: 120, crystal: 30 },
+    hull: 2000,
+    shield: 20,
+    attack: 80,
+    cost: { ore: 2000, crystal: 0, deuterium: 0 },
     buildSeconds: 10,
     shipyard: 1,
     silo: 0,
@@ -148,9 +152,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 2,
-    attack: 10,
-    defence: 25,
-    cost: { ore: 180, crystal: 60 },
+    hull: 2000,
+    shield: 25,
+    attack: 100,
+    cost: { ore: 1500, crystal: 500, deuterium: 0 },
     buildSeconds: 14,
     shipyard: 2,
     silo: 0,
@@ -166,9 +171,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 3,
-    attack: 25,
-    defence: 90,
-    cost: { ore: 480, crystal: 160 },
+    hull: 8000,
+    shield: 100,
+    attack: 250,
+    cost: { ore: 6000, crystal: 2000, deuterium: 0 },
     buildSeconds: 22,
     shipyard: 4,
     silo: 0,
@@ -184,9 +190,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 5,
-    attack: 110,
-    defence: 370,
-    cost: { ore: 1600, crystal: 1200 },
+    hull: 35000,
+    shield: 200,
+    attack: 1100,
+    cost: { ore: 20000, crystal: 15000, deuterium: 2000 },
     buildSeconds: 45,
     shipyard: 6,
     silo: 0,
@@ -203,9 +210,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 4,
-    attack: 15,
-    defence: 130,
-    cost: { ore: 160, crystal: 480 },
+    hull: 8000,
+    shield: 500,
+    attack: 150,
+    cost: { ore: 5000, crystal: 3000, deuterium: 0 },
     buildSeconds: 28,
     shipyard: 4,
     silo: 0,
@@ -218,9 +226,10 @@ export const DEFENCES: {
     group: "turret",
     unique: false,
     tier: 6,
-    attack: 280,
-    defence: 900,
-    cost: { ore: 4500, crystal: 4000 },
+    hull: 100000,
+    shield: 300,
+    attack: 3000,
+    cost: { ore: 50000, crystal: 50000, deuterium: 30000 },
     buildSeconds: 70,
     shipyard: 8,
     silo: 0,
@@ -233,9 +242,10 @@ export const DEFENCES: {
     group: "missile",
     unique: false,
     tier: null,
-    attack: 0,
-    defence: 40,
-    cost: { ore: 400, crystal: 0 },
+    hull: 8000,
+    shield: 1,
+    attack: 1,
+    cost: { ore: 8000, crystal: 0, deuterium: 2000 },
     buildSeconds: 16,
     shipyard: 1,
     silo: 2,
@@ -248,9 +258,10 @@ export const DEFENCES: {
     group: "missile",
     unique: false,
     tier: null,
-    attack: 80,
-    defence: 50,
-    cost: { ore: 1200, crystal: 400 },
+    hull: 15000,
+    shield: 1,
+    attack: 12000,
+    cost: { ore: 12500, crystal: 2500, deuterium: 10000 },
     buildSeconds: 32,
     shipyard: 1,
     silo: 4,
@@ -302,7 +313,7 @@ export function defenceSpec(id: DefenceId) {
   return DEFENCE_BY_ID[id];
 }
 
-export function defenceCost(id: DefenceId): { ore: number; crystal: number } {
+export function defenceCost(id: DefenceId): { ore: number; crystal: number; deuterium: number } {
   return DEFENCE_BY_ID[id].cost;
 }
 
@@ -335,8 +346,12 @@ export function planetAttack(counts: DefenceCounts): number {
   return DEFENCES.reduce((sum, d) => sum + Math.max(0, counts[d.id] ?? 0) * d.attack, 0);
 }
 
+export function planetHull(counts: DefenceCounts): number {
+  return DEFENCES.reduce((sum, d) => sum + Math.max(0, counts[d.id] ?? 0) * d.hull, 0);
+}
+
 export function planetDefence(counts: DefenceCounts): number {
-  return DEFENCES.reduce((sum, d) => sum + Math.max(0, counts[d.id] ?? 0) * d.defence, 0);
+  return DEFENCES.reduce((sum, d) => sum + Math.max(0, counts[d.id] ?? 0) * d.shield, 0);
 }
 
 /** 1–2 waves per real hour; more guns pull the second wave. */
@@ -380,11 +395,11 @@ export function applyPirateDamage(
   let remaining = Math.max(0, damage);
   for (const id of DESTROY_ORDER) {
     const spec = DEFENCE_BY_ID[id];
-    if (spec.defence <= 0) continue;
-    while (next[id] > 0 && remaining >= spec.defence) {
+    if (spec.shield <= 0) continue;
+    while (next[id] > 0 && remaining >= spec.shield) {
       next[id] -= 1;
       lost[id] = (lost[id] ?? 0) + 1;
-      remaining -= spec.defence;
+      remaining -= spec.shield;
     }
   }
   return { counts: next, lost };
@@ -804,6 +819,25 @@ export function unmetFacility(
       name: req.kind === "facility" ? FACILITY_BY_ID[req.id].name : RESEARCH_BY_ID[req.id].name,
       level: req.level,
     }));
+}
+
+/** Wiki: energy is only checked at click. Total production, not leftover after mines. */
+export function terraformerEnergy(currentLevel: number): number {
+  return Math.floor(1000 * Math.pow(2, Math.max(0, currentLevel)));
+}
+
+/** Wiki: extra fields = floor(5.5 × terraformer level). */
+export function terraformerExtraFields(level: number): number {
+  return Math.floor(5.5 * Math.max(0, Math.trunc(level)));
+}
+
+export function terraformerFreeFields(level: number): number {
+  const safe = Math.max(0, Math.trunc(level));
+  return terraformerExtraFields(safe) - safe;
+}
+
+export function planetFieldCap(maxFields: number, terraformerLevel: number): number {
+  return maxFields + terraformerExtraFields(terraformerLevel);
 }
 
 export function fieldsUsed(

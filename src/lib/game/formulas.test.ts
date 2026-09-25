@@ -53,6 +53,10 @@ import {
   debrisVisible,
   pirateWaveSize,
   pirateWavesPerHour,
+  planetFieldCap,
+  terraformerEnergy,
+  terraformerExtraFields,
+  terraformerFreeFields,
   upgradeEnergyDelta,
 } from "./catalog";
 
@@ -154,6 +158,19 @@ describe("production formulas", () => {
     expect(buildingCost("ore_storage", 0)).toEqual({ ore: 1000, crystal: 0, deuterium: 0 });
     expect(buildingCost("crystal_storage", 0)).toEqual({ ore: 1000, crystal: 500, deuterium: 0 });
     expect(buildingCost("ore_storage", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
+    expect(buildingCost("terraformer", 0)).toEqual({ ore: 0, crystal: 50000, deuterium: 100000 });
+    expect(buildingCost("terraformer", 1)).toEqual({ ore: 0, crystal: 100000, deuterium: 200000 });
+    expect(buildingCost("terraformer", 9)).toEqual({ ore: 0, crystal: 25600000, deuterium: 51200000 });
+    expect(terraformerEnergy(0)).toBe(1000);
+    expect(terraformerEnergy(1)).toBe(2000);
+    expect(terraformerEnergy(9)).toBe(512000);
+    expect(terraformerExtraFields(1)).toBe(5);
+    expect(terraformerExtraFields(2)).toBe(11);
+    expect(terraformerExtraFields(10)).toBe(55);
+    expect(terraformerFreeFields(1)).toBe(4);
+    expect(terraformerFreeFields(2)).toBe(9);
+    expect(terraformerFreeFields(10)).toBe(45);
+    expect(planetFieldCap(173, 1)).toBe(178);
     expect(buildingTimeSeconds(1)).toBeGreaterThan(buildingTimeSeconds(0));
     expect(buildingTimeSeconds(0)).toBe(20);
     expect(buildingTimeSeconds(0, 1)).toBe(10);
@@ -252,18 +269,29 @@ describe("production formulas", () => {
     });
   });
 
-  it("prices defences from cheap rockets up to the gaussian turret", () => {
-    expect(defenceCost("rocket_launcher").ore).toBeLessThan(defenceCost("light_laser").ore);
-    expect(defenceCost("gauss_cannon").ore).toBeGreaterThan(defenceCost("heavy_laser").ore);
-    expect(defenceCost("plasma_turret").ore).toBeGreaterThan(defenceCost("gauss_cannon").ore);
-    expect(defenceCost("antiballistic_missile")).toEqual({ ore: 400, crystal: 0 });
-    expect(defenceCost("interplanetary_missile").crystal).toBe(400);
+  it("prices defences from the wiki tables", () => {
+    expect(defenceCost("rocket_launcher")).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
+    expect(defenceCost("light_laser")).toEqual({ ore: 1500, crystal: 500, deuterium: 0 });
+    expect(defenceCost("heavy_laser")).toEqual({ ore: 6000, crystal: 2000, deuterium: 0 });
+    expect(defenceCost("ion_cannon")).toEqual({ ore: 5000, crystal: 3000, deuterium: 0 });
+    expect(defenceCost("gauss_cannon")).toEqual({ ore: 20000, crystal: 15000, deuterium: 2000 });
+    expect(defenceCost("plasma_turret")).toEqual({ ore: 50000, crystal: 50000, deuterium: 30000 });
+    expect(defenceCost("small_shield_dome")).toEqual({ ore: 10000, crystal: 10000, deuterium: 0 });
+    expect(defenceCost("large_shield_dome")).toEqual({ ore: 50000, crystal: 50000, deuterium: 0 });
+    expect(defenceCost("antiballistic_missile")).toEqual({ ore: 8000, crystal: 0, deuterium: 2000 });
+    expect(defenceCost("interplanetary_missile")).toEqual({ ore: 12500, crystal: 2500, deuterium: 10000 });
     expect(defenceSpec("small_shield_dome").unique).toBe(true);
     expect(defenceTimeSeconds("gauss_cannon")).toBeGreaterThan(defenceTimeSeconds("rocket_launcher"));
-    expect(defenceSpec("rocket_launcher").attack).toBe(8);
-    expect(defenceSpec("rocket_launcher").defence).toBe(20);
-    expect(defenceSpec("small_shield_dome").attack).toBe(0);
-    expect(defenceSpec("large_shield_dome").defence).toBe(1000);
+    expect(defenceSpec("rocket_launcher")).toMatchObject({ hull: 2000, shield: 20, attack: 80 });
+    expect(defenceSpec("light_laser")).toMatchObject({ hull: 2000, shield: 25, attack: 100 });
+    expect(defenceSpec("heavy_laser")).toMatchObject({ hull: 8000, shield: 100, attack: 250 });
+    expect(defenceSpec("ion_cannon")).toMatchObject({ hull: 8000, shield: 500, attack: 150 });
+    expect(defenceSpec("gauss_cannon")).toMatchObject({ hull: 35000, shield: 200, attack: 1100 });
+    expect(defenceSpec("plasma_turret")).toMatchObject({ hull: 100000, shield: 300, attack: 3000 });
+    expect(defenceSpec("small_shield_dome")).toMatchObject({ hull: 20000, shield: 2000, attack: 1 });
+    expect(defenceSpec("large_shield_dome")).toMatchObject({ hull: 100000, shield: 10000, attack: 1 });
+    expect(defenceSpec("antiballistic_missile")).toMatchObject({ hull: 8000, shield: 1, attack: 1 });
+    expect(defenceSpec("interplanetary_missile")).toMatchObject({ hull: 15000, shield: 1, attack: 12000 });
   });
 
   it("scales pirate waves with guns and resolves simultaneous fire", () => {
@@ -273,11 +301,11 @@ describe("production formulas", () => {
     expect(pirateWaveSize(3, 1)).toBe(4);
     const counts = { ...emptyDefenceCounts(), rocket_launcher: 5 };
     const fight = pirateCombat(counts, 3, 1000, 1000, 0, 0);
-    expect(fight.planetAtk).toBe(40);
-    expect(fight.piratesLost).toBe(2);
-    expect(fight.piratesLeft).toBe(1);
+    expect(fight.planetAtk).toBe(400);
+    expect(fight.piratesLost).toBe(3);
+    expect(fight.piratesLeft).toBe(0);
     expect(fight.counts.rocket_launcher).toBe(4);
-    expect(fight.loot).toEqual({ ore: 250, crystal: 250 });
+    expect(fight.loot).toEqual({ ore: 0, crystal: 0 });
   });
 
   it("turns 30% of wrecked hull metal and crystal into debris", () => {

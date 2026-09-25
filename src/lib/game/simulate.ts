@@ -29,6 +29,8 @@ import {
   energyNow,
   facilitySpec,
   fieldsUsed,
+  planetFieldCap,
+  terraformerEnergy,
   isBuildingId,
   isFacilityId,
   flightSeconds,
@@ -175,6 +177,11 @@ export function totalFieldsUsed(planet: SimPlanet): number {
     planet.deuteriumStorage,
     planet.fusionReactor,
   );
+}
+
+export function planetFieldCapOf(planet: SimPlanet): number | null {
+  if (planet.maxFields == null) return null;
+  return planetFieldCap(planet.maxFields, planet.terraformer);
 }
 
 export const EMPTY_DEFENCES = {
@@ -995,6 +1002,9 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   const caught = catchUpWorld(world, at);
   const planet = planetById(caught, caught.empire.homePlanetId);
   if (planet.upgradeBuilding) throw new Error("An upgrade is already running.");
+  if (building === "research_lab" && caught.empire.researchCompletesAt) {
+    throw new Error("Research lab is in use.");
+  }
   if (isFacilityId(building)) {
     const spec = facilitySpec(building);
     if (spec.moon) throw new Error("Moon facilities wait for a moon.");
@@ -1009,11 +1019,17 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
     if (researchLevel(caught.empire, "energy_tech") < 3) throw new Error("Needs Energy technology 3.");
     if (planet.deuteriumExtractor < 5) throw new Error("Needs Deuterium extractor 5.");
   }
-  if (planet.maxFields != null && totalFieldsUsed(planet) >= planet.maxFields) {
+  if (
+    planet.maxFields != null &&
+    totalFieldsUsed(planet) >= planetFieldCap(planet.maxFields, planet.terraformer)
+  ) {
     throw new Error("No free fields.");
   }
   const level = planetLevel(planet, building);
   const cost = buildingCost(building, level);
+  if (building === "terraformer" && planetEnergy(planet).output < terraformerEnergy(level)) {
+    throw new Error("Need more energy.");
+  }
   if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
     throw new Error("Not enough resources.");
   }
@@ -1101,6 +1117,7 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
   const caught = catchUpWorld(world, at);
   if (caught.empire.researchCompletesAt) throw new Error("Research already running.");
   const planet = planetById(caught, caught.empire.homePlanetId);
+  if (planet.upgradeBuilding === "research_lab") throw new Error("Research lab is being upgraded.");
   const level = researchLevel(caught.empire, id);
   const missing = unmetResearch(
     id,
@@ -1149,12 +1166,16 @@ export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: 
   if (blocked) throw new Error(`Needs ${blocked.name} ${blocked.level}.`);
   const ore = spec.cost.ore * count;
   const crystal = spec.cost.crystal * count;
-  if (planet.ore < ore || planet.crystal < crystal) throw new Error("Not enough resources.");
+  const deuterium = spec.cost.deuterium * count;
+  if (planet.ore < ore || planet.crystal < crystal || planet.deuterium < deuterium) {
+    throw new Error("Not enough resources.");
+  }
   const startsNow = planet.defencesQueued === 0;
   return replacePlanet(caught, {
     ...planet,
     ore: planet.ore - ore,
     crystal: planet.crystal - crystal,
+    deuterium: planet.deuterium - deuterium,
     defenceBuilding: id,
     defencesQueued: planet.defencesQueued + count,
     defenceCompletesAt: startsNow ? at + spec.buildSeconds * 1000 : planet.defenceCompletesAt,

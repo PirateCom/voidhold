@@ -16,6 +16,7 @@ import {
   formatDuration,
   planetAttack,
   planetDefence,
+  planetHull,
   researchSpec,
   unmetDefenceBuild,
   type DefenceId,
@@ -50,6 +51,7 @@ export default function DefencesPage() {
   const queued = state.planet.defences_queued ?? 0;
   const counts = defenceCountsOf(live);
   const units = defenceUnitCount(counts);
+  const hull = planetHull(counts);
   const atk = planetAttack(counts);
   const def = planetDefence(counts);
 
@@ -59,7 +61,9 @@ export default function DefencesPage() {
       <article className="sci-card mb-3 p-4">
         <h2 className="font-semibold">Hold strength</h2>
         <p className="mt-2 font-mono text-sm">
-          Planet ATK {atk} · DEF {def} · {units} gun{units === 1 ? "" : "s"}
+          Planet hull {hull.toLocaleString()} · shield {def.toLocaleString()} · attack {atk.toLocaleString()}
+          {" · "}
+          {units} gun{units === 1 ? "" : "s"}
         </p>
         <p className="mt-1 text-xs text-[var(--muted-fg)]">
           NPC pirates ATK {PIRATE_ATTACK} · DEF {PIRATE_DEFENCE} each. More guns draw more hulls, 1–2 waves
@@ -114,8 +118,10 @@ export default function DefencesPage() {
                   </div>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">{d.blurb}</p>
                   <p className="mt-1 font-mono text-xs">
-                    ATK {d.attack} · DEF {d.defence}
-                    {owned > 1 ? ` · battery ATK ${d.attack * owned} DEF ${d.defence * owned}` : ""}
+                    Hull {d.hull.toLocaleString()} · Shield {d.shield.toLocaleString()} · Attack {d.attack.toLocaleString()}
+                    {owned > 1
+                      ? ` · battery hull ${(d.hull * owned).toLocaleString()} shield ${(d.shield * owned).toLocaleString()} attack ${(d.attack * owned).toLocaleString()}`
+                      : ""}
                   </p>
                 </div>
               </div>
@@ -131,7 +137,15 @@ export default function DefencesPage() {
                 <StripedProgress className="mt-3" value={0} disabled animated={false} label={d.name} />
               )}
               <p className="mt-3 text-xs text-[var(--muted-fg)]">
-                Next: {d.cost.ore.toLocaleString()} ore · {d.cost.crystal.toLocaleString()} crystal ·{" "}
+                Next:{" "}
+                {[
+                  d.cost.ore > 0 ? `${d.cost.ore.toLocaleString()} ore` : null,
+                  d.cost.crystal > 0 ? `${d.cost.crystal.toLocaleString()} crystal` : null,
+                  d.cost.deuterium > 0 ? `${d.cost.deuterium.toLocaleString()} deut` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                {" · "}
                 {formatDuration(d.buildSeconds)}
                 {thisBusy ? ` · in yard ${queued}` : ""}
               </p>

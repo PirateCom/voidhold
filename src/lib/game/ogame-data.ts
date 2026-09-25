@@ -788,7 +788,7 @@ export const FACILITIES: FacilityStat[] = [
   {
     id: "terraformer",
     name: "Terraformer",
-    blurb: "Adds 5 fields per level and uses 1 of them. Costs crystal, deuterium, and energy, not metal.",
+    blurb: "Raises the planet field cap. Costs crystal, deuterium, and energy, not ore.",
     cost: { ore: 0, crystal: 50000, deuterium: 100000 },
     costFactor: 2,
     energy: 1000,

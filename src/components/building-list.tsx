@@ -5,6 +5,7 @@ import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { Countdown } from "@/components/countdown";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
+import { totalFieldsUsed, planetFieldCapOf } from "@/lib/game/simulate";
 import {
   BUILDINGS,
   FACILITIES,
@@ -19,6 +20,7 @@ import {
   progressToward,
   researchSpec,
   storageCap,
+  terraformerEnergy,
   unmetFacility,
   upgradeEnergyDelta,
   upgradeWouldCauseEnergyDeficit,
@@ -26,7 +28,6 @@ import {
   type ResearchId,
   type ResourceBuildingId,
 } from "@/lib/game/catalog";
-import { totalFieldsUsed } from "@/lib/game/simulate";
 import type { EmpireRow, PlanetRow } from "@/lib/game/types";
 
 function resourceLevel(id: ResourceBuildingId, live: {
@@ -47,6 +48,21 @@ function resourceLevel(id: ResourceBuildingId, live: {
   if (id === "ore_storage") return live.oreStorage;
   if (id === "crystal_storage") return live.crystalStorage;
   return live.deuteriumStorage;
+}
+
+function pricedResources(
+  cost: { ore: number; crystal: number; deuterium: number },
+  have: { ore: number; crystal: number; deuterium: number },
+) {
+  const bits: { label: string; short: boolean }[] = [];
+  if (cost.ore > 0) bits.push({ label: `${cost.ore.toLocaleString()} ore`, short: have.ore < cost.ore });
+  if (cost.crystal > 0) {
+    bits.push({ label: `${cost.crystal.toLocaleString()} crystal`, short: have.crystal < cost.crystal });
+  }
+  if (cost.deuterium > 0) {
+    bits.push({ label: `${cost.deuterium.toLocaleString()} deut`, short: have.deuterium < cost.deuterium });
+  }
+  return bits;
 }
 
 function researchLevelOf(id: ResearchId, empire: EmpireRow): number {
@@ -109,18 +125,26 @@ function UpgradeCard({
   const refund = thisBusy
     ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
     : null;
-  const full = totalFieldsUsed(live) >= state.planet.max_fields;
+  const cap = planetFieldCapOf(live);
+  const full = cap != null && totalFieldsUsed(live) >= cap;
+  const energyNeed = id === "terraformer" ? terraformerEnergy(level) : 0;
+  const energyShort = energyNeed > 0 && live.energy.output < energyNeed;
+  const labInUse = id === "research_lab" && Boolean(state.empire.research_completes_at);
   const poor = !canPayResources(live, cost);
-  const blocked = pending || busy || full || locked || poor;
+  const blocked = pending || busy || full || locked || poor || energyShort || labInUse;
   const actionLabel = lockLabel
     ? lockLabel
-    : full
-      ? "No free fields"
-      : busy
-        ? "Yard occupied"
-        : poor
-          ? "Need resources"
-          : "Upgrade";
+    : labInUse
+      ? "Research running"
+      : energyShort
+        ? "Need energy"
+        : full
+          ? "No free fields"
+          : busy
+            ? "Yard occupied"
+            : poor
+              ? "Need resources"
+              : "Upgrade";
   return (
     <article className="sci-card p-4">
       <div className="flex items-start gap-3">
@@ -147,21 +171,12 @@ function UpgradeCard({
       )}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
         {stores ? `Holds ${storageCap(level).toLocaleString()}, next ${storageCap(level + 1).toLocaleString()}. ` : null}
-        <span className={live.ore < cost.ore ? "text-red-400" : undefined}>
-          {cost.ore.toLocaleString()} ore
-        </span>
-        {" · "}
-        <span className={live.crystal < cost.crystal ? "text-red-400" : undefined}>
-          {cost.crystal.toLocaleString()} crystal
-        </span>
-        {cost.deuterium > 0 ? (
-          <>
-            {" · "}
-            <span className={live.deuterium < cost.deuterium ? "text-red-400" : undefined}>
-              {cost.deuterium.toLocaleString()} deut
-            </span>
-          </>
-        ) : null}
+        {pricedResources(cost, live).map((bit, index) => (
+          <span key={bit.label}>
+            {index > 0 ? " · " : null}
+            <span className={bit.short ? "text-red-400" : undefined}>{bit.label}</span>
+          </span>
+        ))}
         {makesPower ? (
           <>
             {" · "}
@@ -175,6 +190,13 @@ function UpgradeCard({
             {" · "}
             <span className={energyGoesShort ? "text-red-400" : undefined}>-{energyDelta} energy</span>
           </>
+        ) : energyNeed > 0 ? (
+          <>
+            {" · "}
+            <span className={energyShort ? "text-red-400" : undefined}>
+              {energyNeed.toLocaleString()} energy
+            </span>
+          </>
         ) : null}
         {" · "}
         {formatDuration(buildingTimeSeconds(level, live.roboticsFactory, live.naniteFactory))}
@@ -186,7 +208,12 @@ function UpgradeCard({
             Building… <Countdown until={state.planet.upgrade_completes_at} now={now} />
           </p>
           <p className="mt-1 text-xs text-[var(--muted-fg)]">
-            Cancel now for {refund?.ore.toLocaleString()} ore · {refund?.crystal.toLocaleString()} crystal
+            Cancel now for{" "}
+            {refund
+              ? pricedResources(refund, { ore: 0, crystal: 0, deuterium: 0 })
+                  .map((bit) => bit.label)
+                  .join(" · ")
+              : "nothing"}
           </p>
           <button
             type="button"

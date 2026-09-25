@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, GAME_HOUR_SECONDS, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, GAME_HOUR_SECONDS, planetFieldCap, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
@@ -18,6 +18,8 @@ import {
   startUpgrade,
   fillResources,
   livePlanet,
+  planetFieldCapOf,
+  totalFieldsUsed,
   type SimPlanet,
   type SimWorld,
 } from "./simulate";
@@ -235,18 +237,35 @@ describe("time-skip simulation", () => {
     const done = catchUpWorld(started, started.empire.researchCompletesAt!);
     expect(done.empire.propulsionLevel).toBe(1);
     expect(done.empire.researchCompletesAt).toBeNull();
+
+    const mining = startUpgrade(ready, "ore_mine", 0);
+    const both = startResearch(mining, "combustion_drive", 0);
+    expect(both.planets[0].upgradeBuilding).toBe("ore_mine");
+    expect(both.empire.researchTech).toBe("combustion_drive");
+    const researching = startResearch(ready, "combustion_drive", 0);
+    expect(() => startUpgrade(researching, "research_lab", 0)).toThrow(/Research lab is in use/);
+    const labReady: SimWorld = {
+      ...ready,
+      planets: ready.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, deuterium: 8000, crystalStorage: 3, deuteriumStorage: 3 } : planet,
+      ),
+    };
+    const labWork = startUpgrade(labReady, "research_lab", 0);
+    expect(() => startResearch(labWork, "combustion_drive", 0)).toThrow(/being upgraded/);
   });
 
   it("builds a rocket launcher and will not raise a second small dome", () => {
     const richer: SimWorld = {
       ...world(0),
       planets: world(0).planets.map((p) =>
-        p.id === 1 ? { ...p, ore: 5000, crystal: 5000, shipyard: 1 } : p,
+        p.id === 1
+          ? { ...p, ore: 40000, crystal: 40000, deuterium: 40000, oreStorage: 4, crystalStorage: 4, deuteriumStorage: 4, shipyard: 1 }
+          : p,
       ),
     };
     expect(() => queueDefence(world(0), "rocket_launcher", 1, 0)).toThrow(/Shipyard 1/);
     const started = queueDefence(richer, "rocket_launcher", 2, 0);
-    expect(started.planets[0].ore).toBe(5000 - defenceCost("rocket_launcher").ore * 2);
+    expect(started.planets[0].ore).toBe(40000 - defenceCost("rocket_launcher").ore * 2);
     const done = catchUpWorld(started, started.planets[0].defenceCompletesAt! + 10_000);
     expect(done.planets[0].rocketLauncher).toBe(2);
     expect(done.planets[0].defencesQueued).toBe(0);
@@ -382,5 +401,53 @@ describe("time-skip simulation", () => {
       empire: { ...base.empire, propulsionLevel: 2, raiders: 1 },
     };
     expect(() => sendRaid(ready, 2, 1, 0)).toThrow(/Not enough resources/);
+  });
+
+  it("charges wiki terraformer costs and adds floor(5.5 × level) fields", () => {
+    const base = world(0);
+    const late: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 1
+          ? {
+              ...planet,
+              ore: 0,
+              crystal: 200000,
+              deuterium: 400000,
+              powerPlant: 20,
+              crystalStorage: 8,
+              deuteriumStorage: 8,
+              naniteFactory: 1,
+              researchLab: 1,
+              maxFields: 173,
+            }
+          : planet,
+      ),
+      empire: { ...base.empire, energyTech: 12 },
+    };
+    expect(() => startUpgrade({ ...late, empire: { ...late.empire, energyTech: 11 } }, "terraformer", 0)).toThrow(
+      /Energy technology 12/,
+    );
+    const dim: SimWorld = {
+      ...late,
+      planets: late.planets.map((planet) => (planet.id === 1 ? { ...planet, powerPlant: 1 } : planet)),
+    };
+    expect(() => startUpgrade(dim, "terraformer", 0)).toThrow(/Need more energy/);
+    const packed: SimWorld = {
+      ...late,
+      planets: late.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, oreMine: 134, crystalMine: 1, powerPlant: 20 } : planet,
+      ),
+    };
+    expect(totalFieldsUsed(packed.planets[0])).toBe(173);
+    expect(() => startUpgrade(packed, "terraformer", 0)).toThrow(/No free fields/);
+    const started = startUpgrade(late, "terraformer", 0);
+    expect(started.planets[0].crystal).toBe(150000);
+    expect(started.planets[0].deuterium).toBe(300000);
+    const done = catchUpWorld(started, started.planets[0].upgradeCompletesAt!);
+    expect(done.planets[0].terraformer).toBe(1);
+    expect(done.planets[0].maxFields).toBe(173);
+    expect(planetFieldCapOf(done.planets[0])).toBe(planetFieldCap(173, 1));
+    expect(planetFieldCapOf(done.planets[0])).toBe(178);
   });
 });

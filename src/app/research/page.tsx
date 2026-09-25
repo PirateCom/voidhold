@@ -34,14 +34,16 @@ export default function ResearchPage() {
   }
 
   const active = state.empire.research_tech ?? (state.empire.research_completes_at ? "combustion_drive" : null);
-  const labBusy = Boolean(state.empire.research_completes_at);
+  const researchRunning = Boolean(state.empire.research_completes_at);
+  const labUpgrading = state.planet.upgrade_building === "research_lab";
 
   return (
     <AppShell title="Research">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
         Costs follow the OGame wiki. Deuterium is taken from the tank. Each technology needs the
-        listed research-lab level.
+        listed research-lab level. Other buildings can upgrade at the same time. Upgrading the lab
+        itself stops new research.
       </p>
       <div className="flex flex-col gap-3">
         {RESEARCH_GROUPS.map((group) => (
@@ -57,7 +59,7 @@ export default function ResearchPage() {
                 (id) => levelOf(id, state.empire),
                 state.planet.research_lab ?? 0,
               );
-              const thisBusy = labBusy && active === tech.id;
+              const thisBusy = researchRunning && active === tech.id;
               const poor = live ? !canPayResources(live, cost) : true;
               return (
                 <article key={tech.id} className="sci-card p-4">
@@ -118,17 +120,19 @@ export default function ResearchPage() {
                   ) : null}
                   <button
                     type="button"
-                    disabled={pending || missing.length > 0 || poor || (labBusy && !thisBusy)}
+                    disabled={pending || missing.length > 0 || poor || (researchRunning && !thisBusy) || labUpgrading}
                     onClick={() => void research(tech.id)}
                     className="sci-btn mt-3 h-11 w-full"
                   >
-                    {labBusy && !thisBusy
-                      ? "Lab occupied"
-                      : missing.length > 0
-                        ? "Research locked"
-                        : poor
-                          ? "Need resources"
-                          : "Research"}
+                    {labUpgrading
+                      ? "Lab upgrading"
+                      : researchRunning && !thisBusy
+                        ? "Research running"
+                        : missing.length > 0
+                          ? "Research locked"
+                          : poor
+                            ? "Need resources"
+                            : "Research"}
                   </button>
                 </article>
               );
