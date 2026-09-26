@@ -1156,3 +1156,95 @@ export function cancelRefund(
     deuterium: Math.floor((cost.deuterium ?? 0) * remaining),
   };
 }
+
+/** Wiki Scores: 1 point per 1000 metal+crystal+deuterium spent on completed assets. */
+export const SCORE_RESOURCES_PER_POINT = 1000;
+
+const SCORE_BUILDINGS: BuildingId[] = [
+  ...BUILDINGS.map((b) => b.id),
+  ...FACILITIES.map((f) => f.id),
+];
+
+function resourceSum(cost: { ore: number; crystal: number; deuterium?: number }): number {
+  return cost.ore + cost.crystal + (cost.deuterium ?? 0);
+}
+
+export function spentOnBuildingLevels(id: BuildingId, level: number): number {
+  const n = Math.max(0, Math.floor(level));
+  let total = 0;
+  for (let i = 0; i < n; i++) total += resourceSum(buildingCost(id, i));
+  return total;
+}
+
+export function spentOnResearchLevels(id: ResearchId, level: number): number {
+  const n = Math.max(0, Math.floor(level));
+  let total = 0;
+  for (let i = 0; i < n; i++) total += resourceSum(researchTechCost(id, i));
+  return total;
+}
+
+export function resourcesToScorePoints(spent: number): number {
+  return Math.floor(Math.max(0, spent) / SCORE_RESOURCES_PER_POINT);
+}
+
+export function fleetShipCounts(
+  composition: Record<string, number> | null | undefined,
+  raiders = 0,
+): Record<string, number> {
+  if (composition && Object.keys(composition).length > 0) return composition;
+  if (raiders > 0) return { small_cargo: raiders };
+  return {};
+}
+
+export function scoreResources(input: {
+  buildings: Partial<Record<BuildingId, number>>;
+  research: Partial<Record<ResearchId, number>>;
+  defences: Partial<Record<DefenceId, number>>;
+  ships: Record<string, number>;
+  fleets?: { composition?: Record<string, number> | null; raiders?: number }[];
+}): number {
+  let spent = 0;
+  for (const id of SCORE_BUILDINGS) {
+    spent += spentOnBuildingLevels(id, input.buildings[id] ?? 0);
+  }
+  for (const spec of RESEARCHES) {
+    spent += spentOnResearchLevels(spec.id, input.research[spec.id] ?? 0);
+  }
+  for (const d of DEFENCES) {
+    const n = Math.max(0, input.defences[d.id] ?? 0);
+    if (n > 0) spent += n * resourceSum(defenceCost(d.id));
+  }
+  const ships: Record<string, number> = { ...input.ships };
+  for (const fleet of input.fleets ?? []) {
+    for (const [id, n] of Object.entries(fleetShipCounts(fleet.composition, fleet.raiders ?? 0))) {
+      ships[id] = (ships[id] ?? 0) + Math.max(0, n);
+    }
+  }
+  for (const [id, n] of Object.entries(ships)) {
+    const spec = shipSpec(id);
+    if (!spec || n <= 0) continue;
+    spent += n * resourceSum(spec.cost);
+  }
+  return spent;
+}
+
+/** Wiki research ranking: 1 point per completed technology level. */
+export function researchRankPoints(research: Partial<Record<ResearchId, number>>): number {
+  return RESEARCHES.reduce((sum, spec) => sum + Math.max(0, Math.floor(research[spec.id] ?? 0)), 0);
+}
+
+/** Wiki fleet ranking: 1 point per ship, any hull. */
+export function fleetRankPoints(
+  ships: Record<string, number>,
+  fleets?: { composition?: Record<string, number> | null; raiders?: number }[],
+): number {
+  let count = 0;
+  const merged: Record<string, number> = { ...ships };
+  for (const fleet of fleets ?? []) {
+    for (const [id, n] of Object.entries(fleetShipCounts(fleet.composition, fleet.raiders ?? 0))) {
+      merged[id] = (merged[id] ?? 0) + Math.max(0, n);
+    }
+  }
+  for (const n of Object.values(merged)) count += Math.max(0, Math.floor(n));
+  return count;
+}

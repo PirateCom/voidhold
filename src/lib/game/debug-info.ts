@@ -18,7 +18,7 @@ export const DEBUG_INFO = {
     "Galaxy map, abandoned-world raids with small cargo, recall on outbound raids/expeditions.",
     "Expeditions from slot 16 after Astrophysics 1 (small cargo only, 30s flight cap, 60s hold).",
     "Incoming pirate strikes (10 real minutes), simplified simultaneous-fire combat, battle reports.",
-    "Debris after wrecks (30% ship metal/crystal; map icon when the field is over 300). Rank points.",
+    "Debris after wrecks (30% ship metal/crystal; map icon when the field is over 300). Rank is wiki Scores: 1 point per 1000 resources spent on finished buildings, research, ships, and guns.",
   ],
   missing: [
     "No colonization or extra planets. Astrophysics only caps expeditions.",

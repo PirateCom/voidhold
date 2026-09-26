@@ -50,9 +50,11 @@ export default function OverviewPage() {
             <Fact label="Temperature" value={`${planet.temp_min}°C to ${planet.temp_max}°C`} />
             <Fact label="Position" value={`[${planet.galaxy}:${planet.system}:${planet.slot}]`} />
             <Fact
-              label="Points"
-              value={`${state.rank.points.toLocaleString()} (Place ${state.rank.place.toLocaleString()} of ${state.rank.total.toLocaleString()})`}
+              label="Score"
+              value={`${state.rank.points.toLocaleString()} pts (place ${state.rank.place.toLocaleString()} of ${state.rank.total.toLocaleString()})`}
             />
+            <Fact label="Research rank" value={`${(state.rank.research ?? 0).toLocaleString()} levels`} />
+            <Fact label="Fleet rank" value={`${(state.rank.fleet ?? 0).toLocaleString()} ships`} />
             <Fact
               label="Star"
               value={`${starLabel(state.star.type)} · solar ×${state.star.multiplier}`}

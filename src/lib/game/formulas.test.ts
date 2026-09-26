@@ -58,6 +58,12 @@ import {
   terraformerExtraFields,
   terraformerFreeFields,
   upgradeEnergyDelta,
+  spentOnBuildingLevels,
+  spentOnResearchLevels,
+  resourcesToScorePoints,
+  scoreResources,
+  researchRankPoints,
+  fleetRankPoints,
 } from "./catalog";
 
 describe("resource costs", () => {
@@ -313,5 +319,37 @@ describe("production formulas", () => {
     expect(debrisFromWrecks(0, 3000, 1000)).toEqual({ ore: 0, crystal: 300 });
     expect(debrisVisible(0, 300)).toBe(false);
     expect(debrisVisible(900, 300)).toBe(true);
+  });
+});
+
+describe("wiki rank scores", () => {
+  it("awards 1 score point per 1000 resources spent on finished assets", () => {
+    expect(spentOnBuildingLevels("ore_mine", 1) + spentOnBuildingLevels("crystal_mine", 1) + spentOnBuildingLevels("power_plant", 1)).toBe(252);
+    expect(resourcesToScorePoints(252)).toBe(0);
+    expect(resourcesToScorePoints(2000)).toBe(2);
+    expect(
+      scoreResources({
+        buildings: {},
+        research: {},
+        defences: { rocket_launcher: 10 },
+        ships: {},
+      }),
+    ).toBe(20_000);
+    expect(resourcesToScorePoints(20_000)).toBe(20);
+  });
+
+  it("counts deuterium on research and ships still in flight", () => {
+    expect(spentOnResearchLevels("energy_tech", 1)).toBe(1200);
+    expect(researchRankPoints({ energy_tech: 2, laser_tech: 1 })).toBe(3);
+    expect(
+      scoreResources({
+        buildings: {},
+        research: {},
+        defences: {},
+        ships: { small_cargo: 1 },
+        fleets: [{ composition: { small_cargo: 2 } }],
+      }),
+    ).toBe(3 * (2000 + 2000));
+    expect(fleetRankPoints({ solar_satellite: 4 }, [{ raiders: 3 }])).toBe(7);
   });
 });

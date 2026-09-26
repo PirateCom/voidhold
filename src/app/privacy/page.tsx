@@ -4,8 +4,8 @@ export default function PrivacyPage() {
       <h1 className="font-[family-name:var(--font-display)] text-2xl">Privacy</h1>
       <p className="mt-4 text-sm text-[var(--muted-fg)]">
         Voidhold stores your account email (via Supabase Auth) and game progress: planet, buildings, fleets,
-        and battle reports. We do not sell data. Deleting your account removes your empire from the live
-        universe.
+        and battle reports. We do not sell data. From Profile you can delete your account, which removes
+        your login and empire from the live universe.
       </p>
       <p className="mt-4 text-sm text-[var(--muted-fg)]">
         Magic-link emails are sent so you can sign in. Resource timers and combat are resolved on the

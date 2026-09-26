@@ -1,7 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { BuildingId, DefenceId, EmpireState, ResearchId, SolarSystemView } from "@/lib/game/types";
+import type {
+  BuildingId,
+  DefenceId,
+  EmpireState,
+  HighscoreEntry,
+  ResearchId,
+  SolarSystemView,
+} from "@/lib/game/types";
 
 function asState(data: unknown): EmpireState {
   return data as EmpireState;
@@ -101,4 +108,24 @@ export async function fillResources(): Promise<EmpireState> {
 
 export async function recallFleet(id: number): Promise<EmpireState> {
   return rpc("recall_fleet", { p_id: id });
+}
+
+export async function loadHighscores(): Promise<HighscoreEntry[]> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase.rpc("get_highscores");
+  if (error) rpcError(error);
+  return (data ?? []) as HighscoreEntry[];
+}
+
+export async function deleteOwnAccount(confirmation: string): Promise<void> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.rpc("delete_own_account", { p_confirmation: confirmation });
+  if (error) rpcError(error);
+  await supabase.auth.signOut();
 }

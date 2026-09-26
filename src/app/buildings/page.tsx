@@ -116,6 +116,12 @@ export default function BuildingsPage() {
           >
             Debug: info
           </button>
+          <Link
+            href="/profile"
+            className="sci-btn sci-btn-muted mt-2 flex h-11 w-full items-center justify-center"
+          >
+            Profile
+          </Link>
           <button
             type="button"
             onClick={() => void signOut()}

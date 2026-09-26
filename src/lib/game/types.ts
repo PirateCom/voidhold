@@ -178,12 +178,18 @@ export type SolarSystemView = {
   slots: SolarSlot[];
 };
 
+export type HighscoreEntry = {
+  user_id: string;
+  display_name: string;
+  points: number;
+};
+
 export type EmpireState = {
   profile: { user_id: string; display_name: string };
   planet: PlanetRow;
   empire: EmpireRow;
   star: { type: StarType; multiplier: number };
-  rank: { points: number; place: number; total: number };
+  rank: { points: number; place: number; total: number; research: number; fleet: number };
   fleets: FleetRow[];
   reports: ReportRow[];
   server_now: string;
