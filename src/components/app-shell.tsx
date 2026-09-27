@@ -11,15 +11,15 @@ export function AppShell({
   title: string;
 }) {
   return (
-    <div className="relative mx-auto flex h-dvh w-full max-w-md min-h-0 flex-col overflow-hidden border-x border-cyan-900/30 bg-[#040814]">
+    <div className="fixed inset-0 z-0 mx-auto flex w-full max-w-md min-h-0 flex-col overflow-hidden overscroll-none border-x border-cyan-900/30 bg-[#040814]">
       <Starfield />
       <div className="holo-grid pointer-events-none absolute inset-0 z-0" />
       <div className="scanlines pointer-events-none absolute inset-0 z-10" />
-      <header className="relative z-20 shrink-0 border-b border-cyan-500/20 bg-slate-950/90 px-3 pt-2 pb-2.5 backdrop-blur-md">
+      <header className="relative z-20 shrink-0 border-b border-cyan-500/20 bg-slate-950/90 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur-md">
         <PlanetHeader title={title} />
         <ResourceBar />
       </header>
-      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3 pb-[var(--bottom-nav-offset)]">
+      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
         {children}
       </div>
       <BottomNav />

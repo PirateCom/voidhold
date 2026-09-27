@@ -1,8 +1,6 @@
 @import "tailwindcss";
 
 :root {
-  /* Two-row bottom nav + safe area — used by AppShell main padding */
-  --bottom-nav-offset: max(8.5rem, calc(7.75rem + env(safe-area-inset-bottom, 0px)));
   --background: #030712;
   --foreground: #e2e8f0;
   --muted: #0f172a;
