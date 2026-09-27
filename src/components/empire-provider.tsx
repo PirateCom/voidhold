@@ -24,6 +24,7 @@ import {
   queueShip as queueShipAction,
   launchExpedition,
   recallFleet as recallFleetAction,
+  claimDirective as claimDirectiveAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { gameClock } from "@/lib/game/catalog";
@@ -51,6 +52,7 @@ type EmpireContextValue = {
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   sendExpedition: (galaxy: number, system: number, ships: Record<string, number>) => Promise<boolean>;
   recallFleet: (id: number) => Promise<void>;
+  claimDirective: (id: string) => Promise<void>;
 };
 
 const EmpireContext = createContext<EmpireContextValue | null>(null);
@@ -253,6 +255,7 @@ export function EmpireProvider({
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),
     recallFleet: (id) => runAction(() => recallFleetAction(id)),
+    claimDirective: (id) => runAction(() => claimDirectiveAction(id)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

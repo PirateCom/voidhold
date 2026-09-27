@@ -106,6 +106,10 @@ export async function fillResources(): Promise<EmpireState> {
   return rpc("debug_fill_resources");
 }
 
+export async function claimDirective(id: string): Promise<EmpireState> {
+  return rpc("claim_directive", { p_id: id });
+}
+
 export async function recallFleet(id: number): Promise<EmpireState> {
   return rpc("recall_fleet", { p_id: id });
 }

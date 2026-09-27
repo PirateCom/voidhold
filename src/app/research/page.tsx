@@ -120,19 +120,21 @@ export default function ResearchPage() {
                   ) : null}
                   <button
                     type="button"
-                    disabled={pending || missing.length > 0 || poor || (researchRunning && !thisBusy) || labUpgrading}
+                    disabled={pending || missing.length > 0 || poor || researchRunning || labUpgrading}
                     onClick={() => void research(tech.id)}
                     className="sci-btn mt-3 h-11 w-full"
                   >
                     {labUpgrading
                       ? "Lab upgrading"
-                      : researchRunning && !thisBusy
-                        ? "Research running"
-                        : missing.length > 0
-                          ? "Research locked"
-                          : poor
-                            ? "Need resources"
-                            : "Research"}
+                      : thisBusy
+                        ? "Researching"
+                        : researchRunning
+                          ? "Research running"
+                          : missing.length > 0
+                            ? "Research locked"
+                            : poor
+                              ? "Need resources"
+                              : "Research"}
                   </button>
                 </article>
               );

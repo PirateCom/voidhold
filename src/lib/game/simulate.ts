@@ -1033,7 +1033,7 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
     throw new Error("Not enough resources.");
   }
-  const duration = buildingTimeSeconds(level, planet.roboticsFactory, planet.naniteFactory);
+  const duration = buildingTimeSeconds(building, level, planet.roboticsFactory, planet.naniteFactory);
   const upgraded: SimPlanet = {
     ...planet,
     ore: planet.ore - cost.ore,
@@ -1055,7 +1055,7 @@ export function cancelUpgrade(world: SimWorld, at: number): SimWorld {
     cost,
     progressToward(
       planet.upgradeCompletesAt,
-      buildingTimeSeconds(level, planet.roboticsFactory, planet.naniteFactory) * 1000,
+      buildingTimeSeconds(planet.upgradeBuilding, level, planet.roboticsFactory, planet.naniteFactory) * 1000,
       at,
     ),
   );

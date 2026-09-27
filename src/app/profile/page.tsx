@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { useEmpire } from "@/components/empire-provider";
 import { deleteOwnAccount, loadHighscores } from "@/lib/game/actions";
 import type { HighscoreEntry } from "@/lib/game/types";
+import { UniverseRules } from "@/components/universe-rules";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileTab = "commander" | "highscores";
@@ -162,6 +163,8 @@ export default function ProfilePage() {
               <Fact label="Research" value={`${(state.rank.research ?? 0).toLocaleString()} tech levels`} />
               <Fact label="Fleet" value={`${(state.rank.fleet ?? 0).toLocaleString()} ships`} />
             </dl>
+            <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
+            <UniverseRules />
             <button
               type="button"
               onClick={() => void signOut()}

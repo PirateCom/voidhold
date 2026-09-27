@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildingCost,
@@ -133,7 +135,8 @@ describe("production formulas", () => {
     expect(energyNow(3, 1, 1, "medium", 0, 0, 0, 1, 20, 20).output).toBe(52);
   });
 
-  it("produces 30 ore per game-hour at ore mine L1", () => {
+  it("produces 33 ore per real hour at ore mine L1", () => {
+    expect(GAME_HOUR_SECONDS).toBe(3600);
     expect(mineProductionPerHour(1)).toBe(33);
     expect(crystalProductionPerHour(1)).toBe(22);
     expect(harvestAmount(0, 30, GAME_HOUR_SECONDS, 10000)).toBe(30);
@@ -177,13 +180,13 @@ describe("production formulas", () => {
     expect(terraformerFreeFields(2)).toBe(9);
     expect(terraformerFreeFields(10)).toBe(45);
     expect(planetFieldCap(173, 1)).toBe(178);
-    expect(buildingTimeSeconds(1)).toBeGreaterThan(buildingTimeSeconds(0));
-    expect(buildingTimeSeconds(0)).toBe(20);
-    expect(buildingTimeSeconds(0, 1)).toBe(10);
-    expect(buildingTimeSeconds(0, 2)).toBe(6);
-    expect(buildingTimeSeconds(1, 1)).toBe(15);
-    expect(buildingTimeSeconds(0, 0, 1)).toBe(10);
-    expect(buildingTimeSeconds(0, 1, 1)).toBe(5);
+    expect(buildingTimeSeconds("ore_mine", 1)).toBeGreaterThan(buildingTimeSeconds("ore_mine", 0));
+    expect(buildingTimeSeconds("ore_mine", 0)).toBe(108);
+    expect(buildingTimeSeconds("ore_mine", 0, 1)).toBe(54);
+    expect(buildingTimeSeconds("ore_mine", 0, 2)).toBe(36);
+    expect(buildingTimeSeconds("ore_mine", 1, 1)).toBe(80);
+    expect(buildingTimeSeconds("ore_mine", 0, 0, 1)).toBe(54);
+    expect(buildingTimeSeconds("ore_mine", 0, 1, 1)).toBe(27);
     expect(researchCost(1).crystal).toBe(researchCost(0).crystal * 2);
     expect(researchTechCost("energy_tech", 0)).toEqual({ ore: 0, crystal: 800, deuterium: 400 });
     expect(researchTechCost("armour_tech", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
@@ -197,7 +200,18 @@ describe("production formulas", () => {
     expect(unmetResearch("graviton_tech", () => 0, 12)).toEqual([]);
     expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 0, () => 2).map((need) => need.name)).toEqual([
       "Shipyard",
+      "Impulse drive",
     ]);
+    expect(
+      unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 2, (id) =>
+        id === "combustion_drive" ? 2 : 0,
+      ).map((need) => `${need.name} ${need.level}`),
+    ).toEqual(["Impulse drive 5"]);
+    expect(
+      unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 2, (id) =>
+        id === "combustion_drive" ? 2 : id === "impulse_drive" ? 5 : 0,
+      ),
+    ).toEqual([]);
     expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "light_fighter")!, 1, (id) => (id === "combustion_drive" ? 1 : 0))).toEqual(
       [],
     );
@@ -215,6 +229,37 @@ describe("production formulas", () => {
       "shielding_tech",
     ]);
     expect(SHIPS.find((ship) => ship.id === "pathfinder")?.research.map((req) => req.id)).toEqual(["hyperspace_drive"]);
+    expect(
+      unmetShipBuild(SHIPS.find((ship) => ship.id === "bomber")!, 8, (id) =>
+        id === "impulse_drive" ? 6 : id === "plasma_tech" ? 5 : 0,
+      ).map((need) => `${need.name} ${need.level}`),
+    ).toEqual(["Hyperspace drive 8"]);
+    const shipBlockSql = readFileSync(
+      path.join(process.cwd(), "supabase/migrations/036_small_cargo_impulse_gate.sql"),
+      "utf8",
+    );
+    const shipyardInSql: Record<string, number> = {};
+    for (const line of shipBlockSql.split("\n")) {
+      const m = line.match(/^\s+when '([^']+)' then (\d+)/);
+      if (m) shipyardInSql[m[1]] = Number(m[2]);
+    }
+    const researchInSql: Record<string, { id: string; level: number }[]> = {};
+    for (const line of shipBlockSql.split("\n")) {
+      const m = line.match(
+        /(?:els)?if id = '([^']+)' and private\.research_level\(e, '([^']+)'\) < (\d+)/,
+      );
+      if (!m) continue;
+      const [, shipId, techId, level] = m;
+      (researchInSql[shipId] ??= []).push({ id: techId, level: Number(level) });
+    }
+    const sortReq = (a: { id: string; level: number }, b: { id: string; level: number }) =>
+      a.id.localeCompare(b.id) || a.level - b.level;
+    for (const ship of SHIPS) {
+      expect(shipyardInSql[ship.id], `${ship.id} shipyard in SQL`).toBe(ship.shipyard);
+      const fromCatalog = ship.research.map((req) => ({ id: req.id, level: req.level })).sort(sortReq);
+      const fromSql = [...(researchInSql[ship.id] ?? [])].sort(sortReq);
+      expect(fromSql, `${ship.id} research gates in SQL`).toEqual(fromCatalog);
+    }
     expect(unmetDefenceBuild(DEFENCES.find((d) => d.id === "rocket_launcher")!, 0, 0, () => 0)[0]).toMatchObject({
       name: "Shipyard",
       level: 1,

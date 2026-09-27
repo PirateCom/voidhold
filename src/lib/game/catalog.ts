@@ -4,8 +4,9 @@ export const GALAXY = 1;
 export const SYSTEM_MAX = 10;
 export const SLOT_MAX = 10;
 
-/** One game-hour of production elapses every 60 real seconds. */
-export const GAME_HOUR_SECONDS = 60;
+/** Wiki economy speed ×1: one game-hour of mine output is one real hour. */
+export const ECONOMY_SPEED = 1;
+export const GAME_HOUR_SECONDS = 3600;
 
 export const RAID_LOOT_MIN = 0.25;
 export const RAID_LOOT_MAX = 0.75;
@@ -763,15 +764,18 @@ export function buildingCost(id: BuildingId, currentLevel: number): { ore: numbe
   }
 }
 
+/** Wiki construction hours: (metal + crystal) / (2500 × (1 + robotics) × 2^nanites × economy speed). */
 export function buildingTimeSeconds(
+  id: BuildingId,
   currentLevel: number,
   roboticsLevel = 0,
   naniteLevel = 0,
 ): number {
-  const base = Math.floor(20 * Math.pow(1.5, currentLevel));
+  const cost = buildingCost(id, currentLevel);
   const robotics = Math.max(0, Math.trunc(roboticsLevel));
   const nanites = Math.max(0, Math.trunc(naniteLevel));
-  return Math.max(1, Math.floor(base / (1 + robotics) / 2 ** nanites));
+  const denom = 2500 * (1 + robotics) * 2 ** nanites * ECONOMY_SPEED;
+  return Math.max(1, Math.floor(((cost.ore + cost.crystal) * 3600) / denom));
 }
 
 const RESEARCH_BY_ID = Object.fromEntries(RESEARCHES.map((tech) => [tech.id, tech])) as Record<
@@ -895,7 +899,6 @@ export function unmetShipBuild(
     missing.push({ name: "Shipyard", level: ship.shipyard });
   }
   for (const req of ship.research) {
-    if (req.upgrade) continue;
     if (levelOf(req.id) < req.level) {
       missing.push({ name: RESEARCH_BY_ID[req.id].name, level: req.level });
     }
@@ -970,7 +973,8 @@ export function flightSeconds(
 }
 
 export const EXPEDITION_SLOT = 16;
-export const EXPEDITION_HOLD_SECONDS = GAME_HOUR_SECONDS;
+/** Expeditions are not on the economy clock; hold stays a short session beat. */
+export const EXPEDITION_HOLD_SECONDS = 60;
 
 export function expeditionFlightSeconds(
   fromSystem: number,

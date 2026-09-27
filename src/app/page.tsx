@@ -2,7 +2,9 @@
 
 import { AppShell } from "@/components/app-shell";
 import { ResourceBuildings } from "@/components/building-list";
+import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
+import { UniverseRules } from "@/components/universe-rules";
 import { starLabel } from "@/lib/game/catalog";
 import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 
@@ -39,6 +41,7 @@ export default function OverviewPage() {
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       {ready && state && planet ? (
         <>
+          <CurrentDirective />
           <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">
             {state.profile.display_name}
           </p>
@@ -60,6 +63,8 @@ export default function OverviewPage() {
               value={`${starLabel(state.star.type)} · solar ×${state.star.multiplier}`}
             />
           </dl>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
+          <UniverseRules />
           <ResourceBuildings />
         </>
       ) : state ? (

@@ -13,6 +13,8 @@ import {
   canPayResources,
   buildingTimeSeconds,
   cancelRefund,
+  crystalProductionPerHour,
+  deuteriumProductionPerHour,
   facilitySpec,
   formatDuration,
   fusionOutput,
@@ -21,9 +23,11 @@ import {
   researchSpec,
   storageCap,
   terraformerEnergy,
+  mineProductionPerHour,
   unmetFacility,
   upgradeEnergyDelta,
   upgradeWouldCauseEnergyDeficit,
+  type BuildingId,
   type FacilityId,
   type ResearchId,
   type ResourceBuildingId,
@@ -83,7 +87,7 @@ function UpgradeCard({
   locked,
   lockLabel,
 }: {
-  id: string;
+  id: BuildingId;
   name: string;
   blurb: string;
   level: number;
@@ -121,7 +125,7 @@ function UpgradeCard({
         : 0;
   const busy = Boolean(state.planet.upgrade_building);
   const thisBusy = state.planet.upgrade_building === id;
-  const durationMs = buildingTimeSeconds(level, live.roboticsFactory, live.naniteFactory) * 1000;
+  const durationMs = buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory) * 1000;
   const refund = thisBusy
     ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
     : null;
@@ -170,6 +174,13 @@ function UpgradeCard({
         <StripedProgress className="mt-3" value={0} disabled label={name} animated={false} />
       )}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
+        {id === "ore_mine"
+          ? `Produces ${mineProductionPerHour(level).toLocaleString()}/h, next ${mineProductionPerHour(level + 1).toLocaleString()}/h. `
+          : id === "crystal_mine"
+            ? `Produces ${crystalProductionPerHour(level).toLocaleString()}/h, next ${crystalProductionPerHour(level + 1).toLocaleString()}/h. `
+            : id === "deuterium_extractor"
+              ? `Produces ${deuteriumProductionPerHour(level, live.tempMax ?? 30).toLocaleString()}/h, next ${deuteriumProductionPerHour(level + 1, live.tempMax ?? 30).toLocaleString()}/h. `
+              : null}
         {stores ? `Holds ${storageCap(level).toLocaleString()}, next ${storageCap(level + 1).toLocaleString()}. ` : null}
         {pricedResources(cost, live).map((bit, index) => (
           <span key={bit.label}>
@@ -199,7 +210,7 @@ function UpgradeCard({
           </>
         ) : null}
         {" · "}
-        {formatDuration(buildingTimeSeconds(level, live.roboticsFactory, live.naniteFactory))}
+        {formatDuration(buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory))}
       </p>
       {extra}
       {thisBusy ? (

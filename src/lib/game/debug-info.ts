@@ -9,16 +9,17 @@ export const DEBUG_INFO = {
   headline:
     "Yes — you can play a full single-planet loop. About 62% of a wiki OGame session is in the code. The planet-builder slice (mines, deuterium, facilities, research, yard, guns, NPC raids, pirates) is closer to 75%.",
   working: [
-    "Login, one homeworld, persistent catch-up clocks (1 game-hour = 60 real seconds).",
+    "Login, one homeworld, persistent catch-up clocks. Economy is ×1: 1 game-hour of mine output is 1 real hour, and buildings use wiki (metal+crystal)/2500 time.",
     "Ore, crystal, and deuterium mines. Synthesizer uses wiki temperature. Tanks cap all three. Fusion burns deut and drops out if the tank is empty. Solar satellites add wiki energy from average temperature, then the system star bonus.",
     "Facilities, research, and ships spend wiki deuterium costs. Small-cargo raids and expeditions pay round-trip fuel.",
     "Facilities with wiki gates and robotics/nanite build-time. Terraformer spends wiki crystal/deuterium/energy and adds floor(5.5 × level) fields. Research runs while other buildings upgrade; the lab itself blocks new techs while it is upgrading.",
     "All listed researches, one queue, research-lab gates. Combustion is propulsion.",
     "All listed hulls and defences if gates are met. One yard queue. 15s per hull.",
     "Galaxy map, abandoned-world raids with small cargo, recall on outbound raids/expeditions.",
-    "Expeditions from slot 16 after Astrophysics 1 (small cargo only, 30s flight cap, 60s hold).",
+    "Expeditions from slot 16 after Astrophysics 1 (small cargo only, 30s flight cap, 1-minute hold).",
     "Incoming pirate strikes (10 real minutes), simplified simultaneous-fire combat, battle reports.",
     "Debris after wrecks (30% ship metal/crystal; map icon when the field is over 300). Rank is wiki Scores: 1 point per 1000 resources spent on finished buildings, research, ships, and guns.",
+    "Beginner directives with collectable ore/crystal rewards. No mine-output % sliders.",
   ],
   missing: [
     "No colonization or extra planets. Astrophysics only caps expeditions.",

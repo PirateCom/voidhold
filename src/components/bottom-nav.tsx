@@ -8,6 +8,7 @@ const rows = [
   [
     { href: "/", label: "Resources", icon: ResourcesIcon },
     { href: "/buildings", label: "Facilities", icon: FacilitiesIcon },
+    { href: "/directives", label: "Directives", icon: DirectivesIcon },
     { href: "/research", label: "Research", icon: ResearchIcon },
     { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
   ],
@@ -26,7 +27,11 @@ export function BottomNav() {
     <footer className="relative z-30 shrink-0 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
       <nav className="flex flex-col gap-0.5">
         {rows.map((row) => (
-          <ul key={row[0].href} className="grid grid-cols-4 gap-0.5">
+          <ul
+            key={row[0].href}
+            className="grid gap-0.5"
+            style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
+          >
             {row.map(({ href, label, icon: Icon }) => {
               const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
               return (
@@ -57,6 +62,15 @@ function IconWrap({ children }: { children: ReactNode }) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       {children}
     </svg>
+  );
+}
+
+function DirectivesIcon() {
+  return (
+    <IconWrap>
+      <path d="M8 4h10v16H8z" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M6 7h2M6 12h2M6 17h2M10 8h6M10 12h6M10 16h4" stroke="currentColor" strokeWidth="1.8" />
+    </IconWrap>
   );
 }
 

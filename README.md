@@ -20,7 +20,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Then:
 
-1. Run [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql) in the SQL editor, **or** `npx supabase link --project-ref <ref>` then `npx supabase db push`.
+1. Run every file in [`supabase/migrations/`](supabase/migrations/) in numeric order (`001` … `034`) in the SQL editor, **or** `npx supabase link --project-ref <ref>` then `npx supabase db push`. Vercel deploys the app only; it does not apply SQL. After applying, run [`supabase/verify_migrations.sql`](supabase/verify_migrations.sql) and confirm every row shows `exists = true`.
 2. Authentication → URL configuration: add `http://localhost:3000/auth/callback` and your production `/auth/callback`.
 3. Enable Email (magic link).
 

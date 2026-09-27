@@ -121,6 +121,7 @@ export type EmpireRow = {
   research_completes_at: string | null;
   next_pirate_at: string | null;
   pirate_raids_enabled?: boolean;
+  claimed_directives?: string[];
 };
 
 export type FleetRow = {

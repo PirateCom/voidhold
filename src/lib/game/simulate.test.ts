@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, defenceCost, GAME_HOUR_SECONDS, planetFieldCap, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, planetFieldCap, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
@@ -123,7 +123,7 @@ describe("time-skip simulation", () => {
     const done = catchUpWorld(started, doneAt);
     expect(done.planets[0].roboticsFactory).toBe(1);
     const next = startUpgrade(done, "ore_mine", doneAt);
-    expect(next.planets[0].upgradeCompletesAt! - doneAt).toBe(15_000);
+    expect(next.planets[0].upgradeCompletesAt! - doneAt).toBe(buildingTimeSeconds("ore_mine", 1, 1, 0) * 1000);
   });
 
   it("builds raiders and returns loot from an NPC raid", () => {
@@ -133,7 +133,7 @@ describe("time-skip simulation", () => {
       planets: base.planets.map((planet) =>
         planet.id === 1 ? { ...planet, ore: 8000, crystal: 8000, shipyard: 2 } : planet,
       ),
-      empire: { ...base.empire, propulsionLevel: 2 },
+      empire: { ...base.empire, propulsionLevel: 2, impulseDrive: 5 },
     };
     const queued = queueRaiders(ready, 1, 0);
     expect(queued.planets[0].ore).toBe(8000 - RAIDER_COST.ore);
@@ -148,6 +148,16 @@ describe("time-skip simulation", () => {
         0,
       ),
     ).toThrow(/Combustion drive 2/);
+    expect(() =>
+      queueRaiders(
+        {
+          ...ready,
+          empire: { ...ready.empire, impulseDrive: 0 },
+        },
+        1,
+        0,
+      ),
+    ).toThrow(/Impulse drive 5/);
     const built = catchUpWorld(queued, queued.empire.raiderCompletesAt!);
     expect(built.empire.raiders).toBe(1);
     const sent = sendRaid(built, 2, 1, built.empire.raiderCompletesAt!);
