@@ -24,8 +24,9 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <footer className="relative z-30 shrink-0 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
-      <nav className="flex flex-col gap-0.5">
+    <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
+      <div className="mx-auto w-full max-w-md">
+        <nav className="flex flex-col gap-0.5">
         {rows.map((row) => (
           <ul
             key={row[0].href}
@@ -53,6 +54,7 @@ export function BottomNav() {
           </ul>
         ))}
       </nav>
+      </div>
     </footer>
   );
 }
