@@ -1,3 +1,4 @@
+import { BASH_LIMIT, BASH_WINDOW_MS, cleanFleet, normalizeAttackSpeed, settleAttack } from "./combat";
 import {
   BUILDINGS,
   type BuildingId,
@@ -8,29 +9,42 @@ import {
   FACILITIES,
   type FacilityId,
   GAME_HOUR_SECONDS,
-  RAIDER_CARGO,
   RAIDER_BUILD_SECONDS,
   buildingCost,
   buildingTimeSeconds,
   crystalProductionPerHour,
   debrisFromWrecks,
   deuteriumProductionPerHour,
+  attackFlightSeconds,
+  attackFuel,
+  harvestDebris,
+  recyclerHarvestCapacity,
+  maxPlanets,
+  canColonizeSlot,
+  colonizeSlotRange,
+  rollMaxFields,
+  planetTemperature,
   fleetFuelRoundTrip,
   fusionDeuteriumBurnPerHour,
+  hullSpeed,
+  slowestHullSpeed,
   expeditionFleetCap,
   expeditionFlightSeconds,
   EXPEDITION_HOLD_SECONDS,
   EXPEDITION_SLOT,
   expeditionResourceAmount,
   rollExpeditionKind,
+  counterEspionageChance,
   defenceSpec,
   defenceTimeSeconds,
   defenceUnitCount,
   energyNow,
+  espionageSees,
   facilitySpec,
   fieldsUsed,
   planetFieldCap,
   terraformerEnergy,
+  formatEspionageReport,
   isBuildingId,
   isFacilityId,
   flightSeconds,
@@ -42,7 +56,6 @@ import {
   pirateIntervalSeconds,
   pirateWaveSize,
   progressToward,
-  raidHaul,
   researchSpec,
   researchTechCost,
   shipSpec,
@@ -115,6 +128,11 @@ export type SimPlanet = {
   defenceCompletesAt: number | null;
   debrisOre?: number;
   debrisCrystal?: number;
+  /** Docked hulls on an ownerless world. Player fleets live on the empire instead. */
+  garrison?: Record<string, number>;
+  weaponsTech?: number;
+  shieldingTech?: number;
+  armourTech?: number;
 };
 
 export const EMPTY_FACILITIES = {
@@ -345,6 +363,12 @@ export const EMPTY_RESEARCH = {
 export type FleetMission =
   | "attack"
   | "return"
+  | "espionage"
+  | "espionage_return"
+  | "harvest"
+  | "harvest_return"
+  | "colonize"
+  | "colonize_return"
   | "expedition"
   | "expedition_hold"
   | "expedition_return";
@@ -358,6 +382,8 @@ export type SimFleet = {
   destSystem?: number;
   destSlot?: number;
   raiders: number;
+  composition?: Record<string, number>;
+  flightSeconds?: number;
   mission: FleetMission;
   arrivesAt: number;
   cargoOre: number;
@@ -592,6 +618,91 @@ function bumpShip(ships: Record<string, number> | undefined, id: string, n: numb
   return { ...current, [id]: Math.max(0, (current[id] ?? 0) + n) };
 }
 
+function restoreReturningShips(empire: SimEmpire, fleet: SimFleet): SimEmpire {
+  const composition = fleet.composition;
+  const useComposition =
+    fleet.mission !== "expedition_return" &&
+    composition != null &&
+    Object.values(composition).some((n) => n > 0);
+  if (useComposition) {
+    let ships = empire.ships;
+    let raiders = empire.raiders;
+    for (const [id, n] of Object.entries(composition)) {
+      if (n <= 0) continue;
+      ships = bumpShip(ships, id, n);
+      if (id === "small_cargo") raiders += n;
+    }
+    return { ...empire, ships, raiders };
+  }
+  return {
+    ...empire,
+    raiders: empire.raiders + fleet.raiders,
+    ships: bumpShip(empire.ships, "small_cargo", fleet.raiders),
+  };
+}
+
+function planetAtCoords(world: SimWorld, galaxy: number, system: number, slot: number): SimPlanet | null {
+  return (
+    world.planets.find(
+      (planet) => (planet.galaxy ?? 1) === galaxy && planet.system === system && planet.slot === slot,
+    ) ?? null
+  );
+}
+
+function ownedPlanetCount(world: SimWorld): number {
+  return world.planets.filter((planet) => planet.ownerId === world.empire.userId).length;
+}
+
+function inFlightColonizeCount(world: SimWorld, exceptFleetId?: number): number {
+  return world.fleets.filter(
+    (fleet) =>
+      fleet.status === "en_route" &&
+      fleet.ownerId === world.empire.userId &&
+      fleet.mission === "colonize" &&
+      fleet.id !== exceptFleetId,
+  ).length;
+}
+
+function newColonyPlanet(
+  world: SimWorld,
+  ownerId: string,
+  galaxy: number,
+  system: number,
+  slot: number,
+  at: number,
+): SimPlanet {
+  const fields = rollMaxFields(slot, Math.random(), Math.random());
+  const offset = Math.floor(Math.random() * 21) - 10;
+  const temp = planetTemperature(slot, offset);
+  return {
+    id: Math.max(0, ...world.planets.map((p) => p.id)) + 1,
+    ownerId,
+    galaxy,
+    system,
+    slot,
+    name: "Colony",
+    ore: 500,
+    crystal: 500,
+    deuterium: 0,
+    lastHarvestedAt: at,
+    tempMin: temp.min,
+    tempMax: temp.max,
+    maxFields: fields,
+    oreMine: 0,
+    crystalMine: 0,
+    deuteriumExtractor: 0,
+    powerPlant: 0,
+    fusionReactor: 0,
+    oreStorage: 0,
+    crystalStorage: 0,
+    deuteriumStorage: 0,
+    ...EMPTY_FACILITIES,
+    upgradeBuilding: null,
+    upgradeCompletesAt: null,
+    ...EMPTY_DEFENCES,
+  };
+}
+
 export function catchUpEmpire(empire: SimEmpire, at: number): SimEmpire {
   let next = { ...empire, ships: empire.ships ?? {} };
   if (next.researchCompletesAt != null && next.researchCompletesAt <= at) {
@@ -748,17 +859,138 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
   if (fleet.mission === "attack") {
     const dest = planetById(world, fleet.destPlanetId!);
     const tickedDest = catchUpPlanet(dest, fleet.arrivesAt);
-    const haul = raidHaul(tickedDest.ore, tickedDest.crystal, fleet.raiders * RAIDER_CARGO);
-    const lootOre = haul.ore;
-    const lootCrystal = haul.crystal;
-    const wreck = debrisFromWrecks(0, 0, 0);
-    const looted: SimPlanet = {
-      ...tickedDest,
-      ore: tickedDest.ore - lootOre,
-      crystal: tickedDest.crystal - lootCrystal,
-      debrisOre: (tickedDest.debrisOre ?? 0) + wreck.ore,
-      debrisCrystal: (tickedDest.debrisCrystal ?? 0) + wreck.crystal,
+    const launched =
+      fleet.composition && Object.values(fleet.composition).some((n) => n > 0)
+        ? fleet.composition
+        : { small_cargo: fleet.raiders };
+    const settled = settleAttack({
+      attackers: launched,
+      defenderShips: tickedDest.garrison ?? {},
+      defenderDefenses: defenceCountsOf(tickedDest),
+      attackerTech: {
+        weapons: world.empire.weaponsTech,
+        shielding: world.empire.shieldingTech,
+        armour: world.empire.armourTech,
+      },
+      defenderTech: {
+        weapons: tickedDest.weaponsTech ?? 0,
+        shielding: tickedDest.shieldingTech ?? 0,
+        armour: tickedDest.armourTech ?? 0,
+      },
+      ore: tickedDest.ore,
+      crystal: tickedDest.crystal,
+      deuterium: tickedDest.deuterium,
+      seed: fleet.id,
+    });
+    const looted: SimPlanet = applyDefenceCounts(
+      {
+        ...tickedDest,
+        ore: tickedDest.ore - settled.plunder.ore,
+        crystal: tickedDest.crystal - settled.plunder.crystal,
+        deuterium: tickedDest.deuterium - settled.plunder.deuterium,
+        debrisOre: (tickedDest.debrisOre ?? 0) + settled.debris.ore,
+        debrisCrystal: (tickedDest.debrisCrystal ?? 0) + settled.debris.crystal,
+        garrison: settled.defenderShips,
+      },
+      settled.defenses,
+    );
+    const duration =
+      fleet.flightSeconds ??
+      flightSeconds(
+        origin.system,
+        origin.slot,
+        dest.system,
+        dest.slot,
+        world.empire.propulsionLevel,
+        origin.galaxy ?? 0,
+        dest.galaxy ?? 0,
+      );
+    const withPlanet = replacePlanet(world, looted);
+    const survivors = cleanFleet(settled.survivors);
+    if (Object.keys(survivors).length === 0) {
+      const lost: SimFleet = {
+        ...fleet,
+        status: "completed",
+        raiders: 0,
+        composition: {},
+        report: settled.report,
+      };
+      return {
+        ...withPlanet,
+        fleets: withPlanet.fleets.map((f) => (f.id === fleet.id ? lost : f)),
+        reports: [
+          {
+            title: `Attack on ${dest.name}`,
+            body: settled.report,
+            lootOre: 0,
+            lootCrystal: 0,
+            createdAt: fleet.arrivesAt,
+          },
+          ...withPlanet.reports,
+        ],
+      };
+    }
+    const returning: SimFleet = {
+      ...fleet,
+      mission: "return",
+      raiders: survivors.small_cargo ?? 0,
+      composition: survivors,
+      cargoOre: settled.plunder.ore,
+      cargoCrystal: settled.plunder.crystal,
+      cargoDeuterium: settled.plunder.deuterium,
+      arrivesAt: fleet.arrivesAt + duration * 1000,
+      report: settled.report,
     };
+    return {
+      ...withPlanet,
+      fleets: withPlanet.fleets.map((f) => (f.id === fleet.id ? returning : f)),
+    };
+  }
+
+  if (fleet.mission === "espionage") {
+    const dest = planetById(world, fleet.destPlanetId!);
+    const tickedDest = catchUpPlanet(dest, fleet.arrivesAt);
+    const yourEsp = world.empire.espionageTech;
+    const enemyEsp = 0;
+    const probes = fleet.raiders;
+    const sees = espionageSees(probes, yourEsp, enemyEsp);
+    const chance = counterEspionageChance(yourEsp, enemyEsp, probes);
+    const detected = Math.random() < chance;
+    const guns = defenceUnitCount(defenceCountsOf(tickedDest));
+    const destroyed = detected && guns > 0;
+    const body = formatEspionageReport(
+      {
+        name: tickedDest.name,
+        coords: `[${tickedDest.galaxy ?? 1}:${tickedDest.system}:${tickedDest.slot}]`,
+        ore: tickedDest.ore,
+        crystal: tickedDest.crystal,
+        deuterium: tickedDest.deuterium,
+        fleet: {},
+        defense: defenceCountsOf(tickedDest),
+        buildings: {
+          ore_mine: tickedDest.oreMine,
+          crystal_mine: tickedDest.crystalMine,
+          deuterium_extractor: tickedDest.deuteriumExtractor,
+          power_plant: tickedDest.powerPlant,
+          fusion_reactor: tickedDest.fusionReactor,
+          ore_storage: tickedDest.oreStorage,
+          crystal_storage: tickedDest.crystalStorage,
+          deuterium_storage: tickedDest.deuteriumStorage,
+          robotics_factory: tickedDest.roboticsFactory,
+          shipyard: tickedDest.shipyard,
+          research_lab: tickedDest.researchLab,
+          alliance_depot: tickedDest.allianceDepot,
+          missile_silo: tickedDest.missileSilo,
+          nanite_factory: tickedDest.naniteFactory,
+          terraformer: tickedDest.terraformer,
+          space_station: tickedDest.spaceStation,
+        },
+        research: {},
+      },
+      sees,
+      detected,
+      destroyed,
+    );
     const duration = flightSeconds(
       origin.system,
       origin.slot,
@@ -768,18 +1000,150 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
       origin.galaxy ?? 0,
       dest.galaxy ?? 0,
     );
+    if (destroyed) {
+      const dead: SimFleet = { ...fleet, status: "completed", raiders: 0, report: body };
+      return {
+        ...world,
+        fleets: world.fleets.map((f) => (f.id === fleet.id ? dead : f)),
+        reports: [{ title: "Espionage report", body, lootOre: 0, lootCrystal: 0, createdAt: fleet.arrivesAt }, ...world.reports],
+      };
+    }
     const returning: SimFleet = {
       ...fleet,
-      mission: "return",
-      cargoOre: lootOre,
-      cargoCrystal: lootCrystal,
+      mission: "espionage_return",
       arrivesAt: fleet.arrivesAt + duration * 1000,
-      report: `Raid on ${dest.name}: +${lootOre} ore, +${lootCrystal} crystal.`,
+      report: body,
     };
-    const withPlanet = replacePlanet(world, looted);
+    return { ...world, fleets: world.fleets.map((f) => (f.id === fleet.id ? returning : f)) };
+  }
+
+  if (fleet.mission === "espionage_return") {
+    const home = catchUpPlanet(origin, fleet.arrivesAt);
+    const completed: SimFleet = { ...fleet, status: "completed" };
     return {
-      ...withPlanet,
-      fleets: withPlanet.fleets.map((f) => (f.id === fleet.id ? returning : f)),
+      ...replacePlanet(world, home),
+      empire: {
+        ...world.empire,
+        ships: bumpShip(world.empire.ships, "espionage_probe", fleet.raiders),
+      },
+      fleets: world.fleets.map((f) => (f.id === fleet.id ? completed : f)),
+      reports: [
+        {
+          title: "Espionage report",
+          body: fleet.report ?? "The probes returned.",
+          lootOre: 0,
+          lootCrystal: 0,
+          createdAt: fleet.arrivesAt,
+        },
+        ...world.reports,
+      ],
+    };
+  }
+
+  if (fleet.mission === "harvest") {
+    const destGalaxy = fleet.destGalaxy ?? origin.galaxy ?? 1;
+    const destSystem = fleet.destSystem ?? origin.system;
+    const destSlot = fleet.destSlot ?? origin.slot;
+    const dest =
+      fleet.destPlanetId != null ? planetById(world, fleet.destPlanetId) : planetAtCoords(world, destGalaxy, destSystem, destSlot);
+    const recyclers = fleet.composition?.recycler ?? 0;
+    const cap = recyclerHarvestCapacity(recyclers);
+    let nextWorld = world;
+    let take = { ore: 0, crystal: 0 };
+    if (dest) {
+      const tickedDest = catchUpPlanet(dest, fleet.arrivesAt);
+      take = harvestDebris(tickedDest.debrisOre ?? 0, tickedDest.debrisCrystal ?? 0, cap);
+      nextWorld = replacePlanet(world, {
+        ...tickedDest,
+        debrisOre: Math.max(0, (tickedDest.debrisOre ?? 0) - take.ore),
+        debrisCrystal: Math.max(0, (tickedDest.debrisCrystal ?? 0) - take.crystal),
+      });
+    }
+    const duration = attackFlightSeconds(
+      origin.system,
+      origin.slot,
+      destSystem,
+      destSlot,
+      world.empire.propulsionLevel,
+      origin.galaxy ?? 1,
+      destGalaxy,
+      hullSpeed("recycler", world.empire.impulseDrive, world.empire.hyperspaceDrive),
+      100,
+    );
+    const body =
+      take.ore + take.crystal > 0
+        ? `Recyclers harvested ${take.ore} ore and ${take.crystal} crystal.`
+        : "The debris field was empty.";
+    const returning: SimFleet = {
+      ...fleet,
+      mission: "harvest_return",
+      arrivesAt: fleet.arrivesAt + duration * 1000,
+      cargoOre: take.ore,
+      cargoCrystal: take.crystal,
+      report: body,
+    };
+    return { ...nextWorld, fleets: nextWorld.fleets.map((f) => (f.id === fleet.id ? returning : f)) };
+  }
+
+  if (fleet.mission === "colonize") {
+    const destGalaxy = fleet.destGalaxy ?? origin.galaxy ?? 1;
+    const destSystem = fleet.destSystem ?? origin.system;
+    const destSlot = fleet.destSlot ?? origin.slot;
+    const occupier = planetAtCoords(world, destGalaxy, destSystem, destSlot);
+    const ships = fleet.composition?.colony_ship ?? 0;
+    const cap = maxPlanets(world.empire.astrophysics);
+    const slotsUsed = ownedPlanetCount(world) + inFlightColonizeCount(world, fleet.id);
+    const duration = attackFlightSeconds(
+      origin.system,
+      origin.slot,
+      destSystem,
+      destSlot,
+      world.empire.propulsionLevel,
+      origin.galaxy ?? 1,
+      destGalaxy,
+      hullSpeed("colony_ship", world.empire.impulseDrive, world.empire.hyperspaceDrive),
+      100,
+    );
+    const blocked =
+      occupier != null ||
+      destSlot === EXPEDITION_SLOT ||
+      !canColonizeSlot(destSlot, world.empire.astrophysics) ||
+      slotsUsed >= cap;
+    if (blocked) {
+      const returning: SimFleet = {
+        ...fleet,
+        mission: "colonize_return",
+        arrivesAt: fleet.arrivesAt + duration * 1000,
+        report: occupier
+          ? "The slot was already occupied. The colony ship is returning."
+          : "Colonization failed. The colony ship is returning.",
+      };
+      return { ...world, fleets: world.fleets.map((f) => (f.id === fleet.id ? returning : f)) };
+    }
+    const colony = newColonyPlanet(world, world.empire.userId, destGalaxy, destSystem, destSlot, fleet.arrivesAt);
+    const leftover = Math.max(0, ships - 1);
+    const body = `Colonized [${destGalaxy}:${destSystem}:${destSlot}]. The colony ship was consumed.`;
+    if (leftover < 1) {
+      const done: SimFleet = { ...fleet, destPlanetId: colony.id, status: "completed", composition: {}, report: body };
+      return {
+        ...world,
+        planets: [...world.planets, colony],
+        fleets: world.fleets.map((f) => (f.id === fleet.id ? done : f)),
+        reports: [{ title: "Colony founded", body, lootOre: 0, lootCrystal: 0, createdAt: fleet.arrivesAt }, ...world.reports],
+      };
+    }
+    const returning: SimFleet = {
+      ...fleet,
+      destPlanetId: colony.id,
+      mission: "colonize_return",
+      composition: { colony_ship: leftover },
+      arrivesAt: fleet.arrivesAt + duration * 1000,
+      report: body,
+    };
+    return {
+      ...world,
+      planets: [...world.planets, colony],
+      fleets: world.fleets.map((f) => (f.id === fleet.id ? returning : f)),
     };
   }
 
@@ -793,21 +1157,26 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
   const destName =
     fleet.destSlot === EXPEDITION_SLOT || fleet.mission === "expedition_return"
       ? "Outer space"
-      : fleet.destPlanetId != null
-        ? planetById(world, fleet.destPlanetId).name
-        : "the void";
+      : fleet.mission === "harvest_return"
+        ? "the debris field"
+        : fleet.mission === "colonize_return"
+          ? "the colony site"
+          : fleet.destPlanetId != null
+          ? planetById(world, fleet.destPlanetId).name
+          : "the void";
   const completed: SimFleet = { ...fleet, status: "completed" };
   return {
     ...replacePlanet(world, cappedHome),
-    empire: {
-      ...world.empire,
-      raiders: world.empire.raiders + fleet.raiders,
-      ships: bumpShip(world.empire.ships, "small_cargo", fleet.raiders),
-    },
+    empire: restoreReturningShips(world.empire, fleet),
     fleets: world.fleets.map((f) => (f.id === fleet.id ? completed : f)),
     reports: [
       {
-        title: `Fleet returned from ${destName}`,
+        title:
+          fleet.mission === "harvest_return"
+            ? "Harvest returned"
+            : fleet.mission === "colonize_return"
+              ? "Colony ship returned"
+              : `Fleet returned from ${destName}`,
         body: fleet.report ?? "The small cargo dumped their holds.",
         lootOre: fleet.cargoOre,
         lootCrystal: fleet.cargoCrystal,
@@ -977,7 +1346,13 @@ export function recallFleet(world: SimWorld, fleetId: number, at: number): SimWo
   const fleet = caught.fleets.find((row) => row.id === fleetId);
   if (!fleet || fleet.status !== "en_route") throw new Error("Fleet not found.");
   if (fleet.ownerId !== caught.empire.userId) throw new Error("Fleet not found.");
-  if (fleet.mission !== "attack" && fleet.mission !== "expedition") {
+  if (
+    fleet.mission !== "attack" &&
+    fleet.mission !== "expedition" &&
+    fleet.mission !== "espionage" &&
+    fleet.mission !== "harvest" &&
+    fleet.mission !== "colonize"
+  ) {
     throw new Error("That fleet cannot be recalled.");
   }
   if (fleet.arrivesAt <= at) throw new Error("The fleet already reached its target.");
@@ -985,7 +1360,16 @@ export function recallFleet(world: SimWorld, fleetId: number, at: number): SimWo
   const flown = Math.max(1, at - (fleet.launchedAt ?? at));
   const recalled: SimFleet = {
     ...fleet,
-    mission: fleet.mission === "expedition" ? "expedition_return" : "return",
+    mission:
+      fleet.mission === "expedition"
+        ? "expedition_return"
+        : fleet.mission === "espionage"
+          ? "espionage_return"
+          : fleet.mission === "harvest"
+            ? "harvest_return"
+            : fleet.mission === "colonize"
+              ? "colonize_return"
+            : "return",
     destPlanetId: origin.id,
     destGalaxy: origin.galaxy,
     destSystem: origin.system,
@@ -1223,38 +1607,79 @@ export function queueRaiders(world: SimWorld, count: number, at: number): SimWor
   return queueShip(world, "small_cargo", count, at);
 }
 
-export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, at: number): SimWorld {
-  if (ships < 1) throw new Error("Send at least one small cargo.");
+export function sendAttack(
+  world: SimWorld,
+  destPlanetId: number,
+  ships: Record<string, number>,
+  at: number,
+  speedPercent = 100,
+): SimWorld {
+  const speed = normalizeAttackSpeed(speedPercent);
+  const fleetShips = cleanFleet(ships);
+  const total = Object.values(fleetShips).reduce((sum, n) => sum + n, 0);
+  if (total < 1) throw new Error("Send at least one ship.");
+  for (const id of Object.keys(fleetShips)) {
+    if (hullSpeed(id) <= 0) throw new Error("That hull cannot fly.");
+  }
   const caught = catchUpWorld(world, at);
-  if (caught.empire.raiders < ships) throw new Error("Not enough small cargo.");
   const origin = planetById(caught, caught.empire.homePlanetId);
   const dest = planetById(caught, destPlanetId);
-  if (dest.id === origin.id) throw new Error("Cannot raid your own planet.");
-  if (dest.ownerId && dest.ownerId !== caught.empire.userId) {
-    throw new Error("Commander worlds are protected in this version.");
+  if (dest.slot === EXPEDITION_SLOT) throw new Error("Outer space cannot be attacked.");
+  if (dest.id === origin.id || dest.ownerId === caught.empire.userId) {
+    throw new Error("Cannot attack your own planet.");
   }
-  if (dest.ownerId === caught.empire.userId) throw new Error("Cannot raid your own planet.");
-  const duration = flightSeconds(
+  const docked: Record<string, number> = { ...caught.empire.ships, small_cargo: caught.empire.raiders };
+  for (const [id, n] of Object.entries(fleetShips)) {
+    if ((docked[id] ?? 0) < n) throw new Error("Not enough ships.");
+  }
+  if (dest.ownerId) {
+    const since = at - BASH_WINDOW_MS;
+    const recent = caught.fleets.filter(
+      (fleet) =>
+        fleet.ownerId === caught.empire.userId &&
+        fleet.destPlanetId === dest.id &&
+        (fleet.mission === "attack" || fleet.mission === "return") &&
+        (fleet.launchedAt ?? 0) > since,
+    ).length;
+    const counter = caught.fleets.some(
+      (fleet) =>
+        fleet.ownerId === dest.ownerId &&
+        fleet.destPlanetId === origin.id &&
+        (fleet.mission === "attack" || fleet.mission === "return") &&
+        (fleet.launchedAt ?? 0) > since,
+    );
+    if (recent >= BASH_LIMIT && !counter) {
+      throw new Error("Bash protection: that planet was already attacked 6 times in 24 hours.");
+    }
+  }
+  const fromGalaxy = origin.galaxy ?? 1;
+  const toGalaxy = dest.galaxy ?? 1;
+  const slowest = slowestHullSpeed(fleetShips, caught.empire.impulseDrive, caught.empire.hyperspaceDrive);
+  const duration = attackFlightSeconds(
     origin.system,
     origin.slot,
     dest.system,
     dest.slot,
     caught.empire.propulsionLevel,
-    origin.galaxy ?? 0,
-    dest.galaxy ?? 0,
+    fromGalaxy,
+    toGalaxy,
+    slowest,
+    speed,
   );
-  const fuel = fleetFuelRoundTrip(
-    ships,
-    origin.galaxy ?? 1,
+  const fuel = attackFuel(
+    fleetShips,
+    fromGalaxy,
     origin.system,
     origin.slot,
-    dest.galaxy ?? 1,
+    toGalaxy,
     dest.system,
     dest.slot,
-    "small_cargo",
     caught.empire.impulseDrive,
+    speed,
   );
   if (origin.deuterium < fuel) throw new Error("Not enough resources.");
+  let nextShips = caught.empire.ships;
+  for (const [id, n] of Object.entries(fleetShips)) nextShips = bumpShip(nextShips, id, -n);
   const fleet: SimFleet = {
     id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
     ownerId: caught.empire.userId,
@@ -1263,7 +1688,9 @@ export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, a
     destGalaxy: dest.galaxy,
     destSystem: dest.system,
     destSlot: dest.slot,
-    raiders: ships,
+    raiders: fleetShips.small_cargo ?? 0,
+    composition: fleetShips,
+    flightSeconds: duration,
     mission: "attack",
     arrivesAt: at + duration * 1000,
     cargoOre: 0,
@@ -1276,8 +1703,224 @@ export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, a
     ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
     empire: {
       ...caught.empire,
-      raiders: caught.empire.raiders - ships,
-      ships: bumpShip(caught.empire.ships, "small_cargo", -ships),
+      raiders: caught.empire.raiders - (fleetShips.small_cargo ?? 0),
+      ships: nextShips,
+    },
+    fleets: [...caught.fleets, fleet],
+  };
+}
+
+export function sendRaid(world: SimWorld, destPlanetId: number, ships: number, at: number): SimWorld {
+  if (ships < 1) throw new Error("Send at least one small cargo.");
+  return sendAttack(world, destPlanetId, { small_cargo: ships }, at, 100);
+}
+
+export function sendColonize(
+  world: SimWorld,
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: number,
+  at: number,
+): SimWorld {
+  if (ships < 1) throw new Error("Send at least one colony ship.");
+  if (slot === EXPEDITION_SLOT) throw new Error("Outer space cannot be colonized.");
+  const caught = catchUpWorld(world, at);
+  if (caught.empire.astrophysics < 1) throw new Error("Needs Astrophysics 1.");
+  if (!canColonizeSlot(slot, caught.empire.astrophysics)) {
+    const range = colonizeSlotRange(caught.empire.astrophysics);
+    throw new Error(`Astrophysics only allows slots ${range.min}–${range.max}.`);
+  }
+  const docked = caught.empire.ships.colony_ship ?? 0;
+  if (docked < ships) throw new Error("Not enough colony ships.");
+  if (planetAtCoords(caught, galaxy, system, slot)) throw new Error("That slot is already occupied.");
+  const reserved = ownedPlanetCount(caught) + inFlightColonizeCount(caught);
+  if (reserved >= maxPlanets(caught.empire.astrophysics)) {
+    throw new Error("No free colony slots. Research more Astrophysics.");
+  }
+  const origin = planetById(caught, caught.empire.homePlanetId);
+  const slowest = hullSpeed("colony_ship", caught.empire.impulseDrive, caught.empire.hyperspaceDrive);
+  const duration = attackFlightSeconds(
+    origin.system,
+    origin.slot,
+    system,
+    slot,
+    caught.empire.propulsionLevel,
+    origin.galaxy ?? 1,
+    galaxy,
+    slowest,
+    100,
+  );
+  const fuel = attackFuel(
+    { colony_ship: ships },
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    galaxy,
+    system,
+    slot,
+    caught.empire.impulseDrive,
+    100,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
+  const fleet: SimFleet = {
+    id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
+    ownerId: caught.empire.userId,
+    originPlanetId: origin.id,
+    destPlanetId: null,
+    destGalaxy: galaxy,
+    destSystem: system,
+    destSlot: slot,
+    raiders: 0,
+    composition: { colony_ship: ships },
+    flightSeconds: duration,
+    mission: "colonize",
+    arrivesAt: at + duration * 1000,
+    cargoOre: 0,
+    cargoCrystal: 0,
+    launchedAt: at,
+    status: "en_route",
+    report: null,
+  };
+  return {
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
+    empire: {
+      ...caught.empire,
+      ships: bumpShip(caught.empire.ships, "colony_ship", -ships),
+    },
+    fleets: [...caught.fleets, fleet],
+  };
+}
+
+export function selectPlanet(world: SimWorld, planetId: number): SimWorld {
+  const planet = planetById(world, planetId);
+  if (planet.ownerId !== world.empire.userId) throw new Error("That is not your planet.");
+  return { ...world, empire: { ...world.empire, homePlanetId: planet.id } };
+}
+
+export function sendHarvest(
+  world: SimWorld,
+  galaxy: number,
+  system: number,
+  slot: number,
+  recyclers: number,
+  at: number,
+): SimWorld {
+  if (recyclers < 1) throw new Error("Send at least one recycler.");
+  if (slot === EXPEDITION_SLOT) throw new Error("Outer space has no debris field.");
+  const caught = catchUpWorld(world, at);
+  const docked = caught.empire.ships.recycler ?? 0;
+  if (docked < recyclers) throw new Error("Not enough recyclers.");
+  const origin = planetById(caught, caught.empire.homePlanetId);
+  const destGalaxy = galaxy;
+  const destSystem = system;
+  const destSlot = slot;
+  const dest = planetAtCoords(caught, destGalaxy, destSystem, destSlot);
+  const slowest = hullSpeed("recycler", caught.empire.impulseDrive, caught.empire.hyperspaceDrive);
+  const duration = attackFlightSeconds(
+    origin.system,
+    origin.slot,
+    destSystem,
+    destSlot,
+    caught.empire.propulsionLevel,
+    origin.galaxy ?? 1,
+    destGalaxy,
+    slowest,
+    100,
+  );
+  const fuel = attackFuel(
+    { recycler: recyclers },
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    destGalaxy,
+    destSystem,
+    destSlot,
+    caught.empire.impulseDrive,
+    100,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
+  const fleet: SimFleet = {
+    id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
+    ownerId: caught.empire.userId,
+    originPlanetId: origin.id,
+    destPlanetId: dest?.id ?? null,
+    destGalaxy,
+    destSystem,
+    destSlot,
+    raiders: 0,
+    composition: { recycler: recyclers },
+    flightSeconds: duration,
+    mission: "harvest",
+    arrivesAt: at + duration * 1000,
+    cargoOre: 0,
+    cargoCrystal: 0,
+    launchedAt: at,
+    status: "en_route",
+    report: null,
+  };
+  return {
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
+    empire: {
+      ...caught.empire,
+      ships: bumpShip(caught.empire.ships, "recycler", -recyclers),
+    },
+    fleets: [...caught.fleets, fleet],
+  };
+}
+
+export function sendSpy(world: SimWorld, destPlanetId: number, probes: number, at: number): SimWorld {
+  if (probes < 1) throw new Error("Send at least one probe.");
+  const caught = catchUpWorld(world, at);
+  const docked = caught.empire.ships.espionage_probe ?? 0;
+  if (docked < probes) throw new Error("Not enough espionage probes.");
+  if (researchLevel(caught.empire, "espionage_tech") < 2) throw new Error("Needs Espionage technology 2.");
+  const origin = planetById(caught, caught.empire.homePlanetId);
+  const dest = planetById(caught, destPlanetId);
+  if (dest.id === origin.id) throw new Error("Cannot spy on your own planet.");
+  const duration = flightSeconds(
+    origin.system,
+    origin.slot,
+    dest.system,
+    dest.slot,
+    caught.empire.propulsionLevel,
+    origin.galaxy ?? 0,
+    dest.galaxy ?? 0,
+  );
+  const fuel = fleetFuelRoundTrip(
+    probes,
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    dest.galaxy ?? 1,
+    dest.system,
+    dest.slot,
+    "espionage_probe",
+    caught.empire.impulseDrive,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
+  const fleet: SimFleet = {
+    id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
+    ownerId: caught.empire.userId,
+    originPlanetId: origin.id,
+    destPlanetId: dest.id,
+    destGalaxy: dest.galaxy,
+    destSystem: dest.system,
+    destSlot: dest.slot,
+    raiders: probes,
+    mission: "espionage",
+    arrivesAt: at + duration * 1000,
+    cargoOre: 0,
+    cargoCrystal: 0,
+    launchedAt: at,
+    status: "en_route",
+    report: null,
+  };
+  return {
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
+    empire: {
+      ...caught.empire,
+      ships: bumpShip(caught.empire.ships, "espionage_probe", -probes),
     },
     fleets: [...caught.fleets, fleet],
   };

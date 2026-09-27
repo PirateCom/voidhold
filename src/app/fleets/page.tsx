@@ -80,7 +80,12 @@ export default function FleetsPage() {
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
               {outbound.map((fleet) => {
-                const canReturn = fleet.mission === "attack" || fleet.mission === "expedition";
+                const canReturn =
+                  fleet.mission === "attack" ||
+                  fleet.mission === "expedition" ||
+                  fleet.mission === "espionage" ||
+                  fleet.mission === "harvest" ||
+                  fleet.mission === "colonize";
                 return (
                   <FleetEventStrip
                     key={fleet.id}

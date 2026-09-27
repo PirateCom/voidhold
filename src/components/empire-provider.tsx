@@ -13,7 +13,12 @@ import {
 import {
   buildRaiders,
   cancelBuildingUpgrade,
+  launchAttack,
   launchRaid,
+  launchSpy,
+  launchHarvest,
+  launchColonize,
+  selectPlanet as selectPlanetAction,
   loadEmpireState,
   queueDefence as queueDefenceAction,
   startResearch,
@@ -50,6 +55,11 @@ type EmpireContextValue = {
   setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
+  attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
+  spy: (galaxy: number, system: number, slot: number, probes: number) => Promise<void>;
+  harvest: (galaxy: number, system: number, slot: number, recyclers: number) => Promise<void>;
+  colonize: (galaxy: number, system: number, slot: number, ships: number) => Promise<void>;
+  selectPlanet: (planetId: number) => Promise<void>;
   sendExpedition: (galaxy: number, system: number, ships: Record<string, number>) => Promise<boolean>;
   recallFleet: (id: number) => Promise<void>;
   claimDirective: (id: string) => Promise<void>;
@@ -253,6 +263,11 @@ export function EmpireProvider({
     setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
+    attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
+    spy: (galaxy, system, slot, probes) => runAction(() => launchSpy(galaxy, system, slot, probes)),
+    harvest: (galaxy, system, slot, recyclers) => runAction(() => launchHarvest(galaxy, system, slot, recyclers)),
+    colonize: (galaxy, system, slot, ships) => runAction(() => launchColonize(galaxy, system, slot, ships)),
+    selectPlanet: (planetId) => runAction(() => selectPlanetAction(planetId)),
     sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),
     recallFleet: (id) => runAction(() => recallFleetAction(id)),
     claimDirective: (id) => runAction(() => claimDirectiveAction(id)),

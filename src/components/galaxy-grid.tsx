@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AttackSheet } from "@/components/attack-sheet";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
 import { useEmpire } from "@/components/empire-provider";
 import { loadSolarSystem } from "@/lib/game/actions";
-import { flightSeconds, starLabel, debrisVisible, fleetFuelRoundTrip } from "@/lib/game/catalog";
+import { attackFlightSeconds, attackFuel, canColonizeSlot, colonizeSlotRange, flightSeconds, hullSpeed, maxPlanets, starLabel, debrisVisible, fleetFuelRoundTrip } from "@/lib/game/catalog";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
 
 function DebrisMark() {
@@ -37,14 +38,17 @@ function slotClass(kind: SolarSlot["kind"], selected: boolean) {
 }
 
 export function GalaxyGrid() {
-  const { state, pending, raid, now } = useEmpire();
+  const { state, pending, spy, harvest, colonize } = useEmpire();
   const [galaxy, setGalaxy] = useState(1);
   const [system, setSystem] = useState(1);
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<SolarSystemView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SolarSlot | null>(null);
-  const [ships, setShips] = useState(1);
+  const [spyShips, setSpyShips] = useState(1);
+  const [harvestShips, setHarvestShips] = useState(1);
+  const [colonizeShips, setColonizeShips] = useState(1);
+  const [attackOpen, setAttackOpen] = useState(false);
   const [expeditionOpen, setExpeditionOpen] = useState(false);
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export function GalaxyGrid() {
   const home = state?.planet;
   const flight = useMemo(() => {
     if (!state || !selected || !home) return null;
-    if (selected.kind !== "npc") return null;
+    if (selected.kind !== "npc" && selected.kind !== "player") return null;
     return flightSeconds(
       home.system,
       home.slot,
@@ -93,20 +97,87 @@ export function GalaxyGrid() {
     );
   }, [state, selected, home, system, galaxy]);
 
-  const raidFuel = useMemo(() => {
-    if (!state || !selected || !home || selected.kind !== "npc") return 0;
-    return fleetFuelRoundTrip(
-      Math.max(1, ships),
+  const harvestFlight = useMemo(() => {
+    if (!state || !selected || !home) return null;
+    if (selected.kind === "outer") return null;
+    return attackFlightSeconds(
+      home.system,
+      home.slot,
+      system,
+      selected.slot,
+      state.empire.propulsion_level,
+      home.galaxy,
+      galaxy,
+      hullSpeed("recycler", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0),
+      100,
+    );
+  }, [state, selected, home, system, galaxy]);
+
+  const probesDocked = Math.max(0, state?.empire.ships?.espionage_probe ?? 0);
+  const recyclersDocked = Math.max(0, state?.empire.ships?.recycler ?? 0);
+  const harvestFuel = useMemo(() => {
+    if (!state || !selected || !home) return 0;
+    if (selected.kind === "outer") return 0;
+    return attackFuel(
+      { recycler: Math.max(1, harvestShips) },
       home.galaxy,
       home.system,
       home.slot,
       galaxy,
       system,
       selected.slot,
-      "small_cargo",
+      state.empire.impulse_drive ?? 0,
+      100,
+    );
+  }, [state, selected, home, harvestShips, galaxy, system]);
+  const colonyShipsDocked = Math.max(0, state?.empire.ships?.colony_ship ?? 0);
+  const astro = state?.empire.astrophysics ?? 0;
+  const colonizeRange = colonizeSlotRange(astro);
+  const colonizeFlight = useMemo(() => {
+    if (!state || !selected || !home) return null;
+    if (selected.kind !== "empty") return null;
+    return attackFlightSeconds(
+      home.system,
+      home.slot,
+      system,
+      selected.slot,
+      state.empire.propulsion_level,
+      home.galaxy,
+      galaxy,
+      hullSpeed("colony_ship", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0),
+      100,
+    );
+  }, [state, selected, home, system, galaxy]);
+  const colonizeFuel = useMemo(() => {
+    if (!state || !selected || !home) return 0;
+    if (selected.kind !== "empty") return 0;
+    return attackFuel(
+      { colony_ship: Math.max(1, colonizeShips) },
+      home.galaxy,
+      home.system,
+      home.slot,
+      galaxy,
+      system,
+      selected.slot,
+      state.empire.impulse_drive ?? 0,
+      100,
+    );
+  }, [state, selected, home, colonizeShips, galaxy, system]);
+  const spyFuel = useMemo(() => {
+    if (!state || !selected || !home) return 0;
+    if (selected.kind !== "npc" && selected.kind !== "player") return 0;
+    return fleetFuelRoundTrip(
+      Math.max(1, spyShips),
+      home.galaxy,
+      home.system,
+      home.slot,
+      galaxy,
+      system,
+      selected.slot,
+      "espionage_probe",
       state.empire.impulse_drive ?? 0,
     );
-  }, [state, selected, home, ships, galaxy, system]);
+  }, [state, selected, home, spyShips, galaxy, system]);
 
   if (!state) return null;
 
@@ -213,17 +284,61 @@ export function GalaxyGrid() {
           </h2>
           <p className="mt-1 text-xs text-[var(--muted-fg)]">
             {selected.kind === "npc"
-              ? "Abandoned world. Raid it for ore and crystal."
+              ? "Abandoned world. Attack it to plunder ore, crystal, and deuterium. A later NPC garrison will fight from here."
               : selected.kind === "home"
                 ? "Your hold."
                 : selected.kind === "player"
                   ? selected.owner_name
-                    ? `Held by ${selected.owner_name}. Protected in v1.`
-                    : "Another commander. Protected in v1."
+                    ? `Held by ${selected.owner_name}. Attack to raid. Docked ships and defenses fight back.`
+                    : "Another commander. Attack to raid. Docked ships and defenses fight back."
                   : selected.kind === "outer"
                     ? "Uncolonizable. Expeditions launch from this slot."
-                    : "No planet here."}
+                    : "Empty slot. A colony ship can found a world here if Astrophysics allows it."}
           </p>
+          {selected.kind === "empty" ? (
+            <form
+              className="mt-3 flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void colonize(galaxy, system, selected.slot, colonizeShips);
+              }}
+            >
+              <label className="text-xs text-[var(--muted-fg)]">
+                Colony ships (you have {colonyShipsDocked})
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, colonyShipsDocked)}
+                  value={colonizeShips}
+                  onChange={(e) => setColonizeShips(Number(e.target.value))}
+                  className="sci-input mt-1 h-11 w-full px-3"
+                />
+              </label>
+              {colonizeFlight != null ? (
+                <p className="text-xs text-[var(--muted-fg)]">
+                  Colonize flight ~{colonizeFlight}s · fuel {colonizeFuel.toLocaleString()} deut (round trip reserved) ·
+                  slots {colonizeRange.min}–{colonizeRange.max} · planets {maxPlanets(astro)}
+                </p>
+              ) : null}
+              <button
+                type="submit"
+                disabled={
+                  pending ||
+                  colonyShipsDocked < 1 ||
+                  astro < 1 ||
+                  !canColonizeSlot(selected.slot, astro) ||
+                  Number(state.planet.deuterium) < colonizeFuel
+                }
+                className="sci-btn h-11"
+              >
+                {astro < 1
+                  ? "Needs Astrophysics 1"
+                  : !canColonizeSlot(selected.slot, astro)
+                    ? `Needs slots ${colonizeRange.min}–${colonizeRange.max}`
+                    : "Colonize"}
+              </button>
+            </form>
+          ) : null}
           {(selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0 ? (
             <p className="mt-2 text-xs text-amber-200">
               Debris field {Number(selected.debris_ore ?? 0).toLocaleString()} ore ·{" "}
@@ -231,39 +346,81 @@ export function GalaxyGrid() {
               {debrisVisible(selected.debris_ore ?? 0, selected.debris_crystal ?? 0) ? "" : " (hidden on the map)"}
             </p>
           ) : null}
-          {selected.kind === "npc" ? (
+          {(selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0 && selected.kind !== "outer" ? (
             <form
               className="mt-3 flex flex-col gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                void raid(galaxy, system, selected.slot, ships);
+                void harvest(galaxy, system, selected.slot, harvestShips);
               }}
             >
               <label className="text-xs text-[var(--muted-fg)]">
-                Small cargo (you have {state.empire.raiders})
+                Recyclers (you have {recyclersDocked})
                 <input
                   type="number"
                   min={1}
-                  max={Math.max(1, state.empire.raiders)}
-                  value={ships}
-                  onChange={(e) => setShips(Number(e.target.value))}
+                  max={Math.max(1, recyclersDocked)}
+                  value={harvestShips}
+                  onChange={(e) => setHarvestShips(Number(e.target.value))}
+                  className="sci-input mt-1 h-11 w-full px-3"
+                />
+              </label>
+              {harvestFlight != null ? (
+                <p className="text-xs text-[var(--muted-fg)]">
+                  Harvest flight ~{harvestFlight}s each way · fuel {harvestFuel.toLocaleString()} deut round trip
+                </p>
+              ) : null}
+              <button
+                type="submit"
+                disabled={pending || recyclersDocked < 1 || Number(state.planet.deuterium) < harvestFuel}
+                className="sci-btn h-11"
+              >
+                Harvest debris
+              </button>
+            </form>
+          ) : null}
+          {selected.kind === "npc" || selected.kind === "player" ? (
+            <button type="button" className="sci-btn mt-3 h-11 w-full" onClick={() => setAttackOpen(true)}>
+              Attack
+            </button>
+          ) : null}
+          {selected.kind === "npc" || selected.kind === "player" ? (
+            <form
+              className="mt-3 flex flex-col gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void spy(galaxy, system, selected.slot, spyShips);
+              }}
+            >
+              <label className="text-xs text-[var(--muted-fg)]">
+                Espionage probes (you have {probesDocked})
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, probesDocked)}
+                  value={spyShips}
+                  onChange={(e) => setSpyShips(Number(e.target.value))}
                   className="sci-input mt-1 h-11 w-full px-3"
                 />
               </label>
               {flight != null ? (
                 <p className="text-xs text-[var(--muted-fg)]">
-                  Flight ~{flight}s each way · fuel {raidFuel.toLocaleString()} deut round trip · now{" "}
-                  {new Date(now).toLocaleTimeString()}
+                  Spy flight ~{flight}s each way · fuel {spyFuel.toLocaleString()} deut round trip
                 </p>
               ) : null}
               <button
                 type="submit"
-                disabled={pending || state.empire.raiders < 1 || Number(state.planet.deuterium) < raidFuel}
-                className="sci-btn h-11"
+                disabled={
+                  pending ||
+                  probesDocked < 1 ||
+                  (state.empire.espionage_tech ?? 0) < 2 ||
+                  Number(state.planet.deuterium) < spyFuel
+                }
+                className="sci-btn sci-btn-muted h-11"
               >
-                Launch raid
+                {(state.empire.espionage_tech ?? 0) < 2 ? "Needs Espionage 2" : "Launch spy"}
               </button>
-              </form>
+            </form>
           ) : null}
           {selected.kind === "outer" ? (
             <button
@@ -276,6 +433,14 @@ export function GalaxyGrid() {
           ) : null}
         </section>
       ) : null}
+      <AttackSheet
+        open={attackOpen}
+        galaxy={galaxy}
+        system={system}
+        slot={selected?.slot ?? 1}
+        targetName={selected?.name ?? "Unknown"}
+        onClose={() => setAttackOpen(false)}
+      />
       <ExpeditionSheet
         open={expeditionOpen}
         galaxy={galaxy}

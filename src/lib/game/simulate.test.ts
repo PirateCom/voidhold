@@ -10,7 +10,11 @@ import {
   queueRaiders,
   queueShip,
   resetEmpire,
+  sendAttack,
   sendRaid,
+  sendSpy,
+  sendHarvest,
+  sendColonize,
   sendExpedition,
   spawnPirates,
   recallFleet,
@@ -166,7 +170,8 @@ describe("time-skip simulation", () => {
     const afterAttack = catchUpWorld(sent, attackAt);
     const returning = afterAttack.fleets.find((f) => f.id === sent.fleets[0].id)!;
     expect(returning.mission).toBe("return");
-    expect(returning.cargoOre).toBeGreaterThan(0);
+    expect(returning.cargoOre).toBe(2000);
+    expect(returning.cargoCrystal).toBe(1000);
     const home = catchUpWorld(afterAttack, returning.arrivesAt);
     expect(home.empire.raiders).toBe(1);
     expect(home.planets[0].ore).toBeGreaterThan(built.planets[0].ore);
@@ -351,6 +356,50 @@ describe("time-skip simulation", () => {
     expect(impact.planets[0].debrisCrystal).toBeGreaterThan(0);
   });
 
+  it("attacks another commander and a defended world", () => {
+    const base = world(0);
+    const player: SimPlanet = {
+      ...base.planets[1],
+      id: 3,
+      ownerId: "u2",
+      slot: 4,
+      name: "Rival Hold",
+      ore: 8000,
+      crystal: 4000,
+      deuterium: 2000,
+    };
+    const defended: SimPlanet = {
+      ...player,
+      id: 4,
+      slot: 5,
+      name: "Fortress",
+      plasmaTurret: 1,
+    };
+    const ready: SimWorld = {
+      ...base,
+      planets: [...base.planets, player, defended],
+      empire: { ...base.empire, raiders: 2, ships: { small_cargo: 2 } },
+    };
+    const sent = sendAttack(ready, 3, { small_cargo: 1 }, 0, 100);
+    expect(sent.empire.raiders).toBe(1);
+    const hit = catchUpWorld(sent, sent.fleets[0].arrivesAt);
+    const returning = hit.fleets[0];
+    expect(returning.mission).toBe("return");
+    expect(returning.cargoOre).toBe(2000);
+    expect(returning.cargoCrystal).toBe(2000);
+    expect(returning.cargoDeuterium).toBe(1000);
+    expect(() => sendAttack(ready, 1, { small_cargo: 1 }, 0)).toThrow(/own planet/);
+    const assault = sendAttack(ready, 4, { small_cargo: 1 }, 0, 100);
+    const after = catchUpWorld(assault, assault.fleets[0].arrivesAt);
+    expect(after.fleets[0].status).toBe("completed");
+    expect(after.fleets[0].raiders).toBe(0);
+    expect(after.reports[0].body).toMatch(/Defender holds/);
+    expect(after.planets.find((planet) => planet.id === 4)?.ore).toBe(8000);
+    let wave: SimWorld = { ...ready, empire: { ...ready.empire, raiders: 8 } };
+    for (let i = 0; i < 6; i += 1) wave = sendAttack(wave, 3, { small_cargo: 1 }, 0, 100);
+    expect(() => sendAttack(wave, 3, { small_cargo: 1 }, 0, 100)).toThrow(/Bash protection/);
+  });
+
   it("recalls an outbound raid before it hits", () => {
     const base = world(0);
     const ready: SimWorld = {
@@ -459,5 +508,86 @@ describe("time-skip simulation", () => {
     expect(done.planets[0].maxFields).toBe(173);
     expect(planetFieldCapOf(done.planets[0])).toBe(planetFieldCap(173, 1));
     expect(planetFieldCapOf(done.planets[0])).toBe(178);
+  });
+
+  it("sends probes, lists them as espionage, and files a report", () => {
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      empire: {
+        ...base.empire,
+        espionageTech: 2,
+        ships: { espionage_probe: 2 },
+      },
+    };
+    const sent = sendSpy(ready, 2, 1, 0);
+    expect(sent.empire.ships.espionage_probe).toBe(1);
+    expect(sent.fleets[0].mission).toBe("espionage");
+    const arrived = catchUpWorld(sent, sent.fleets[0].arrivesAt);
+    const spy = arrived.fleets.find((f) => f.id === sent.fleets[0].id)!;
+    expect(spy.mission === "espionage_return" || spy.status === "completed").toBe(true);
+    const home = catchUpWorld(arrived, spy.arrivesAt);
+    expect(home.reports.some((r) => r.title === "Espionage report")).toBe(true);
+    expect(home.reports.find((r) => r.title === "Espionage report")?.body).toMatch(/Resources/);
+  });
+
+  it("sends recyclers to harvest a debris field and returns the cargo", () => {
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      planets: base.planets.map((planet) =>
+        planet.id === 2 ? { ...planet, debrisOre: 30000, debrisCrystal: 10000 } : planet,
+      ),
+      empire: {
+        ...base.empire,
+        ships: { recycler: 1 },
+      },
+    };
+    const sent = sendHarvest(ready, 1, 1, 3, 1, 0);
+    expect(sent.empire.ships.recycler).toBe(0);
+    expect(sent.fleets[0].mission).toBe("harvest");
+    expect(() => sendHarvest(sent, 1, 1, 3, 1, 0)).toThrow(/recyclers/i);
+    const arrived = catchUpWorld(sent, sent.fleets[0].arrivesAt);
+    const harvesting = arrived.fleets.find((f) => f.id === sent.fleets[0].id)!;
+    expect(harvesting.mission).toBe("harvest_return");
+    expect(harvesting.cargoOre).toBe(15000);
+    expect(harvesting.cargoCrystal).toBe(5000);
+    const field = arrived.planets.find((p) => p.id === 2)!;
+    expect(field.debrisOre).toBe(15000);
+    expect(field.debrisCrystal).toBe(5000);
+    const home = catchUpWorld(arrived, harvesting.arrivesAt);
+    expect(home.empire.ships.recycler).toBe(1);
+    expect(home.planets[0].ore).toBeGreaterThan(ready.planets[0].ore);
+    expect(home.reports.some((r) => r.title === "Harvest returned")).toBe(true);
+  });
+
+  it("sends a colony ship to an empty slot and founds a planet", () => {
+    const base = world(0);
+    const ready: SimWorld = {
+      ...base,
+      empire: {
+        ...base.empire,
+        astrophysics: 1,
+        impulseDrive: 3,
+        ships: { colony_ship: 1 },
+      },
+    };
+    expect(() => sendColonize(base, 1, 1, 8, 1, 0)).toThrow(/Astrophysics 1/);
+    expect(() => sendColonize(ready, 1, 1, 4, 1, 0)).toThrow(/slots 7–9/);
+    expect(() => sendColonize({ ...ready, empire: { ...ready.empire, astrophysics: 10 } }, 1, 1, 3, 1, 0)).toThrow(
+      /occupied/,
+    );
+    const sent = sendColonize(ready, 1, 1, 8, 1, 0);
+    expect(sent.empire.ships.colony_ship).toBe(0);
+    expect(sent.fleets[0].mission).toBe("colonize");
+    const arrived = catchUpWorld(sent, sent.fleets[0].arrivesAt);
+    const colony = arrived.planets.find((p) => p.slot === 8 && p.ownerId === "u1");
+    expect(colony).toBeTruthy();
+    expect(colony?.oreMine).toBe(0);
+    expect(arrived.empire.ships.colony_ship ?? 0).toBe(0);
+    expect(arrived.reports.some((r) => r.title === "Colony founded")).toBe(true);
+    expect(() => sendColonize({ ...arrived, empire: { ...arrived.empire, ships: { colony_ship: 1 } } }, 1, 1, 7, 1, arrived.fleets[0]?.arrivesAt ?? 0)).toThrow(
+      /colony slots/i,
+    );
   });
 });

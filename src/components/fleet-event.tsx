@@ -65,14 +65,28 @@ export function FleetEventStrip({
       ? "Attack"
       : fleet.mission === "attack"
         ? "Attack"
-        : fleet.mission === "expedition"
+        : fleet.mission === "espionage"
+          ? "Espionage"
+        : fleet.mission === "espionage_return"
+          ? "Return"
+          : fleet.mission === "harvest"
+            ? "Harvest"
+            : fleet.mission === "harvest_return"
+              ? "Return"
+              : fleet.mission === "colonize"
+                ? "Colonize"
+                : fleet.mission === "colonize_return"
+                  ? "Return"
+          : fleet.mission === "expedition"
           ? "Expedition"
           : fleet.mission === "expedition_hold"
             ? "Expedition"
             : fleet.mission === "expedition_return" || fleet.mission === "return"
               ? "Return"
               : fleet.mission;
-  const hostile = Boolean(inbound) || fleet.mission === "attack";
+  const hostile =
+    fleet.mission === "attack" ||
+    (Boolean(inbound) && fleet.mission !== "espionage" && fleet.mission !== "harvest" && fleet.mission !== "colonize");
 
   return (
     <li

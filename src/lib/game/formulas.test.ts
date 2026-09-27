@@ -10,6 +10,7 @@ import {
   fusionDeuteriumBurnPerHour,
   fleetFuelOneWay,
   fleetFuelRoundTrip,
+  attackFlightSeconds,
   wikiFlightDistance,
   diameterKm,
   fieldsFromDiameter,
@@ -22,6 +23,8 @@ import {
   fieldsUsed,
   fleetSpeedMultiplier,
   flightSeconds,
+  espionageProbesNeeded,
+  counterEspionageChance,
   gameClock,
   GAME_HOUR_SECONDS,
   harvestAmount,
@@ -53,6 +56,10 @@ import {
   pirateCombat,
   debrisFromWrecks,
   debrisVisible,
+  harvestDebris,
+  maxPlanets,
+  colonizeSlotRange,
+  canColonizeSlot,
   pirateWaveSize,
   pirateWavesPerHour,
   planetFieldCap,
@@ -281,6 +288,9 @@ describe("production formulas", () => {
     expect(fleetSpeedMultiplier(0)).toBe(1);
     expect(flightSeconds(1, 1, 1, 2, 10)).toBeLessThan(flightSeconds(1, 1, 1, 2, 0));
     expect(flightSeconds(1, 1, 1, 2, 0, 1, 2)).toBeGreaterThan(flightSeconds(1, 1, 1, 2, 0, 1, 1));
+    expect(attackFlightSeconds(1, 1, 1, 2, 0, 1, 1, 5000, 50)).toBeGreaterThan(
+      attackFlightSeconds(1, 1, 1, 2, 0, 1, 1, 5000, 100),
+    );
     expect(raidLoot(1000, 200, 1)).toBe(200);
     expect(raidLoot(1000, 10_000, 0)).toBe(250);
     expect(raidLoot(1000, 10_000, 1)).toBe(750);
@@ -364,6 +374,18 @@ describe("production formulas", () => {
     expect(debrisFromWrecks(0, 3000, 1000)).toEqual({ ore: 0, crystal: 300 });
     expect(debrisVisible(0, 300)).toBe(false);
     expect(debrisVisible(900, 300)).toBe(true);
+    expect(harvestDebris(1000, 1000, 20000)).toEqual({ ore: 1000, crystal: 1000 });
+    expect(harvestDebris(30000, 10000, 20000)).toEqual({ ore: 15000, crystal: 5000 });
+    expect(harvestDebris(0, 0, 20000)).toEqual({ ore: 0, crystal: 0 });
+    expect(maxPlanets(0)).toBe(1);
+    expect(maxPlanets(1)).toBe(2);
+    expect(maxPlanets(2)).toBe(2);
+    expect(maxPlanets(3)).toBe(3);
+    expect(colonizeSlotRange(1)).toEqual({ min: 7, max: 9 });
+    expect(colonizeSlotRange(4)).toEqual({ min: 6, max: 10 });
+    expect(colonizeSlotRange(15)).toEqual({ min: 1, max: 15 });
+    expect(canColonizeSlot(8, 1)).toBe(true);
+    expect(canColonizeSlot(3, 1)).toBe(false);
   });
 });
 
@@ -396,5 +418,24 @@ describe("wiki rank scores", () => {
       }),
     ).toBe(3 * (2000 + 2000));
     expect(fleetRankPoints({ solar_satellite: 4 }, [{ raiders: 3 }])).toBe(7);
+  });
+});
+
+describe("espionage", () => {
+  it("matches the wiki probe counts for a research view", () => {
+    const needed = (delta: number) => espionageProbesNeeded("research", 10, 10 + delta);
+    expect(needed(-3)).toBe(1);
+    expect(needed(-2)).toBe(3);
+    expect(needed(-1)).toBe(6);
+    expect(needed(0)).toBe(7);
+    expect(needed(1)).toBe(8);
+    expect(needed(2)).toBe(11);
+    expect(needed(3)).toBe(16);
+  });
+
+  it("raises counter-espionage odds with more probes", () => {
+    expect(counterEspionageChance(2, 2, 1)).toBeCloseTo(3 / 9);
+    expect(counterEspionageChance(2, 2, 3)).toBeCloseTo(9 / 9);
+    expect(counterEspionageChance(2, 0, 1)).toBeCloseTo(1 / 9);
   });
 });

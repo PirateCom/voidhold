@@ -139,7 +139,7 @@ export type FleetRow = {
   origin_slot?: number;
   created_at?: string;
   raiders: number;
-  mission: "attack" | "return" | "expedition" | "expedition_hold" | "expedition_return";
+  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;
@@ -185,9 +185,19 @@ export type HighscoreEntry = {
   points: number;
 };
 
+export type ColonyRow = {
+  id: number;
+  name: string;
+  galaxy: number;
+  system: number;
+  slot: number;
+  is_homeworld: boolean;
+};
+
 export type EmpireState = {
   profile: { user_id: string; display_name: string };
   planet: PlanetRow;
+  colonies?: ColonyRow[];
   empire: EmpireRow;
   star: { type: StarType; multiplier: number };
   rank: { points: number; place: number; total: number; research: number; fleet: number };

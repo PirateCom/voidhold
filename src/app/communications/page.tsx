@@ -17,13 +17,13 @@ export default function CommunicationsPage() {
             Reports
           </h2>
           {state.reports.length === 0 ? (
-            <p className="mt-2 text-sm text-[var(--muted-fg)]">No battle reports yet.</p>
+            <p className="mt-2 text-sm text-[var(--muted-fg)]">No reports yet.</p>
           ) : (
             <ul className="mt-2 flex flex-col gap-2">
               {state.reports.map((report) => (
                 <li key={report.id} className="sci-card p-4">
                   <p className="font-semibold">{report.title}</p>
-                  <p className="mt-1 text-sm text-[var(--muted-fg)]">{report.body}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--muted-fg)]">{report.body}</p>
                 </li>
               ))}
             </ul>

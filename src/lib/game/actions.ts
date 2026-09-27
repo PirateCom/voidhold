@@ -71,6 +71,53 @@ export async function launchRaid(
   return rpc("send_raid", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_raiders: raiders });
 }
 
+export async function launchAttack(
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: Record<string, number>,
+  speed: number,
+): Promise<EmpireState> {
+  return rpc("send_attack", {
+    p_galaxy: galaxy,
+    p_system: system,
+    p_slot: slot,
+    p_ships: ships,
+    p_speed: speed,
+  });
+}
+
+export async function launchSpy(
+  galaxy: number,
+  system: number,
+  slot: number,
+  probes: number,
+): Promise<EmpireState> {
+  return rpc("send_spy", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_probes: probes });
+}
+
+export async function launchHarvest(
+  galaxy: number,
+  system: number,
+  slot: number,
+  recyclers: number,
+): Promise<EmpireState> {
+  return rpc("send_harvest", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_recyclers: recyclers });
+}
+
+export async function launchColonize(
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: number,
+): Promise<EmpireState> {
+  return rpc("send_colonize", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_ships: ships });
+}
+
+export async function selectPlanet(planetId: number): Promise<EmpireState> {
+  return rpc("select_planet", { p_planet_id: planetId });
+}
+
 export async function launchExpedition(
   galaxy: number,
   system: number,

@@ -5,8 +5,9 @@ import { useEmpire } from "@/components/empire-provider";
 import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 
 export function PlanetHeader({ title }: { title: string }) {
-  const { state, live } = useEmpire();
+  const { state, live, pending, selectPlanet } = useEmpire();
   const planet = state?.planet;
+  const colonies = state?.colonies ?? [];
   const name = (planet?.name ?? title).toUpperCase();
   const strained = Boolean(live && live.energy.factor < 1);
   const used = live ? totalFieldsUsed(live) : 0;
@@ -30,6 +31,27 @@ export function PlanetHeader({ title }: { title: string }) {
           <span className="block font-[family-name:var(--font-display)] text-sm font-bold tracking-wider text-cyan-400">
             {name}
           </span>
+          {colonies.length > 1 ? (
+            <label className="sr-only" htmlFor="planet-switcher">
+              Switch planet
+            </label>
+          ) : null}
+          {colonies.length > 1 ? (
+            <select
+              id="planet-switcher"
+              className="mt-0.5 max-w-[11rem] truncate rounded border border-cyan-500/30 bg-slate-950/80 px-1 py-0.5 font-mono text-[10px] text-cyan-100"
+              disabled={pending}
+              value={planet?.id ?? ""}
+              onChange={(e) => void selectPlanet(Number(e.target.value))}
+            >
+              {colonies.map((row) => (
+                <option key={row.id} value={row.id}>
+                  [{row.galaxy}:{row.system}:{row.slot}] {row.name}
+                  {row.is_homeworld ? " ★" : ""}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="flex items-center gap-1 font-mono text-xs text-slate-300">
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${strained ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
             <span>{strained ? "POWER: STRAINED" : "HOLD: NOMINAL"}</span>

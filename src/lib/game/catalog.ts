@@ -291,6 +291,127 @@ export function isInboundFleet(
   if (fleet.inbound != null) return fleet.inbound;
   return fleet.dest_planet_id === homeId && fleet.owner_id !== userId;
 }
+
+export type EspionageSection = "resources" | "fleet" | "defense" | "buildings" | "research";
+
+/** Wiki: probes = max(1, X + Y × (your espionage − enemy espionage)²). Resources always show. */
+export function espionageProbesNeeded(
+  section: Exclude<EspionageSection, "resources">,
+  yourEsp: number,
+  enemyEsp: number,
+): number {
+  const x = section === "fleet" ? 2 : section === "defense" ? 3 : section === "buildings" ? 5 : 7;
+  const yours = Math.max(0, Math.floor(yourEsp));
+  const enemy = Math.max(0, Math.floor(enemyEsp));
+  const y = yours > enemy ? -1 : yours < enemy ? 1 : 0;
+  return Math.max(1, x + y * (yours - enemy) ** 2);
+}
+
+export function espionageSees(
+  probes: number,
+  yourEsp: number,
+  enemyEsp: number,
+): Record<EspionageSection, boolean> {
+  const n = Math.max(0, Math.floor(probes));
+  return {
+    resources: n >= 1,
+    fleet: n >= espionageProbesNeeded("fleet", yourEsp, enemyEsp),
+    defense: n >= espionageProbesNeeded("defense", yourEsp, enemyEsp),
+    buildings: n >= espionageProbesNeeded("buildings", yourEsp, enemyEsp),
+    research: n >= espionageProbesNeeded("research", yourEsp, enemyEsp),
+  };
+}
+
+/**
+ * Counter-espionage notice chance. More probes make discovery more likely.
+ * chance = min(1, probes × (enemy + 1) / (your + 1)²).
+ * If noticed and the target has guns or combat ships, the probes are destroyed; the report still arrives.
+ */
+export function counterEspionageChance(yourEsp: number, enemyEsp: number, probes: number): number {
+  const n = Math.max(1, Math.floor(probes));
+  const yours = Math.max(0, Math.floor(yourEsp)) + 1;
+  const enemy = Math.max(0, Math.floor(enemyEsp)) + 1;
+  return Math.min(1, (n * enemy) / (yours * yours));
+}
+
+export type EspionageSnapshot = {
+  name: string;
+  coords: string;
+  ore: number;
+  crystal: number;
+  deuterium: number;
+  fleet?: Record<string, number>;
+  defense?: Partial<Record<DefenceId, number>>;
+  buildings?: Partial<Record<BuildingId, number>>;
+  research?: Partial<Record<ResearchId, number>>;
+};
+
+function nonzeroLines(rows: { label: string; n: number }[]): string {
+  const shown = rows.filter((row) => row.n > 0).map((row) => `${row.label}: ${row.n.toLocaleString()}`);
+  return shown.length > 0 ? shown.join("\n") : "None";
+}
+
+export function formatEspionageReport(
+  snap: EspionageSnapshot,
+  sees: Record<EspionageSection, boolean>,
+  detected: boolean,
+  destroyed: boolean,
+): string {
+  const parts = [
+    `Espionage report from ${snap.name} ${snap.coords}`,
+    "",
+    "Resources",
+    `Ore: ${Math.floor(snap.ore).toLocaleString()}  Crystal: ${Math.floor(snap.crystal).toLocaleString()}  Deuterium: ${Math.floor(snap.deuterium).toLocaleString()}`,
+  ];
+  if (sees.fleet) {
+    parts.push(
+      "",
+      "Fleets",
+      nonzeroLines(
+        SHIPS.map((ship) => ({ label: ship.name, n: Math.max(0, Math.floor(snap.fleet?.[ship.id] ?? 0)) })),
+      ),
+    );
+  }
+  if (sees.defense) {
+    parts.push(
+      "",
+      "Defense",
+      nonzeroLines(
+        DEFENCES.map((d) => ({ label: d.name, n: Math.max(0, Math.floor(snap.defense?.[d.id] ?? 0)) })),
+      ),
+    );
+  }
+  if (sees.buildings) {
+    parts.push(
+      "",
+      "Buildings",
+      nonzeroLines(
+        [...BUILDINGS, ...FACILITIES.filter((f) => !f.moon)].map((b) => ({
+          label: b.name,
+          n: Math.max(0, Math.floor(snap.buildings?.[b.id] ?? 0)),
+        })),
+      ),
+    );
+  }
+  if (sees.research) {
+    parts.push(
+      "",
+      "Research",
+      nonzeroLines(
+        RESEARCHES.map((tech) => ({
+          label: tech.name,
+          n: Math.max(0, Math.floor(snap.research?.[tech.id] ?? 0)),
+        })),
+      ),
+    );
+  }
+  if (destroyed) {
+    parts.push("", "Counter-espionage destroyed the probes. The report still arrived.");
+  } else if (detected) {
+    parts.push("", "The target noticed the probes. They returned.");
+  }
+  return parts.join("\n");
+}
 export const DESTROY_ORDER: DefenceId[] = [
   "rocket_launcher",
   "light_laser",
@@ -370,6 +491,28 @@ export function debrisFromWrecks(shipsLost: number, hullOre: number, hullCrystal
 
 export function debrisVisible(ore: number, crystal: number): boolean {
   return ore + crystal > DEBRIS_VISIBLE_MIN;
+}
+
+/** Wiki recycler harvest: fill cargo with metal and crystal in proportion to the field. */
+export function harvestDebris(
+  ore: number,
+  crystal: number,
+  capacity: number,
+): { ore: number; crystal: number } {
+  const fieldOre = Math.max(0, Math.floor(ore));
+  const fieldCrystal = Math.max(0, Math.floor(crystal));
+  const cap = Math.max(0, Math.floor(capacity));
+  const total = fieldOre + fieldCrystal;
+  if (cap <= 0 || total <= 0) return { ore: 0, crystal: 0 };
+  if (total <= cap) return { ore: fieldOre, crystal: fieldCrystal };
+  const takeOre = Math.floor((fieldOre * cap) / total);
+  const takeCrystal = Math.min(fieldCrystal, cap - takeOre);
+  return { ore: takeOre, crystal: takeCrystal };
+}
+
+export function recyclerHarvestCapacity(recyclers: number): number {
+  const spec = shipSpec("recycler");
+  return Math.max(0, Math.floor(recyclers)) * (spec?.cargo ?? 20000);
 }
 
 export function pirateIntervalSeconds(units: number, roll = Math.random()): number {
@@ -526,6 +669,76 @@ export function fleetFuelRoundTrip(
 ): number {
   const distance = wikiFlightDistance(fromGalaxy, fromSystem, fromSlot, toGalaxy, toSystem, toSlot);
   return 2 * fleetFuelOneWay(ships, hullFuelUse(shipId, impulseLevel), distance);
+}
+
+/** Small-cargo combustion speed. Other hulls scale the short flight clock against this. */
+export const REFERENCE_HULL_SPEED = 5000;
+
+export function hullSpeed(shipId: string, impulseLevel = 0, hyperspaceLevel = 0): number {
+  const hull = shipSpec(shipId);
+  if (!hull || hull.speed <= 0) return 0;
+  if (shipId === "small_cargo" && impulseLevel >= 5 && hull.speedUpgraded) return hull.speedUpgraded;
+  if (shipId === "bomber" && hyperspaceLevel >= 8 && hull.speedUpgraded) return hull.speedUpgraded;
+  return hull.speed;
+}
+
+export function slowestHullSpeed(
+  ships: Record<string, number>,
+  impulseLevel = 0,
+  hyperspaceLevel = 0,
+): number {
+  let slowest = 0;
+  for (const [id, count] of Object.entries(ships)) {
+    if (count <= 0) continue;
+    const speed = hullSpeed(id, impulseLevel, hyperspaceLevel);
+    if (speed <= 0) continue;
+    if (slowest === 0 || speed < slowest) slowest = speed;
+  }
+  return slowest;
+}
+
+/** Wiki fuel grows with the speed setting: ((percent/10)+1)^2, normalized so 100% matches today's cost. */
+export function speedFuelFactor(speedPercent: number): number {
+  const step = Math.min(10, Math.max(1, Math.round(speedPercent / 10)));
+  return (step + 1) ** 2 / 121;
+}
+
+export function attackFlightSeconds(
+  fromSystem: number,
+  fromSlot: number,
+  toSystem: number,
+  toSlot: number,
+  propulsionLevel: number,
+  fromGalaxy: number,
+  toGalaxy: number,
+  slowestSpeed: number,
+  speedPercent: number,
+): number {
+  const base = flightSeconds(fromSystem, fromSlot, toSystem, toSlot, propulsionLevel, fromGalaxy, toGalaxy);
+  const ratio = REFERENCE_HULL_SPEED / Math.max(1, slowestSpeed);
+  const pct = Math.min(100, Math.max(10, speedPercent));
+  return Math.max(15, Math.floor(base * ratio * (100 / pct)));
+}
+
+export function attackFuel(
+  ships: Record<string, number>,
+  fromGalaxy: number,
+  fromSystem: number,
+  fromSlot: number,
+  toGalaxy: number,
+  toSystem: number,
+  toSlot: number,
+  impulseLevel: number,
+  speedPercent: number,
+): number {
+  const distance = wikiFlightDistance(fromGalaxy, fromSystem, fromSlot, toGalaxy, toSystem, toSlot);
+  let total = 0;
+  for (const [id, count] of Object.entries(ships)) {
+    if (count <= 0) continue;
+    total += 2 * fleetFuelOneWay(count, hullFuelUse(id, impulseLevel), distance);
+  }
+  if (total <= 0) return 0;
+  return Math.max(1, Math.round(total * speedFuelFactor(speedPercent)));
 }
 
 export type StarType = "young_hot" | "medium" | "old_cold" | "pulsar";
@@ -990,6 +1203,23 @@ export function expeditionFlightSeconds(
 
 export function expeditionFleetCap(astrophysics: number): number {
   return Math.floor(Math.sqrt(Math.max(0, astrophysics)));
+}
+
+/** Wiki Astrophysics: homeworld plus round(level / 2) further planets. Level 1 allows the first colony. */
+export function maxPlanets(astrophysics: number): number {
+  return 1 + Math.round(Math.max(0, astrophysics) / 2);
+}
+
+/** Wiki slot window around position 8, clamped to 1–15. */
+export function colonizeSlotRange(astrophysics: number): { min: number; max: number } {
+  const reach = Math.round(Math.max(0, astrophysics) / 2);
+  return { min: Math.max(1, 8 - reach), max: Math.min(15, 8 + reach) };
+}
+
+export function canColonizeSlot(slot: number, astrophysics: number): boolean {
+  if (slot < 1 || slot > 15) return false;
+  const range = colonizeSlotRange(astrophysics);
+  return slot >= range.min && slot <= range.max;
 }
 
 export type ExpeditionKind = "nothing" | "resources" | "ships" | "pirates" | "aliens" | "lost" | "delay";

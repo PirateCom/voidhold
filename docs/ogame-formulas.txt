@@ -206,6 +206,11 @@ Probes required
   Resources are shown no matter how many probes you send.
   A counter-espionage that destroys the probes still delivers the report.
 
+Counter-espionage
+  chance of being noticed = min(1, probes * (enemy_espionage + 1) / (your_espionage + 1)^2)
+  If noticed, the target gets a counter-espionage report.
+  If noticed and the target has combat ships or guns, the probes are destroyed.
+
 Worked check, research view (X = 7), enemy level minus your level:
   -3 -> 1    -2 -> 3    -1 -> 6    0 -> 7    +1 -> 8    +2 -> 11    +3 -> 16
 
