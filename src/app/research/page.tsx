@@ -41,11 +41,11 @@ export default function ResearchPage() {
     <AppShell title="Research">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is taken from this planet's tank.
+        Costs follow the OGame wiki. Deuterium is taken from the tank on this planet.
         Technologies are empire-wide: Combustion 5 on the homeworld is Combustion 5 on every
         colony. Each planet still needs its own research lab at the listed level to start a
-        new tech. Other buildings can upgrade at the same time. Upgrading this planet's lab
-        itself stops new research here.
+        new tech. Other buildings can upgrade at the same time. Upgrading the lab on this
+        planet itself stops new research here.
       </p>
       <div className="flex flex-col gap-3">
         {RESEARCH_GROUPS.map((group) => (

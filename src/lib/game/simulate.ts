@@ -728,7 +728,7 @@ function completePlanetShips(
     shipBuilding: planet.shipBuilding ?? null,
     shipCompletesAt: planet.shipCompletesAt ?? null,
   };
-  let nextEmpire: SimEmpire = { ...empire, ships: { ...empire.ships } };
+  const nextEmpire: SimEmpire = { ...empire, ships: { ...empire.ships } };
   while (
     (nextPlanet.shipsQueued ?? 0) > 0 &&
     nextPlanet.shipCompletesAt != null &&
