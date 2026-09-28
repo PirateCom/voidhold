@@ -126,8 +126,12 @@ export type SimPlanet = {
   defenceBuilding: DefenceId | null;
   defencesQueued: number;
   defenceCompletesAt: number | null;
+  shipBuilding?: string | null;
+  shipsQueued?: number;
+  shipCompletesAt?: number | null;
   debrisOre?: number;
   debrisCrystal?: number;
+  economySpeed?: number;
   /** Docked hulls on an ownerless world. Player fleets live on the empire instead. */
   garrison?: Record<string, number>;
   weaponsTech?: number;
@@ -339,6 +343,7 @@ export type SimEmpire = {
   researchCompletesAt: number | null;
   nextPirateAt: number | null;
   pirateRaidsEnabled: boolean;
+  economySpeed?: number;
 };
 
 export const EMPTY_RESEARCH = {
@@ -437,7 +442,8 @@ function planetEnergy(planet: SimPlanet, fusion = planet.fusionReactor) {
 }
 
 export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
-  const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000);
+  const speed = Math.max(1, planet.economySpeed ?? 1);
+  const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000) * speed;
   const tempMax = planet.tempMax ?? 30;
   const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax);
   const burn = fusionDeuteriumBurnPerHour(planet.fusionReactor);
@@ -708,16 +714,51 @@ export function catchUpEmpire(empire: SimEmpire, at: number): SimEmpire {
   if (next.researchCompletesAt != null && next.researchCompletesAt <= at) {
     next = completeResearch(next);
   }
-  while (next.raidersQueued > 0 && next.raiderCompletesAt != null && next.raiderCompletesAt <= at) {
-    const hull = next.shipBuilding || "small_cargo";
-    next.ships = bumpShip(next.ships, hull, 1);
-    if (hull === "small_cargo") next.raiders += 1;
-    next.raidersQueued -= 1;
-    next.raiderCompletesAt =
-      next.raidersQueued > 0 ? next.raiderCompletesAt + RAIDER_BUILD_SECONDS * 1000 : null;
-    if (next.raidersQueued === 0) next.shipBuilding = null;
-  }
   return next;
+}
+
+function completePlanetShips(
+  planet: SimPlanet,
+  empire: SimEmpire,
+  at: number,
+): { planet: SimPlanet; empire: SimEmpire } {
+  let nextPlanet: SimPlanet = {
+    ...planet,
+    shipsQueued: planet.shipsQueued ?? 0,
+    shipBuilding: planet.shipBuilding ?? null,
+    shipCompletesAt: planet.shipCompletesAt ?? null,
+  };
+  let nextEmpire: SimEmpire = { ...empire, ships: { ...empire.ships } };
+  while (
+    (nextPlanet.shipsQueued ?? 0) > 0 &&
+    nextPlanet.shipCompletesAt != null &&
+    nextPlanet.shipCompletesAt <= at
+  ) {
+    const hull = nextPlanet.shipBuilding || "small_cargo";
+    nextEmpire.ships = bumpShip(nextEmpire.ships, hull, 1);
+    if (hull === "small_cargo") nextEmpire.raiders += 1;
+    const remaining = (nextPlanet.shipsQueued ?? 1) - 1;
+    nextPlanet = {
+      ...nextPlanet,
+      shipsQueued: remaining,
+      shipCompletesAt: remaining > 0 ? nextPlanet.shipCompletesAt + RAIDER_BUILD_SECONDS * 1000 : null,
+      shipBuilding: remaining > 0 ? nextPlanet.shipBuilding : null,
+    };
+  }
+  return { planet: nextPlanet, empire: nextEmpire };
+}
+
+function mirrorSelectedYard(world: SimWorld): SimWorld {
+  const planet = planetById(world, world.empire.homePlanetId);
+  return {
+    ...world,
+    empire: {
+      ...world.empire,
+      shipBuilding: planet.shipBuilding ?? null,
+      raidersQueued: planet.shipsQueued ?? 0,
+      raiderCompletesAt: planet.shipCompletesAt ?? null,
+    },
+  };
 }
 
 function planetById(world: SimWorld, id: number): SimPlanet {
@@ -1188,20 +1229,20 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
 }
 
 export function catchUpWorld(world: SimWorld, at: number): SimWorld {
-  let next: SimWorld = {
-    ...world,
-    empire: catchUpEmpire(world.empire, at),
-    planets: world.planets.map((p) => {
-      const tagged = {
-        ...p,
-        energyTech: world.empire.energyTech,
-        solarSatellites: world.empire.ships.solar_satellite ?? 0,
-      };
-      return p.id === world.empire.homePlanetId || p.ownerId === world.empire.userId
-        ? catchUpPlanet(tagged, at)
-        : tagged;
-    }),
-  };
+  let empire = catchUpEmpire(world.empire, at);
+  const planets = world.planets.map((p) => {
+    const tagged = {
+      ...p,
+      energyTech: empire.energyTech,
+      solarSatellites: empire.ships.solar_satellite ?? 0,
+      economySpeed: empire.economySpeed ?? 1,
+    };
+    if (p.id !== world.empire.homePlanetId && p.ownerId !== world.empire.userId) return tagged;
+    const built = completePlanetShips(catchUpPlanet(tagged, at), empire, at);
+    empire = built.empire;
+    return built.planet;
+  });
+  let next: SimWorld = { ...world, empire, planets };
 
   let guard = 0;
   while (guard < 50) {
@@ -1217,7 +1258,7 @@ export function catchUpWorld(world: SimWorld, at: number): SimWorld {
     guard += 1;
   }
 
-  return resolveDuePirates(next, at);
+  return mirrorSelectedYard(resolveDuePirates(next, at));
 }
 
 function applyPirateWave(world: SimWorld, at: number, shipCount?: number): SimWorld {
@@ -1417,7 +1458,13 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
     throw new Error("Not enough resources.");
   }
-  const duration = buildingTimeSeconds(building, level, planet.roboticsFactory, planet.naniteFactory);
+  const duration = buildingTimeSeconds(
+    building,
+    level,
+    planet.roboticsFactory,
+    planet.naniteFactory,
+    caught.empire.economySpeed,
+  );
   const upgraded: SimPlanet = {
     ...planet,
     ore: planet.ore - cost.ore,
@@ -1439,7 +1486,13 @@ export function cancelUpgrade(world: SimWorld, at: number): SimWorld {
     cost,
     progressToward(
       planet.upgradeCompletesAt,
-      buildingTimeSeconds(planet.upgradeBuilding, level, planet.roboticsFactory, planet.naniteFactory) * 1000,
+      buildingTimeSeconds(
+        planet.upgradeBuilding,
+        level,
+        planet.roboticsFactory,
+        planet.naniteFactory,
+        caught.empire.economySpeed,
+      ) * 1000,
       at,
     ),
   );
@@ -1475,6 +1528,9 @@ export function resetEmpire(world: SimWorld, at: number): SimWorld {
             ...EMPTY_FACILITIES,
             upgradeBuilding: null,
             upgradeCompletesAt: null,
+            shipBuilding: null,
+            shipsQueued: 0,
+            shipCompletesAt: null,
             ...EMPTY_DEFENCES,
           }
         : planet,
@@ -1578,29 +1634,27 @@ export function queueShip(world: SimWorld, id: string, count: number, at: number
     (research) => researchLevel(caught.empire, research),
   )[0];
   if (blocked) throw new Error(`Needs ${blocked.name} ${blocked.level}.`);
-  const busy = caught.empire.shipBuilding || "small_cargo";
-  if (caught.empire.raidersQueued > 0 && busy !== id) throw new Error("Shipyard occupied.");
+  const queued = planet.shipsQueued ?? 0;
+  const busy = planet.shipBuilding || "small_cargo";
+  if (queued > 0 && busy !== id) throw new Error("Shipyard occupied.");
   const ore = hull.cost.ore * count;
   const crystal = hull.cost.crystal * count;
   const deuterium = hull.cost.deuterium * count;
   if (planet.ore < ore || planet.crystal < crystal || planet.deuterium < deuterium) {
     throw new Error("Not enough resources.");
   }
-  const startsNow = caught.empire.raidersQueued === 0;
-  return {
-    ...replacePlanet(caught, {
+  const startsNow = queued === 0;
+  return mirrorSelectedYard(
+    replacePlanet(caught, {
       ...planet,
       ore: planet.ore - ore,
       crystal: planet.crystal - crystal,
       deuterium: planet.deuterium - deuterium,
-    }),
-    empire: {
-      ...caught.empire,
       shipBuilding: id,
-      raidersQueued: caught.empire.raidersQueued + count,
-      raiderCompletesAt: startsNow ? at + RAIDER_BUILD_SECONDS * 1000 : caught.empire.raiderCompletesAt,
-    },
-  };
+      shipsQueued: queued + count,
+      shipCompletesAt: startsNow ? at + RAIDER_BUILD_SECONDS * 1000 : planet.shipCompletesAt,
+    }),
+  );
 }
 
 export function queueRaiders(world: SimWorld, count: number, at: number): SimWorld {
@@ -1795,7 +1849,7 @@ export function sendColonize(
 export function selectPlanet(world: SimWorld, planetId: number): SimWorld {
   const planet = planetById(world, planetId);
   if (planet.ownerId !== world.empire.userId) throw new Error("That is not your planet.");
-  return { ...world, empire: { ...world.empire, homePlanetId: planet.id } };
+  return mirrorSelectedYard({ ...world, empire: { ...world.empire, homePlanetId: planet.id } });
 }
 
 export function sendHarvest(
@@ -2010,9 +2064,9 @@ export function livePlanet(planet: SimPlanet, at: number) {
   return {
     ...preview,
     energy,
-    orePerHour: mineProductionPerHour(preview.oreMine) * factor,
-    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor,
-    deuteriumPerHour: synth * factor - (fusionLive ? burn : 0),
+    orePerHour: mineProductionPerHour(preview.oreMine) * factor * (preview.economySpeed ?? 1),
+    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor * (preview.economySpeed ?? 1),
+    deuteriumPerHour: (synth * factor - (fusionLive ? burn : 0)) * (preview.economySpeed ?? 1),
     oreCap: storageCap(preview.oreStorage),
     crystalCap: storageCap(preview.crystalStorage),
     deuteriumCap: storageCap(preview.deuteriumStorage),

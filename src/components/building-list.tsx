@@ -97,6 +97,7 @@ function UpgradeCard({
 }) {
   const { live, state, pending, upgrade, cancelUpgrade, now } = useEmpire();
   if (!live || !state) return null;
+  const speed = state.empire.economy_speed ?? 1;
   const cost = buildingCost(id as never, level);
   const stores = id === "ore_storage" || id === "crystal_storage" || id === "deuterium_storage";
   const energyDelta = upgradeEnergyDelta(id as never, level, state.star.type, state.empire.energy_tech ?? 0);
@@ -125,7 +126,7 @@ function UpgradeCard({
         : 0;
   const busy = Boolean(state.planet.upgrade_building);
   const thisBusy = state.planet.upgrade_building === id;
-  const durationMs = buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory) * 1000;
+  const durationMs = buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory, speed) * 1000;
   const refund = thisBusy
     ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
     : null;
@@ -210,7 +211,7 @@ function UpgradeCard({
           </>
         ) : null}
         {" · "}
-        {formatDuration(buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory))}
+        {formatDuration(buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory, speed))}
       </p>
       {extra}
       {thisBusy ? (

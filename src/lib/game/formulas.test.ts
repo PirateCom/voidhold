@@ -194,6 +194,8 @@ describe("production formulas", () => {
     expect(buildingTimeSeconds("ore_mine", 1, 1)).toBe(80);
     expect(buildingTimeSeconds("ore_mine", 0, 0, 1)).toBe(54);
     expect(buildingTimeSeconds("ore_mine", 0, 1, 1)).toBe(27);
+    expect(buildingTimeSeconds("ore_mine", 0, 0, 0, 3)).toBe(36);
+    expect(buildingTimeSeconds("ore_mine", 0, 0, 0, 5)).toBe(21);
     expect(researchCost(1).crystal).toBe(researchCost(0).crystal * 2);
     expect(researchTechCost("energy_tech", 0)).toEqual({ ore: 0, crystal: 800, deuterium: 400 });
     expect(researchTechCost("armour_tech", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });

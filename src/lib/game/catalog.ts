@@ -4,9 +4,15 @@ export const GALAXY = 1;
 export const SYSTEM_MAX = 10;
 export const SLOT_MAX = 10;
 
-/** Wiki economy speed ×1: one game-hour of mine output is one real hour. */
+/** Default wiki economy speed ×1. Live empires store 1, 3, or 5. */
 export const ECONOMY_SPEED = 1;
+export const ECONOMY_SPEEDS = [1, 3, 5] as const;
+export type EconomySpeed = (typeof ECONOMY_SPEEDS)[number];
 export const GAME_HOUR_SECONDS = 3600;
+
+export function normalizeEconomySpeed(value?: number | null): EconomySpeed {
+  return value === 3 || value === 5 ? value : 1;
+}
 
 export const RAID_LOOT_MIN = 0.25;
 export const RAID_LOOT_MAX = 0.75;
@@ -983,11 +989,13 @@ export function buildingTimeSeconds(
   currentLevel: number,
   roboticsLevel = 0,
   naniteLevel = 0,
+  economySpeed: number = ECONOMY_SPEED,
 ): number {
   const cost = buildingCost(id, currentLevel);
   const robotics = Math.max(0, Math.trunc(roboticsLevel));
   const nanites = Math.max(0, Math.trunc(naniteLevel));
-  const denom = 2500 * (1 + robotics) * 2 ** nanites * ECONOMY_SPEED;
+  const speed = normalizeEconomySpeed(economySpeed);
+  const denom = 2500 * (1 + robotics) * 2 ** nanites * speed;
   return Math.max(1, Math.floor(((cost.ore + cost.crystal) * 3600) / denom));
 }
 

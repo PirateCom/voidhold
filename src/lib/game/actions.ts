@@ -153,6 +153,10 @@ export async function fillResources(): Promise<EmpireState> {
   return rpc("debug_fill_resources");
 }
 
+export async function setEconomySpeed(speed: 1 | 3 | 5): Promise<EmpireState> {
+  return rpc("debug_set_economy_speed", { p_speed: speed });
+}
+
 export async function claimDirective(id: string): Promise<EmpireState> {
   return rpc("claim_directive", { p_id: id });
 }

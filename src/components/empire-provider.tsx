@@ -26,6 +26,7 @@ import {
   spawnPirateWave,
   setPirateRaids as setPirateRaidsAction,
   fillResources as fillResourcesAction,
+  setEconomySpeed as setEconomySpeedAction,
   queueShip as queueShipAction,
   launchExpedition,
   recallFleet as recallFleetAction,
@@ -54,6 +55,7 @@ type EmpireContextValue = {
   spawnPirates: () => Promise<void>;
   setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
+  setEconomySpeed: (speed: 1 | 3 | 5) => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
   spy: (galaxy: number, system: number, slot: number, probes: number) => Promise<void>;
@@ -212,6 +214,7 @@ export function EmpireProvider({
         ...toSimPlanet(state.planet, state.star.type),
         energyTech: state.empire.energy_tech ?? 0,
         solarSatellites: state.empire.ships?.solar_satellite ?? 0,
+        economySpeed: state.empire.economy_speed ?? 1,
       },
       gameNow,
     );
@@ -262,6 +265,7 @@ export function EmpireProvider({
     spawnPirates: () => runAction(() => spawnPirateWave()),
     setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
+    setEconomySpeed: (speed) => runAction(() => setEconomySpeedAction(speed)),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
     spy: (galaxy, system, slot, probes) => runAction(() => launchSpy(galaxy, system, slot, probes)),

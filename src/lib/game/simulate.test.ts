@@ -23,6 +23,8 @@ import {
   fillResources,
   livePlanet,
   planetFieldCapOf,
+  researchLevel,
+  selectPlanet,
   totalFieldsUsed,
   type SimPlanet,
   type SimWorld,
@@ -589,5 +591,63 @@ describe("time-skip simulation", () => {
     expect(() => sendColonize({ ...arrived, empire: { ...arrived.empire, ships: { colony_ship: 1 } } }, 1, 1, 7, 1, arrived.fleets[0]?.arrivesAt ?? 0)).toThrow(
       /colony slots/i,
     );
+  });
+
+  it("runs mine and shipyard queues per planet and shares empire research", () => {
+    const base = world(0);
+    const home: SimPlanet = {
+      ...base.planets[0],
+      ore: 40000,
+      crystal: 40000,
+      deuterium: 40000,
+      shipyard: 2,
+      researchLab: 4,
+    };
+    const colony: SimPlanet = {
+      ...base.planets[0],
+      id: 3,
+      slot: 8,
+      name: "Colony",
+      ore: 40000,
+      crystal: 40000,
+      deuterium: 40000,
+      shipyard: 2,
+      researchLab: 1,
+    };
+    const two: SimWorld = {
+      ...base,
+      planets: [home, base.planets[1], colony],
+      empire: { ...base.empire, propulsionLevel: 5, impulseDrive: 5, energyTech: 1 },
+    };
+
+    const miningHome = startUpgrade(two, "ore_mine", 0);
+    const onColony = selectPlanet(miningHome, 3);
+    const miningBoth = startUpgrade(onColony, "crystal_mine", 0);
+    expect(miningBoth.planets.find((p) => p.id === 1)?.upgradeBuilding).toBe("ore_mine");
+    expect(miningBoth.planets.find((p) => p.id === 3)?.upgradeBuilding).toBe("crystal_mine");
+
+    const yardColony = queueShip(miningBoth, "small_cargo", 1, 0);
+    expect(yardColony.planets.find((p) => p.id === 3)?.shipsQueued).toBe(1);
+    const onHome = selectPlanet(yardColony, 1);
+    const yardHome = queueShip(onHome, "light_fighter", 1, 0);
+    expect(yardHome.planets.find((p) => p.id === 1)?.shipBuilding).toBe("light_fighter");
+    expect(yardHome.planets.find((p) => p.id === 3)?.shipBuilding).toBe("small_cargo");
+    expect(researchLevel(yardHome.empire, "combustion_drive")).toBe(5);
+
+    const backColony = selectPlanet(yardHome, 3);
+    expect(() => startResearch(backColony, "weapons_tech", 0)).toThrow(/Research lab 4/);
+    const researching = startResearch(backColony, "energy_tech", 0);
+    expect(researching.empire.researchTech).toBe("energy_tech");
+    expect(researching.planets.find((p) => p.id === 3)?.upgradeBuilding).toBe("crystal_mine");
+  });
+
+  it("triples mine output and shortens construction at ×3 economy speed", () => {
+    const base = world(0);
+    const fast: SimWorld = { ...base, empire: { ...base.empire, economySpeed: 3 } };
+    const grown = catchUpWorld(fast, GAME_HOUR_SECONDS * 1000);
+    const slow = catchUpWorld(base, GAME_HOUR_SECONDS * 1000);
+    expect(grown.planets[0].ore - STARTING_ORE).toBe((slow.planets[0].ore - STARTING_ORE) * 3);
+    const building = startUpgrade(fast, "ore_mine", 0);
+    expect(building.planets[0].upgradeCompletesAt).toBe(buildingTimeSeconds("ore_mine", 1, 0, 0, 3) * 1000);
   });
 });

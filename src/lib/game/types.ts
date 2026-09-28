@@ -122,6 +122,7 @@ export type EmpireRow = {
   next_pirate_at: string | null;
   pirate_raids_enabled?: boolean;
   claimed_directives?: string[];
+  economy_speed?: number;
 };
 
 export type FleetRow = {
