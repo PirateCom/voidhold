@@ -4,6 +4,27 @@ import { Countdown } from "@/components/countdown";
 import { progressToward } from "@/lib/game/catalog";
 import type { FleetRow } from "@/lib/game/types";
 
+const HULL_LABELS: Record<string, string> = {
+  light_fighter: "Light fighter",
+  heavy_fighter: "Heavy fighter",
+  cruiser: "Cruiser",
+  battleship: "Battleship",
+  battlecruiser: "Battlecruiser",
+  bomber: "Bomber",
+  destroyer: "Destroyer",
+  deathstar: "Deathstar",
+  small_cargo: "Small cargo",
+  large_cargo: "Large cargo",
+  colony_ship: "Colony ship",
+  recycler: "Recycler",
+  espionage_probe: "Probe",
+  reaper: "Reaper",
+  pathfinder: "Pathfinder",
+  crawler: "Crawler",
+  solar_satellite: "Satellite",
+  pirate: "Pirate",
+};
+
 function coords(galaxy?: number | null, system?: number | null, slot?: number | null) {
   if (galaxy == null || system == null || slot == null) return "—";
   return `[${galaxy}:${system}:${slot}]`;
@@ -16,22 +37,135 @@ function clock(value: number | string | null | undefined) {
   return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-function Globe({ hostile }: { hostile?: boolean }) {
+function isReturnMission(mission: FleetRow["mission"]) {
   return (
-    <svg viewBox="0 0 36 36" className={`h-8 w-8 ${hostile ? "text-red-300" : "text-cyan-200"}`} aria-hidden>
-      <circle cx="18" cy="18" r="12" fill={hostile ? "#3f1d1d" : "#0b3b4a"} stroke="currentColor" strokeWidth="1.4" />
-      <path fill={hostile ? "#b91c1c" : "#1d9b7a"} d="M9 17c4-6 9-7 14-5 2 5 1 11-3 14-6 1-11-3-11-9Z" />
+    mission === "return" ||
+    mission === "espionage_return" ||
+    mission === "harvest_return" ||
+    mission === "colonize_return" ||
+    mission === "expedition_return"
+  );
+}
+
+function missionLabel(fleet: FleetRow, inbound?: boolean) {
+  if (inbound) return "Attack";
+  switch (fleet.mission) {
+    case "attack":
+      return "Attack";
+    case "espionage":
+      return "Espionage";
+    case "harvest":
+      return "Harvest";
+    case "colonize":
+      return "Colonize";
+    case "expedition":
+    case "expedition_hold":
+      return "Expedition";
+    case "return":
+    case "espionage_return":
+    case "harvest_return":
+    case "colonize_return":
+    case "expedition_return":
+      return "Return";
+    default:
+      return fleet.mission;
+  }
+}
+
+function shipSummary(fleet: FleetRow, inbound?: boolean) {
+  const ships = fleet.ship_count ?? fleet.raiders;
+  if (inbound) return `${ships.toLocaleString()} ship${ships === 1 ? "" : "s"}`;
+  const entries = Object.entries(fleet.composition ?? {}).filter(([, n]) => n > 0);
+  const hull =
+    entries.length === 1 ? HULL_LABELS[entries[0][0]] ?? entries[0][0].replace(/_/g, " ") : null;
+  const cargo = (fleet.cargo_ore ?? 0) + (fleet.cargo_crystal ?? 0) + (fleet.cargo_deuterium ?? 0);
+  const cargoBit = cargo > 0 ? ` · +${cargo.toLocaleString()} cargo` : "";
+  if (hull) return `${ships} ship (${hull})${cargoBit}`;
+  return `${ships} ship${ships === 1 ? "" : "s"}${cargoBit}`;
+}
+
+function Chevron({ left }: { left?: boolean }) {
+  return (
+    <svg viewBox="0 0 8 12" className="h-2.5 w-2" aria-hidden>
+      <path
+        fill="currentColor"
+        d={left ? "M7 1 1 6l6 5" : "M1 1l6 5-6 5"}
+        fillOpacity="0"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-function Craft({ inbound }: { inbound?: boolean }) {
+function FlightArrow({ returning, ships }: { returning?: boolean; ships: number }) {
+  const double = ships > 1;
   return (
-    <svg viewBox="0 0 28 16" className={`h-4 w-7 ${inbound ? "text-red-300" : "text-cyan-200"}`} aria-hidden>
-      <path
-        fill="currentColor"
-        d={inbound ? "M26 8 4 2v4H0v4h4v4Z" : "M2 8 24 2v4h4v4h-4v4Z"}
-      />
+    <svg
+      viewBox={double ? "0 0 16 12" : "0 0 10 12"}
+      className={`h-3.5 ${double ? "w-4" : "w-3"} animate-pulse`}
+      aria-hidden
+    >
+      {returning ? (
+        double ? (
+          <>
+            <path
+              d="M7.5 1.5 1.5 6l6 4.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            <path
+              d="M14.5 1.5 8.5 6l6 4.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </>
+        ) : (
+          <path
+            d="M8 1.5 2 6l6 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )
+      ) : double ? (
+        <>
+          <path
+            d="M1.5 1.5 7.5 6l-6 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          <path
+            d="M8.5 1.5 14.5 6l-6 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        </>
+      ) : (
+        <path
+          d="M2 1.5 8 6 2 10.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
     </svg>
   );
 }
@@ -57,99 +191,133 @@ export function FleetEventStrip({
   pending?: boolean;
   onReturn?: () => void;
 }) {
-  const ships = fleet.ship_count ?? fleet.raiders;
-  const start = durationMs > 0 ? new Date(fleet.arrives_at).getTime() - durationMs : new Date(fleet.created_at ?? fleet.arrives_at).getTime();
-  const pct = Math.min(0.92, Math.max(0.08, progressToward(fleet.arrives_at, durationMs, now)));
-  const mission =
-    inbound
-      ? "Attack"
-      : fleet.mission === "attack"
-        ? "Attack"
-        : fleet.mission === "espionage"
-          ? "Espionage"
-        : fleet.mission === "espionage_return"
-          ? "Return"
-          : fleet.mission === "harvest"
-            ? "Harvest"
-            : fleet.mission === "harvest_return"
-              ? "Return"
-              : fleet.mission === "colonize"
-                ? "Colonize"
-                : fleet.mission === "colonize_return"
-                  ? "Return"
-          : fleet.mission === "expedition"
-          ? "Expedition"
-          : fleet.mission === "expedition_hold"
-            ? "Expedition"
-            : fleet.mission === "expedition_return" || fleet.mission === "return"
-              ? "Return"
-              : fleet.mission;
-  const hostile =
-    fleet.mission === "attack" ||
-    (Boolean(inbound) && fleet.mission !== "espionage" && fleet.mission !== "harvest" && fleet.mission !== "colonize");
+  const returning = !inbound && isReturnMission(fleet.mission);
+  const start =
+    durationMs > 0
+      ? new Date(fleet.arrives_at).getTime() - durationMs
+      : new Date(fleet.created_at ?? fleet.arrives_at).getTime();
+  const pct = Math.min(0.96, Math.max(0.04, progressToward(fleet.arrives_at, durationMs, now)));
+  const arrowLeft = returning ? `${(1 - pct) * 100}%` : `${pct * 100}%`;
+  const mission = missionLabel(fleet, inbound);
+  const leftName = returning ? destName : originName;
+  const rightName = returning ? originName : destName;
+  const leftCoords = returning
+    ? coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot)
+    : inbound
+      ? "void"
+      : coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot);
+  const rightCoords = returning
+    ? coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot)
+    : coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot);
+  const status = inbound
+    ? "STATUS: INCOMING STRIKE"
+    : returning
+      ? "STATUS: RETURNING TO HOMEWORLD"
+      : fleet.mission === "expedition_hold"
+        ? "STATUS: HOLDING IN THE VOID"
+        : `STATUS: TRANSIT TO ${destName.toUpperCase()}`;
+  const tone = inbound ? "red" : returning ? "emerald" : "amber";
+  const cardBorder =
+    tone === "red"
+      ? "border-red-500/40"
+      : tone === "emerald"
+        ? "border-emerald-500/40"
+        : "border-amber-500/40";
+  const badge =
+    tone === "red"
+      ? "border-red-500/40 bg-red-950 text-red-300"
+      : tone === "emerald"
+        ? "border-emerald-500/40 bg-emerald-950 text-emerald-300"
+        : "border-amber-500/40 bg-amber-950 text-amber-300";
+  const heading =
+    tone === "red" ? "text-red-400" : tone === "emerald" ? "text-emerald-400" : "text-amber-400";
+  const barClass =
+    tone === "red"
+      ? "bg-gradient-to-r from-red-700 via-red-400 to-amber-300"
+      : tone === "emerald"
+        ? "bg-gradient-to-l from-emerald-500 via-cyan-400 to-cyan-300"
+        : "bg-gradient-to-r from-cyan-500 via-amber-400 to-amber-300";
+  const arrowRing =
+    tone === "red"
+      ? "border-red-400 text-red-300"
+      : tone === "emerald"
+        ? "border-emerald-400 text-emerald-300"
+        : "border-amber-400 text-amber-300";
+  const chevronColor =
+    tone === "red" ? "text-red-400" : tone === "emerald" ? "text-emerald-400" : "text-amber-400";
 
   return (
-    <li
-      className={`overflow-hidden rounded-lg border ${
-        inbound ? "border-red-500/50 bg-red-950/40" : "border-cyan-500/20 bg-slate-950/80"
-      }`}
-    >
-      <div className="flex items-stretch gap-2 p-2">
-        <div className="w-[5.5rem] shrink-0 py-1 text-[10px] leading-tight">
-          <p className="text-[var(--muted-fg)]">{clock(start)}</p>
-          <p className={`mt-1 font-semibold uppercase ${hostile ? "text-red-400" : "text-emerald-400"}`}>{mission}</p>
-          <p className="mt-0.5 truncate text-[var(--muted-fg)]">
-            {inbound ? fleet.attacker_name || "Pirates" : `${ships} ship${ships === 1 ? "" : "s"}`}
-          </p>
-          {inbound ? (
-            <p className="mt-0.5 font-semibold text-red-200">
-              {ships.toLocaleString()} ship{ships === 1 ? "" : "s"}
-            </p>
-          ) : null}
+    <li className={`sci-card overflow-hidden border p-3 ${cardBorder}`}>
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`rounded border px-2 py-0.5 text-[11px] font-bold uppercase ${badge}`}>{mission}</span>
+          <span className="truncate text-xs font-semibold text-slate-300">{shipSummary(fleet, inbound)}</span>
         </div>
-        <div className="fleet-grid relative min-h-[4.5rem] min-w-0 flex-1 rounded-md border border-white/10">
-          <div className="absolute inset-y-0 left-1 flex w-14 flex-col items-center justify-center">
-            <Globe hostile={inbound} />
-            <p className="mt-0.5 w-full truncate text-center text-[9px] text-slate-300">{originName}</p>
-            <p className="text-[9px] text-slate-400">
-              {inbound ? "void" : coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot)}
-            </p>
-          </div>
-          <div className="absolute inset-y-0 right-1 flex w-14 flex-col items-center justify-center">
-            <Globe />
-            <p className="mt-0.5 w-full truncate text-center text-[9px] text-slate-300">{destName}</p>
-            <p className="text-[9px] text-slate-400">
-              {coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot)}
-            </p>
-          </div>
-          <div
-            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${8 + pct * 84}%` }}
-          >
-            <Craft inbound={inbound} />
-          </div>
-        </div>
-        <div className="flex w-[5.2rem] shrink-0 flex-col items-end justify-between py-1 text-right">
-          <p className="text-[10px] text-[var(--muted-fg)]">{clock(fleet.arrives_at)}</p>
-          {canReturn ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={onReturn}
-              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
-            >
-              Return
-            </button>
-          ) : inbound ? (
-            <span className="text-[10px] font-semibold tracking-wide text-red-400 uppercase">Incoming</span>
-          ) : (
-            <span className="text-[10px] text-emerald-400">en route</span>
-          )}
-          <p className="font-mono text-[10px] text-cyan-300">
-            <Countdown until={fleet.arrives_at} now={now} />
-          </p>
+        <div className="shrink-0 text-right">
+          <span className={`block text-[11px] font-bold uppercase ${heading}`}>
+            {inbound ? "Incoming" : returning ? "Inbound" : "Outbound"}
+          </span>
+          <span className="text-[10px] text-slate-400">{clock(start)}</span>
         </div>
       </div>
+
+      <div className="mt-3">
+        <div className="flex items-start justify-between text-[11px]">
+          <div className="min-w-0 pr-2">
+            <p className="truncate text-xs font-bold text-slate-100">{leftName}</p>
+            <p className="font-mono font-bold text-cyan-400">{leftCoords}</p>
+            <p className={`mt-0.5 text-[10px] ${returning ? "text-emerald-400" : "text-slate-400"}`}>
+              {returning ? `ETA ${clock(fleet.arrives_at)}` : clock(start)}
+            </p>
+          </div>
+          <div className="min-w-0 pl-2 text-right">
+            <p className="truncate text-xs font-bold text-slate-100">{rightName}</p>
+            <p className={`font-mono font-bold ${returning ? "text-amber-400" : heading}`}>{rightCoords}</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{clock(returning ? start : fleet.arrives_at)}</p>
+          </div>
+        </div>
+
+        <div className="relative my-1.5 flex h-8 w-full items-center">
+          <div className="relative h-1 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-900">
+            <div
+              className={`absolute top-0 h-full ${returning ? "right-0" : "left-0"} ${barClass}`}
+              style={{ width: `${pct * 100}%` }}
+            />
+          </div>
+          <div
+            className={`absolute top-1/2 z-10 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-slate-950 ${arrowRing}`}
+            style={{ left: arrowLeft }}
+          >
+            <FlightArrow returning={returning} ships={fleet.ship_count ?? fleet.raiders} />
+          </div>
+          <div
+            className={`fleet-trajectory pointer-events-none absolute inset-0 flex items-center justify-around text-[10px] ${chevronColor}`}
+            aria-hidden
+          >
+            {Array.from({ length: 5 }, (_, i) => (
+              <Chevron key={i} left={returning} />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400">
+          <span>{status}</span>
+          <span className={`font-bold ${heading}`}>
+            ETA: <Countdown until={fleet.arrives_at} now={now} />
+          </span>
+        </div>
+      </div>
+
+      {canReturn && onReturn ? (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onReturn}
+          className="sci-btn sci-btn-muted mt-3 h-10 w-full text-xs font-bold tracking-wide uppercase"
+        >
+          Return fleet
+        </button>
+      ) : null}
     </li>
   );
 }

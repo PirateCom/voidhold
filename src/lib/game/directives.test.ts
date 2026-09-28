@@ -7,7 +7,9 @@ import {
   directiveProgress,
   directiveUnlocked,
   formatDirectiveReward,
+  isDirectiveTracked,
   previousDirectiveId,
+  trackedDirectiveSpecs,
 } from "./directives";
 
 const starter = {
@@ -40,6 +42,10 @@ describe("beginner directives", () => {
     expect(directiveUnlocked(["ore_l1"], "energy")).toBe(true);
     expect(activeDirective([])?.id).toBe("ore_l1");
     expect(activeDirective(["ore_l1"])?.id).toBe("energy");
+    expect(trackedDirectiveSpecs(["energy", "storage"], ["ore_l1"]).map((d) => d.id)).toEqual(["energy", "storage"]);
+    expect(trackedDirectiveSpecs(["ore_l1", "energy"], ["ore_l1"]).map((d) => d.id)).toEqual(["energy"]);
+    expect(isDirectiveTracked(["energy"], "energy")).toBe(true);
+    expect(isDirectiveTracked(["energy"], "ore_l1")).toBe(false);
   });
 
   it("skips mine-output sliders and uses Voidhold building names", () => {

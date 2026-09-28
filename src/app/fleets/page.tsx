@@ -51,7 +51,7 @@ export default function FleetsPage() {
         <p className="text-sm text-[var(--muted-fg)]">No empire loaded.</p>
       ) : (
         <>
-          <h2 className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-red-300 uppercase">
+          <h2 className="font-[family-name:var(--font-display)] text-sm font-bold tracking-wider text-cyan-300 uppercase">
             Incoming
           </h2>
           {incoming.length === 0 ? (
@@ -72,9 +72,14 @@ export default function FleetsPage() {
             </ul>
           )}
 
-          <h2 className="mt-6 font-[family-name:var(--font-display)] text-xs font-semibold tracking-wide text-cyan-300 uppercase">
-            Fleets
-          </h2>
+          <div className="mt-6 flex items-center justify-between">
+            <h2 className="font-[family-name:var(--font-display)] text-sm font-bold tracking-wider text-cyan-300 uppercase">
+              Active fleets
+            </h2>
+            <span className="font-mono text-xs font-semibold text-cyan-400">
+              FLEETS: {outbound.length}
+            </span>
+          </div>
           {outbound.length === 0 ? (
             <p className="mt-2 text-sm text-[var(--muted-fg)]">No hulls away from dock.</p>
           ) : (

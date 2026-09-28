@@ -15,6 +15,7 @@ const rows = [
   [
     { href: "/defences", label: "Defence", icon: DefenceIcon },
     { href: "/fleets", label: "Fleet", icon: FleetIcon },
+    { href: "/missions", label: "Missions", icon: MissionsIcon },
     { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
     { href: "/communications", label: "Communications", icon: CommsIcon },
   ],
@@ -120,6 +121,17 @@ function FleetIcon() {
   return (
     <IconWrap>
       <path d="M3 12h13l4-4M16 12l4 4M5 8l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </IconWrap>
+  );
+}
+
+function MissionsIcon() {
+  return (
+    <IconWrap>
+      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="16" cy="11" r="2.2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="10" cy="17" r="2.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M10 9.5 14 10.2M9.2 10.2 9.8 15M14.2 12.8 11.6 16" stroke="currentColor" strokeWidth="1.8" />
     </IconWrap>
   );
 }

@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import {
-  DIRECTIVES,
-  activeDirective,
   directiveComplete,
   directiveProgress,
   directiveUnlocked,
   formatDirectiveReward,
   isDirectiveClaimed,
+  isDirectiveTracked,
   levelsFromPlanet,
   objectiveMet,
+  trackedDirectiveSpecs,
   type DirectiveSpec,
 } from "@/lib/game/directives";
 import { useEmpire } from "@/components/empire-provider";
@@ -22,9 +22,10 @@ export function DirectiveCard({
   spec: DirectiveSpec;
   compact?: boolean;
 }) {
-  const { state, live, pending, claimDirective } = useEmpire();
+  const { state, live, pending, claimDirective, setDirectiveTracked } = useEmpire();
   const claimed = isDirectiveClaimed(state?.empire.claimed_directives, spec.id);
   const unlocked = directiveUnlocked(state?.empire.claimed_directives, spec.id);
+  const tracked = isDirectiveTracked(state?.empire.tracked_directives, spec.id);
   const levels = levelsFromPlanet({
     ore_mine: state?.planet.ore_mine ?? 0,
     crystal_mine: state?.planet.crystal_mine ?? 0,
@@ -53,24 +54,45 @@ export function DirectiveCard({
             {claimed ? "Collected" : `${done} / ${total}`}
           </p>
         </div>
-        {claimed ? (
-          <span className="sci-btn sci-btn-quiet pointer-events-none h-9 px-3">Collected</span>
-        ) : !unlocked ? (
-          <span className="sci-btn sci-btn-quiet pointer-events-none h-9 px-3">Locked</span>
-        ) : canCollect ? (
-          <button
-            type="button"
-            className="sci-btn h-9 px-3"
-            disabled={pending}
-            onClick={() => void claimDirective(spec.id)}
-          >
-            Collect reward
-          </button>
-        ) : (
-          <Link href="/" className="sci-btn sci-btn-muted flex h-9 items-center px-3">
-            Track
-          </Link>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {claimed ? (
+            <span className="sci-btn sci-btn-quiet pointer-events-none h-9 px-3">Collected</span>
+          ) : !unlocked ? (
+            <span className="sci-btn sci-btn-quiet pointer-events-none h-9 px-3">Locked</span>
+          ) : (
+            <>
+              {canCollect ? (
+                <button
+                  type="button"
+                  className="sci-btn h-9 px-3"
+                  disabled={pending}
+                  onClick={() => void claimDirective(spec.id)}
+                >
+                  Collect reward
+                </button>
+              ) : null}
+              {tracked ? (
+                <button
+                  type="button"
+                  className="sci-btn sci-btn-muted h-9 px-3"
+                  disabled={pending}
+                  onClick={() => void setDirectiveTracked(spec.id, false)}
+                >
+                  Untrack
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="sci-btn sci-btn-muted h-9 px-3"
+                  disabled={pending}
+                  onClick={() => void setDirectiveTracked(spec.id, true)}
+                >
+                  Track
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
       {compact ? null : <p className="mt-2 text-sm text-[var(--muted-fg)]">{spec.blurb}</p>}
       <p className="mt-3 text-xs uppercase tracking-wide text-[var(--muted-fg)]">Complete the following missions:</p>
@@ -94,23 +116,14 @@ export function DirectiveCard({
 
 export function CurrentDirective() {
   const { state } = useEmpire();
-  const current = activeDirective(state?.empire.claimed_directives);
-  if (!current) {
-    const allClaimed = DIRECTIVES.every((d) => isDirectiveClaimed(state?.empire.claimed_directives, d.id));
-    if (!allClaimed) return null;
-    return (
-      <p className="mb-3 text-center text-xs text-[var(--muted-fg)]">
-        All beginner directives collected.{" "}
-        <Link href="/directives" className="underline">
-          Review
-        </Link>
-      </p>
-    );
-  }
+  const tracked = trackedDirectiveSpecs(state?.empire.tracked_directives, state?.empire.claimed_directives);
+  if (tracked.length === 0) return null;
   return (
-    <div className="mb-4">
-      <DirectiveCard spec={current} compact />
-      <Link href="/directives" className="mt-2 block text-center text-xs text-[var(--muted-fg)] underline">
+    <div className="mb-4 flex flex-col gap-3">
+      {tracked.map((spec) => (
+        <DirectiveCard key={spec.id} spec={spec} compact />
+      ))}
+      <Link href="/directives" className="block text-center text-xs text-[var(--muted-fg)] underline">
         All directives
       </Link>
     </div>

@@ -26,16 +26,20 @@ import {
   spawnPirateWave,
   setPirateRaids as setPirateRaidsAction,
   fillResources as fillResourcesAction,
+  grantDebugFleet as grantDebugFleetAction,
   setEconomySpeed as setEconomySpeedAction,
   queueShip as queueShipAction,
   launchExpedition,
   recallFleet as recallFleetAction,
   claimDirective as claimDirectiveAction,
+  setDirectiveTracked as setDirectiveTrackedAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
+import { isDebugOperator } from "@/lib/debug-operator";
 import { gameClock } from "@/lib/game/catalog";
 import type { BuildingId, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
 import { EMPTY_DEFENCES, livePlanet, type SimPlanet } from "@/lib/game/simulate";
+import { createClient } from "@/lib/supabase/client";
 
 type EmpireContextValue = {
   state: EmpireState | null;
@@ -55,6 +59,7 @@ type EmpireContextValue = {
   spawnPirates: () => Promise<void>;
   setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
+  grantDebugFleet: () => Promise<void>;
   setEconomySpeed: (speed: 1 | 3 | 5) => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
@@ -65,6 +70,8 @@ type EmpireContextValue = {
   sendExpedition: (galaxy: number, system: number, ships: Record<string, number>) => Promise<boolean>;
   recallFleet: (id: number) => Promise<void>;
   claimDirective: (id: string) => Promise<void>;
+  setDirectiveTracked: (id: string, tracked: boolean) => Promise<void>;
+  isDebug: boolean;
 };
 
 const EmpireContext = createContext<EmpireContextValue | null>(null);
@@ -151,6 +158,7 @@ export function EmpireProvider({
   const [pending, setPending] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [operatorEmail, setOperatorEmail] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
   const refreshAgain = useRef(false);
 
@@ -187,6 +195,14 @@ export function EmpireProvider({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    void supabase.auth.getUser().then(({ data }) => {
+      setOperatorEmail(data.user?.email ?? null);
+    });
+  }, [configured]);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now()), 250);
@@ -252,6 +268,7 @@ export function EmpireProvider({
     error,
     pending,
     configured,
+    isDebug: isDebugOperator(operatorEmail, state?.debug === true),
     now: gameNow,
     live,
     refresh,
@@ -265,6 +282,7 @@ export function EmpireProvider({
     spawnPirates: () => runAction(() => spawnPirateWave()),
     setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
+    grantDebugFleet: () => runAction(() => grantDebugFleetAction()),
     setEconomySpeed: (speed) => runAction(() => setEconomySpeedAction(speed)),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
@@ -275,6 +293,7 @@ export function EmpireProvider({
     sendExpedition: (galaxy, system, ships) => run(() => launchExpedition(galaxy, system, ships)),
     recallFleet: (id) => runAction(() => recallFleetAction(id)),
     claimDirective: (id) => runAction(() => claimDirectiveAction(id)),
+    setDirectiveTracked: (id, tracked) => runAction(() => setDirectiveTrackedAction(id, tracked)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

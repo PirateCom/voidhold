@@ -8,6 +8,7 @@ import { useEmpire } from "@/components/empire-provider";
 import { deleteOwnAccount, loadHighscores } from "@/lib/game/actions";
 import type { HighscoreEntry } from "@/lib/game/types";
 import { UniverseRules } from "@/components/universe-rules";
+import { DebugControls } from "@/components/debug-controls";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileTab = "commander" | "highscores";
@@ -42,7 +43,7 @@ function TabButton({
 }
 
 export default function ProfilePage() {
-  const { state, error, configured, pending } = useEmpire();
+  const { state, error, configured, pending, refresh } = useEmpire();
   const router = useRouter();
   const [tab, setTab] = useState<ProfileTab>("commander");
   const [email, setEmail] = useState<string | null>(null);
@@ -165,10 +166,18 @@ export default function ProfilePage() {
             </dl>
             <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
             <UniverseRules />
+            <DebugControls />
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="sci-btn sci-btn-muted mt-4 h-11 w-full"
+            >
+              Sync clocks
+            </button>
             <button
               type="button"
               onClick={() => void signOut()}
-              className="sci-btn sci-btn-muted h-11 w-full"
+              className="sci-btn sci-btn-muted mt-2 h-11 w-full"
             >
               Sign out
             </button>

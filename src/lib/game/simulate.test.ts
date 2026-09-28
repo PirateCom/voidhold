@@ -21,6 +21,7 @@ import {
   startResearch,
   startUpgrade,
   fillResources,
+  grantDebugFleet,
   livePlanet,
   planetFieldCapOf,
   researchLevel,
@@ -430,6 +431,18 @@ describe("time-skip simulation", () => {
     expect(filled.planets[0].ore).toBe(storageCap(1));
     expect(filled.planets[0].crystal).toBe(storageCap(1));
     expect(filled.planets[0].deuterium).toBe(storageCap(1));
+  });
+
+  it("grants flyable hulls and the research floors to spy, harvest, and colonize", () => {
+    const granted = grantDebugFleet(world(0), 0);
+    expect(granted.empire.ships.espionage_probe).toBe(50);
+    expect(granted.empire.ships.recycler).toBe(20);
+    expect(granted.empire.ships.colony_ship).toBe(10);
+    expect(granted.empire.ships.light_fighter).toBe(20);
+    expect(granted.empire.raiders).toBe(20);
+    expect(granted.empire.espionageTech).toBeGreaterThanOrEqual(2);
+    expect(granted.empire.astrophysics).toBeGreaterThanOrEqual(1);
+    expect(granted.empire.impulseDrive).toBeGreaterThanOrEqual(5);
   });
 
   it("produces deuterium into the tank and spends it on research and fuel", () => {

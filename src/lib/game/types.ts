@@ -1,5 +1,6 @@
 import type { FacilityId } from "./ogame-data";
 import type { StarType } from "./catalog";
+import type { AgentId, AgentMissionStatus, MissionKind } from "./agents";
 
 export type BuildingId =
   | "ore_mine"
@@ -122,6 +123,7 @@ export type EmpireRow = {
   next_pirate_at: string | null;
   pirate_raids_enabled?: boolean;
   claimed_directives?: string[];
+  tracked_directives?: string[];
   economy_speed?: number;
 };
 
@@ -186,6 +188,22 @@ export type HighscoreEntry = {
   points: number;
 };
 
+export type AgentMissionRow = {
+  id: number;
+  agent_id: AgentId;
+  kind: MissionKind;
+  status: AgentMissionStatus;
+  dest_galaxy: number | null;
+  dest_system: number | null;
+  dest_slot: number | null;
+  title: string;
+  blurb: string;
+  reward_ore: number;
+  reward_crystal: number;
+  reward_deuterium: number;
+  accepted_at: string | null;
+};
+
 export type ColonyRow = {
   id: number;
   name: string;
@@ -205,4 +223,5 @@ export type EmpireState = {
   fleets: FleetRow[];
   reports: ReportRow[];
   server_now: string;
+  debug?: boolean;
 };

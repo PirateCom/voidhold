@@ -68,6 +68,20 @@ button {
   background-size: 10px 10px;
 }
 
+@keyframes fleet-trajectory {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.fleet-trajectory {
+  animation: fleet-trajectory 1.8s ease-in-out infinite;
+}
+
 .progress-track {
   background-color: var(--muted);
   background-image: linear-gradient(

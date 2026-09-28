@@ -9,7 +9,7 @@ export const DEBUG_INFO = {
   headline:
     "Yes — you can play a full single-planet loop. About 62% of a wiki OGame session is in the code. The planet-builder slice (mines, deuterium, facilities, research, yard, guns, NPC raids, pirates) is closer to 75%.",
   working: [
-    "Login, persistent catch-up clocks. Economy speed is per empire (debug 1× / 3× / 5× on Facilities). Switching speed resets that empire. Production and building time scale; research, yard, and flights stay on the short clocks.",
+    "Login, persistent catch-up clocks. Economy speed is per empire (debug 1× / 3× / 5× on Commander). Switching speed resets that empire. Production and building time scale; research, yard, and flights stay on the short clocks.",
     "Ore, crystal, and deuterium mines. Synthesizer uses wiki temperature. Tanks cap all three. Fusion burns deut and drops out if the tank is empty. Solar satellites add wiki energy from average temperature, then the system star bonus.",
     "Facilities, research, and ships spend wiki deuterium costs. Attacks and expeditions pay round-trip fuel.",
     "Facilities with wiki gates and robotics/nanite build-time. Terraformer spends wiki crystal/deuterium/energy and adds floor(5.5 × level) fields. Research runs while other buildings upgrade; the lab itself blocks new techs while it is upgrading.",

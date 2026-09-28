@@ -6,9 +6,11 @@ import type {
   DefenceId,
   EmpireState,
   HighscoreEntry,
+  AgentMissionRow,
   ResearchId,
   SolarSystemView,
 } from "@/lib/game/types";
+import type { AgentId } from "@/lib/game/agents";
 
 function asState(data: unknown): EmpireState {
   return data as EmpireState;
@@ -153,12 +155,20 @@ export async function fillResources(): Promise<EmpireState> {
   return rpc("debug_fill_resources");
 }
 
+export async function grantDebugFleet(): Promise<EmpireState> {
+  return rpc("debug_grant_fleet");
+}
+
 export async function setEconomySpeed(speed: 1 | 3 | 5): Promise<EmpireState> {
   return rpc("debug_set_economy_speed", { p_speed: speed });
 }
 
 export async function claimDirective(id: string): Promise<EmpireState> {
   return rpc("claim_directive", { p_id: id });
+}
+
+export async function setDirectiveTracked(id: string, tracked: boolean): Promise<EmpireState> {
+  return rpc("set_directive_tracked", { p_id: id, p_tracked: tracked });
 }
 
 export async function recallFleet(id: number): Promise<EmpireState> {
@@ -175,6 +185,26 @@ export async function loadHighscores(): Promise<HighscoreEntry[]> {
   const { data, error } = await supabase.rpc("get_highscores");
   if (error) rpcError(error);
   return (data ?? []) as HighscoreEntry[];
+}
+
+async function missionRpc(fn: string, args: Record<string, unknown> = {}): Promise<AgentMissionRow[]> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) rpcError(error);
+  return (data ?? []) as AgentMissionRow[];
+}
+
+export async function listAgentMissions(): Promise<AgentMissionRow[]> {
+  return missionRpc("list_agent_missions");
+}
+
+export async function acceptAgentMission(agentId: AgentId): Promise<AgentMissionRow[]> {
+  return missionRpc("accept_agent_mission", { p_agent_id: agentId });
+}
+
+export async function claimAgentMission(agentId: AgentId): Promise<AgentMissionRow[]> {
+  return missionRpc("claim_agent_mission", { p_agent_id: agentId });
 }
 
 export async function deleteOwnAccount(confirmation: string): Promise<void> {

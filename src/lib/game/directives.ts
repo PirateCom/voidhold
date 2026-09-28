@@ -184,6 +184,18 @@ export function directiveUnlocked(claimed: string[] | null | undefined, id: stri
   return isDirectiveClaimed(claimed, prev);
 }
 
+export function isDirectiveTracked(tracked: string[] | null | undefined, id: string): boolean {
+  return (tracked ?? []).includes(id);
+}
+
+export function trackedDirectiveSpecs(
+  tracked: string[] | null | undefined,
+  claimed: string[] | null | undefined,
+): DirectiveSpec[] {
+  const pins = new Set(tracked ?? []);
+  return DIRECTIVES.filter((d) => pins.has(d.id) && !isDirectiveClaimed(claimed, d.id));
+}
+
 export function activeDirective(claimed: string[] | null | undefined): DirectiveSpec | null {
   return DIRECTIVES.find((d) => !isDirectiveClaimed(claimed, d.id) && directiveUnlocked(claimed, d.id)) ?? null;
 }

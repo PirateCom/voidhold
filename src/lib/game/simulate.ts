@@ -59,6 +59,7 @@ import {
   researchSpec,
   researchTechCost,
   shipSpec,
+  SHIPS,
   unmetFacility,
   unmetResearch,
   unmetShipBuild,
@@ -2083,6 +2084,38 @@ export function fillResources(world: SimWorld, at: number): SimWorld {
     deuterium: storageCap(planet.deuteriumStorage),
     lastHarvestedAt: at,
   });
+}
+
+const DEBUG_FLEET_COUNTS: Record<string, number> = Object.fromEntries(
+  SHIPS.map((ship) => [
+    ship.id,
+    ship.id === "espionage_probe" ? 50 : ship.id === "colony_ship" ? 10 : ship.id === "deathstar" ? 1 : 20,
+  ]),
+);
+
+export function grantDebugFleet(world: SimWorld, at: number): SimWorld {
+  const caught = catchUpWorld(world, at);
+  const planet = planetById(caught, caught.empire.homePlanetId);
+  return replacePlanet(
+    {
+      ...caught,
+      empire: {
+        ...caught.empire,
+        ships: { ...DEBUG_FLEET_COUNTS },
+        raiders: DEBUG_FLEET_COUNTS.small_cargo,
+        propulsionLevel: Math.max(caught.empire.propulsionLevel, 6),
+        energyTech: Math.max(caught.empire.energyTech, 1),
+        impulseDrive: Math.max(caught.empire.impulseDrive, 5),
+        espionageTech: Math.max(caught.empire.espionageTech, 2),
+        astrophysics: Math.max(caught.empire.astrophysics, 1),
+        shieldingTech: Math.max(caught.empire.shieldingTech, 2),
+      },
+    },
+    {
+      ...planet,
+      deuterium: Math.max(planet.deuterium, Math.min(storageCap(planet.deuteriumStorage), 50000)),
+    },
+  );
 }
 
 export { BUILDINGS };
