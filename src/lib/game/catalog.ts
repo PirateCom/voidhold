@@ -1386,6 +1386,22 @@ export function progressToward(
   return (now - start) / durationMs;
 }
 
+/**
+ * Client formulas can be shorter than the live timer. Use the longer of the
+ * estimate and time still left so the bar covers the whole wait.
+ */
+export function effectiveJobDurationMs(
+  completesAt: number | string | null | undefined,
+  estimatedDurationMs: number,
+  now: number,
+): number {
+  const estimate = Math.max(0, estimatedDurationMs);
+  if (completesAt == null) return Math.max(estimate, 1);
+  const end = typeof completesAt === "string" ? new Date(completesAt).getTime() : completesAt;
+  if (!Number.isFinite(end)) return Math.max(estimate, 1);
+  return Math.max(estimate, Math.max(0, end - now), 1);
+}
+
 /** Remaining construction returns this share of the original cost. 50% done → 50% back. */
 export function cancelRefund(
   cost: { ore: number; crystal: number; deuterium?: number },

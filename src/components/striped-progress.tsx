@@ -1,6 +1,6 @@
 "use client";
 
-import { progressToward } from "@/lib/game/catalog";
+import { effectiveJobDurationMs, progressToward } from "@/lib/game/catalog";
 import { useEffect, useRef, useState } from "react";
 
 export function StripedProgress({
@@ -63,9 +63,16 @@ export function TimedStripedProgress({
   size?: "sm" | "md";
 }) {
   const untilKey = until == null ? "" : String(until);
-  const origin = useRef({ untilKey, base: now, perf: performance.now() });
-  if (origin.current.untilKey !== untilKey) {
-    origin.current = { untilKey, base: now, perf: performance.now() };
+  const origin = useRef<{ untilKey: string; base: number; perf: number; span: number } | null>(null);
+  if (!origin.current || origin.current.untilKey !== untilKey) {
+    origin.current = {
+      untilKey,
+      base: now,
+      perf: typeof performance !== "undefined" ? performance.now() : 0,
+      span: effectiveJobDurationMs(until, durationMs, now),
+    };
+  } else {
+    origin.current.span = Math.max(origin.current.span, durationMs, 1);
   }
 
   const [clock, setClock] = useState(now);
@@ -73,14 +80,15 @@ export function TimedStripedProgress({
   useEffect(() => {
     let raf = 0;
     const loop = (t: number) => {
-      setClock(origin.current.base + (t - origin.current.perf));
+      const o = origin.current;
+      if (o) setClock(o.base + (t - o.perf));
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [untilKey]);
 
-  const value = progressToward(until, durationMs, clock);
+  const value = progressToward(until, origin.current.span, clock);
   return (
     <StripedProgress
       value={value}

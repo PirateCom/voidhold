@@ -33,6 +33,7 @@ import {
   powerOutput,
   planetTemperature,
   progressToward,
+  effectiveJobDurationMs,
   rollMaxFields,
   starMultiplier,
   raidHaul,
@@ -319,6 +320,17 @@ describe("production formulas", () => {
     expect(progressToward(1000, 1000, 500)).toBe(0.5);
     expect(progressToward(1000, 1000, 1000)).toBe(1);
     expect(progressToward(null, 1000, 500)).toBe(0);
+  });
+
+  it("stretches a progress bar to the live remaining time when the estimate is short", () => {
+    const now = 1_000_000;
+    const completes = now + 2 * 60 * 60 * 1000;
+    expect(effectiveJobDurationMs(completes, 60_000, now)).toBe(2 * 60 * 60 * 1000);
+    const span = effectiveJobDurationMs(completes, 60_000, now);
+    expect(progressToward(completes, span, now)).toBe(0);
+    expect(progressToward(completes, span, now + 60 * 60 * 1000)).toBe(0.5);
+    expect(effectiveJobDurationMs(completes, 3 * 60 * 60 * 1000, now)).toBe(3 * 60 * 60 * 1000);
+    expect(progressToward(completes, 3 * 60 * 60 * 1000, now + 60 * 60 * 1000)).toBeCloseTo(2 / 3);
   });
 
   it("refunds the remaining share of an upgrade cost", () => {

@@ -20,6 +20,7 @@ import {
   fusionOutput,
   powerOutput,
   progressToward,
+  effectiveJobDurationMs,
   researchSpec,
   storageCap,
   terraformerEnergy,
@@ -128,7 +129,14 @@ function UpgradeCard({
   const thisBusy = state.planet.upgrade_building === id;
   const durationMs = buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory, speed) * 1000;
   const refund = thisBusy
-    ? cancelRefund(cost, progressToward(state.planet.upgrade_completes_at, durationMs, now))
+    ? cancelRefund(
+        cost,
+        progressToward(
+          state.planet.upgrade_completes_at,
+          effectiveJobDurationMs(state.planet.upgrade_completes_at, durationMs, now),
+          now,
+        ),
+      )
     : null;
   const cap = planetFieldCapOf(live);
   const full = cap != null && totalFieldsUsed(live) >= cap;
