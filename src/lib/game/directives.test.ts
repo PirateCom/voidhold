@@ -37,7 +37,8 @@ describe("beginner directives", () => {
 
   it("unlocks the next directive only after the previous reward is claimed", () => {
     expect(previousDirectiveId("ore_l1")).toBeNull();
-    expect(previousDirectiveId("energy")).toBe("ore_l1");
+    expect(previousDirectiveId("yard_foundations")).toBe("storage");
+    expect(previousDirectiveId("deathstar")).toBe("nanite_works");
     expect(directiveUnlocked([], "energy")).toBe(false);
     expect(directiveUnlocked(["ore_l1"], "energy")).toBe(true);
     expect(activeDirective([])?.id).toBe("ore_l1");
@@ -54,7 +55,49 @@ describe("beginner directives", () => {
     expect(labels).not.toMatch(/100%/);
     expect(labels).toMatch(/Ore mine/);
     expect(labels).toMatch(/Deuterium extractor/);
-    expect(DIRECTIVES.at(-1)?.id).toBe("storage");
+    expect(DIRECTIVES.at(-1)?.id).toBe("deathstar");
+    expect(DIRECTIVES.map((d) => d.id)).toContain("yard_foundations");
+    const hulls = DIRECTIVES.flatMap((d) => d.objectives.filter((o) => o.kind === "ship").map((o) => o.ship));
+    const guns = DIRECTIVES.flatMap((d) => d.objectives.filter((o) => o.kind === "defence").map((o) => o.defence));
+    expect(hulls).toEqual(
+      expect.arrayContaining([
+        "light_fighter",
+        "heavy_fighter",
+        "cruiser",
+        "battleship",
+        "battlecruiser",
+        "bomber",
+        "destroyer",
+        "deathstar",
+        "small_cargo",
+        "large_cargo",
+        "colony_ship",
+        "recycler",
+        "espionage_probe",
+        "reaper",
+        "pathfinder",
+        "crawler",
+        "solar_satellite",
+      ]),
+    );
+    expect(guns).toEqual(
+      expect.arrayContaining([
+        "rocket_launcher",
+        "light_laser",
+        "heavy_laser",
+        "ion_cannon",
+        "gauss_cannon",
+        "plasma_turret",
+        "small_shield_dome",
+        "large_shield_dome",
+        "antiballistic_missile",
+        "interplanetary_missile",
+      ]),
+    );
+    const fighter = DIRECTIVES.find((d) => d.id === "combustion_fighter")!;
+    expect(directiveComplete(fighter, { ...starter, research: { combustion_drive: 1 }, ships: { light_fighter: 1 } })).toBe(
+      true,
+    );
     expect(directiveProgress(DIRECTIVES.find((d) => d.id === "ore_solar_mid")!, { ...starter, ore_mine: 3, power_plant: 3 })).toEqual({
       done: 2,
       total: 3,

@@ -8,9 +8,10 @@ import {
   formatDirectiveReward,
   isDirectiveClaimed,
   isDirectiveTracked,
-  levelsFromPlanet,
-  objectiveMet,
+  levelsFromHold,
   trackedDirectiveSpecs,
+  objectiveMet,
+  type DirectiveLevels,
   type DirectiveSpec,
 } from "@/lib/game/directives";
 import { useEmpire } from "@/components/empire-provider";
@@ -26,19 +27,16 @@ export function DirectiveCard({
   const claimed = isDirectiveClaimed(state?.empire.claimed_directives, spec.id);
   const unlocked = directiveUnlocked(state?.empire.claimed_directives, spec.id);
   const tracked = isDirectiveTracked(state?.empire.tracked_directives, spec.id);
-  const levels = levelsFromPlanet({
-    ore_mine: state?.planet.ore_mine ?? 0,
-    crystal_mine: state?.planet.crystal_mine ?? 0,
-    deuterium_extractor: state?.planet.deuterium_extractor,
-    power_plant: state?.planet.power_plant ?? 0,
-    fusion_reactor: state?.planet.fusion_reactor,
-    ore_storage: state?.planet.ore_storage,
-    crystal_storage: state?.planet.crystal_storage,
-    deuterium_storage: state?.planet.deuterium_storage,
-    energyOutput: live?.energy.output,
-    energyDrain: live?.energy.drain,
-    starType: state?.star.type,
-  });
+  const levels: DirectiveLevels =
+    state?.planet && state.empire
+      ? levelsFromHold({
+          planet: state.planet,
+          empire: state.empire,
+          energyOutput: live?.energy.output,
+          energyDrain: live?.energy.drain,
+          starType: state.star?.type,
+        })
+      : {};
   const { done, total } = directiveProgress(spec, levels);
   const complete = directiveComplete(spec, levels);
   const canCollect = unlocked && complete && !claimed && !pending;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, planetFieldCap, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, mineProductionPerHour, planetFieldCap, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
@@ -26,6 +26,7 @@ import {
   planetFieldCapOf,
   researchLevel,
   selectPlanet,
+  tickPlanet,
   totalFieldsUsed,
   type SimPlanet,
   type SimWorld,
@@ -332,6 +333,24 @@ describe("time-skip simulation", () => {
     const powered = livePlanet({ ...strained, solarSatellites: 1 }, 0);
     expect(powered.energy.output).toBe(52);
     expect(powered.energy.factor).toBe(1);
+  });
+
+  it("applies working crawler mine bonus when energy leftover covers them", () => {
+    const base = world(0).planets[0];
+    const powered = {
+      ...base,
+      ore: 0,
+      oreMine: 1,
+      crystalMine: 1,
+      deuteriumExtractor: 0,
+      powerPlant: 20,
+      crawlers: 10,
+      lastHarvestedAt: 0,
+    };
+    const live = livePlanet(powered, 0);
+    expect(live.orePerHour).toBe(mineProductionPerHour(1) * 1.002);
+    const after = tickPlanet(powered, GAME_HOUR_SECONDS * 100 * 1000);
+    expect(after.ore).toBe(Math.floor(mineProductionPerHour(1) * 1.002 * 100));
   });
 
   it("skips automatic pirate waves when raids are off", () => {

@@ -33,6 +33,7 @@ import {
   recallFleet as recallFleetAction,
   claimDirective as claimDirectiveAction,
   setDirectiveTracked as setDirectiveTrackedAction,
+  deleteReport as deleteReportAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { isDebugOperator } from "@/lib/debug-operator";
@@ -71,6 +72,7 @@ type EmpireContextValue = {
   recallFleet: (id: number) => Promise<void>;
   claimDirective: (id: string) => Promise<void>;
   setDirectiveTracked: (id: string, tracked: boolean) => Promise<void>;
+  deleteReport: (id: number) => Promise<void>;
   isDebug: boolean;
 };
 
@@ -230,6 +232,7 @@ export function EmpireProvider({
         ...toSimPlanet(state.planet, state.star.type),
         energyTech: state.empire.energy_tech ?? 0,
         solarSatellites: state.empire.ships?.solar_satellite ?? 0,
+        crawlers: state.empire.ships?.crawler ?? 0,
         economySpeed: state.empire.economy_speed ?? 1,
       },
       gameNow,
@@ -294,6 +297,7 @@ export function EmpireProvider({
     recallFleet: (id) => runAction(() => recallFleetAction(id)),
     claimDirective: (id) => runAction(() => claimDirectiveAction(id)),
     setDirectiveTracked: (id, tracked) => runAction(() => setDirectiveTrackedAction(id, tracked)),
+    deleteReport: (id) => runAction(() => deleteReportAction(id)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

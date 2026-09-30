@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
+import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
@@ -40,6 +41,7 @@ export default function ResearchPage() {
   return (
     <AppShell title="Research">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
+      <CurrentDirective />
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
         Costs follow the OGame wiki. Deuterium is taken from the tank on this planet.
         Technologies are empire-wide: Combustion 5 on the homeworld is Combustion 5 on every
@@ -70,7 +72,7 @@ export default function ResearchPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <h2 className="font-semibold">{tech.name}</h2>
-                        <span className="sci-badge">L{level}</span>
+                        <span className="sci-badge">LVL {level}</span>
                       </div>
                       <p className="mt-1 text-xs text-[var(--muted-fg)]">{tech.blurb}</p>
                     </div>

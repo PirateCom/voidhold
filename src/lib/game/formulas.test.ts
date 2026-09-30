@@ -17,9 +17,15 @@ import {
   HOMEWORLD_DIAMETER_KM,
   energyAfterUpgrade,
   solarSatelliteEnergy,
+  solarPlantBase,
+  solarSatelliteBaseEnergy,
+  deuteriumClimate,
   upgradeWouldCauseEnergyDeficit,
   energyFactor,
   energyNow,
+  crawlerCap,
+  crawlerProductionBonus,
+  workingCrawlers,
   fieldsUsed,
   fleetSpeedMultiplier,
   flightSeconds,
@@ -92,6 +98,7 @@ describe("production formulas", () => {
     expect(starMultiplier("old_cold")).toBe(0.75);
     expect(starMultiplier("pulsar")).toBe(3);
     expect(powerOutput(1, "pulsar")).toBe(66);
+    expect(solarPlantBase(1)).toBe(22);
     expect(powerOutput(1)).toBe(22);
     expect(energyFactor(1, 1, 1, "old_cold")).toBeLessThan(1);
   });
@@ -139,8 +146,21 @@ describe("production formulas", () => {
     expect(upgradeWouldCauseEnergyDeficit("ore_mine", 1, 1, 8)).toBe(false);
     expect(solarSatelliteEnergy(20, 20)).toBe(30);
     expect(solarSatelliteEnergy(204, 264)).toBe(65);
+    expect(solarSatelliteBaseEnergy(204, 264)).toBe(65);
     expect(solarSatelliteEnergy(204, 264, "pulsar", 1)).toBe(195);
+    expect(deuteriumClimate(30)).toBeCloseTo(1.24);
     expect(energyNow(3, 1, 1, "medium", 0, 0, 0, 1, 20, 20).output).toBe(52);
+  });
+
+  it("caps working crawlers by mine levels then leftover energy", () => {
+    expect(crawlerCap(1, 1, 1)).toBe(24);
+    expect(crawlerProductionBonus(10)).toBe(1.002);
+    expect(workingCrawlers(100, 1, 1, 0, 22, 22)).toBe(0);
+    expect(workingCrawlers(100, 1, 1, 0, 522, 22)).toBe(10);
+    expect(workingCrawlers(3, 1, 1, 0, 522, 22)).toBe(3);
+    const grid = energyNow(1, 1, 20, "medium", 0, 0, 0, 0, 30, 30, 10);
+    expect(grid.drain).toBe(mineEnergyDrain(1) + mineEnergyDrain(1) + 10 * 50);
+    expect(grid.factor).toBe(1);
   });
 
   it("produces 33 ore per real hour at ore mine L1", () => {

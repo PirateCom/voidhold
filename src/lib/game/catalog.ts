@@ -9,6 +9,8 @@ export const ECONOMY_SPEED = 1;
 export const ECONOMY_SPEEDS = [1, 3, 5] as const;
 export type EconomySpeed = (typeof ECONOMY_SPEEDS)[number];
 export const GAME_HOUR_SECONDS = 3600;
+/** Combat and fleet reports stay in Comms for this many real days, then they are purged. */
+export const REPORT_TTL_DAYS = 7;
 
 export function normalizeEconomySpeed(value?: number | null): EconomySpeed {
   return value === 3 || value === 5 ? value : 1;
@@ -619,8 +621,7 @@ export function crystalProductionPerHour(level: number): number {
 export function deuteriumProductionPerHour(level: number, tempMax = 30): number {
   const safe = Math.max(0, Math.floor(level));
   if (safe <= 0) return 0;
-  const climate = 1.36 - 0.004 * tempMax;
-  return Math.max(0, Math.floor(10 * safe * Math.pow(1.44, safe) * climate));
+  return Math.max(0, Math.floor(10 * safe * Math.pow(1.44, safe) * deuteriumClimate(tempMax)));
 }
 
 /** Wiki fusion plant consumption: floor(10 * L * 1.1^L) deut per hour. */
@@ -768,9 +769,26 @@ export function powerOutput(level: number, star: StarType = "medium"): number {
   return Math.floor(20 * level * Math.pow(1.1, level) * starMultiplier(star));
 }
 
+/** Solar plant before the system star bonus. */
+export function solarPlantBase(level: number): number {
+  if (level <= 0) return 0;
+  return Math.floor(20 * level * Math.pow(1.1, level));
+}
+
 export function mineEnergyDrain(level: number): number {
   if (level <= 0) return 0;
   return Math.floor(10 * level * Math.pow(1.1, level));
+}
+
+/** Wiki synthesizer climate term: 1.36 − 0.004 × Tmax. */
+export function deuteriumClimate(tempMax: number): number {
+  return 1.36 - 0.004 * tempMax;
+}
+
+/** Wiki v1.0: floor((average temperature + 160) / 6) before the system star bonus. */
+export function solarSatelliteBaseEnergy(tempMin: number, tempMax: number): number {
+  const avg = (tempMin + tempMax) / 2;
+  return Math.max(0, Math.floor((avg + 160) / 6));
 }
 
 /** Wiki v1.0: floor((average temperature + 160) / 6), then the system star bonus. */
@@ -782,8 +800,7 @@ export function solarSatelliteEnergy(
 ): number {
   const sats = Math.max(0, Math.floor(count));
   if (sats <= 0) return 0;
-  const avg = (tempMin + tempMax) / 2;
-  const per = Math.max(0, Math.floor((avg + 160) / 6));
+  const per = solarSatelliteBaseEnergy(tempMin, tempMax);
   return Math.floor(per * starMultiplier(star)) * sats;
 }
 
@@ -798,6 +815,7 @@ export function energyFactor(
   satellites = 0,
   tempMin = 30,
   tempMax = 30,
+  crawlers = 0,
 ): number {
   return energyNow(
     oreMine,
@@ -810,6 +828,7 @@ export function energyFactor(
     satellites,
     tempMin,
     tempMax,
+    crawlers,
   ).factor;
 }
 
@@ -825,6 +844,38 @@ export function deutEnergyDrain(level: number): number {
   return Math.floor(20 * safe * Math.pow(1.1, safe));
 }
 
+/** Wiki: each working crawler adds 0.02% mine production and uses 50 energy. */
+export const CRAWLER_BONUS = 0.0002;
+export const CRAWLER_ENERGY = 50;
+export const CRAWLERS_PER_MINE_LEVEL = 8;
+
+export function crawlerCap(oreMine: number, crystalMine: number, deutMine: number): number {
+  return (
+    Math.max(0, Math.floor(oreMine) + Math.floor(crystalMine) + Math.floor(deutMine)) *
+    CRAWLERS_PER_MINE_LEVEL
+  );
+}
+
+/** Working crawlers: owned, capped by mine levels, then by energy left after the mines. */
+export function workingCrawlers(
+  owned: number,
+  oreMine: number,
+  crystalMine: number,
+  deutMine: number,
+  energyOutput: number,
+  mineDrain: number,
+): number {
+  const want = Math.min(Math.max(0, Math.floor(owned)), crawlerCap(oreMine, crystalMine, deutMine));
+  if (want <= 0) return 0;
+  const spare = energyOutput - mineDrain;
+  if (spare <= 0) return 0;
+  return Math.min(want, Math.floor(spare / CRAWLER_ENERGY));
+}
+
+export function crawlerProductionBonus(working: number): number {
+  return 1 + Math.max(0, Math.floor(working)) * CRAWLER_BONUS;
+}
+
 export function energyNow(
   oreMine: number,
   crystalMine: number,
@@ -836,6 +887,7 @@ export function energyNow(
   satellites = 0,
   tempMin = 30,
   tempMax = 30,
+  crawlers = 0,
 ): {
   output: number;
   drain: number;
@@ -845,8 +897,10 @@ export function energyNow(
     powerOutput(powerPlant, star) +
     fusionOutput(fusion, energyTech) +
     solarSatelliteEnergy(tempMin, tempMax, star, satellites);
-  const drain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine) + deutEnergyDrain(deutMine);
-  const factor = drain <= 0 ? 1 : Math.min(1, output / drain);
+  const mineDrain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine) + deutEnergyDrain(deutMine);
+  const working = workingCrawlers(crawlers, oreMine, crystalMine, deutMine, output, mineDrain);
+  const drain = mineDrain + working * CRAWLER_ENERGY;
+  const factor = mineDrain <= 0 ? 1 : Math.min(1, output / mineDrain);
   return { output, drain, factor };
 }
 
@@ -883,13 +937,14 @@ export function energyAfterUpgrade(
   satellites = 0,
   tempMin = 30,
   tempMax = 30,
+  crawlers = 0,
 ): { output: number; drain: number; factor: number } {
   const ore = id === "ore_mine" ? oreMine + 1 : oreMine;
   const crystal = id === "crystal_mine" ? crystalMine + 1 : crystalMine;
   const plant = id === "power_plant" ? powerPlant + 1 : powerPlant;
   const deut = id === "deuterium_extractor" ? deutMine + 1 : deutMine;
   const fus = id === "fusion_reactor" ? fusion + 1 : fusion;
-  return energyNow(ore, crystal, plant, star, deut, fus, energyTech, satellites, tempMin, tempMax);
+  return energyNow(ore, crystal, plant, star, deut, fus, energyTech, satellites, tempMin, tempMax, crawlers);
 }
 
 export function upgradeWouldCauseEnergyDeficit(
@@ -904,6 +959,7 @@ export function upgradeWouldCauseEnergyDeficit(
   satellites = 0,
   tempMin = 30,
   tempMax = 30,
+  crawlers = 0,
 ): boolean {
   const after = energyAfterUpgrade(
     id,
@@ -917,6 +973,7 @@ export function upgradeWouldCauseEnergyDeficit(
     satellites,
     tempMin,
     tempMax,
+    crawlers,
   );
   return after.drain > after.output;
 }

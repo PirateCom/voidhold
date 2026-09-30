@@ -24,8 +24,8 @@ export default function DirectivesPage() {
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-[var(--muted-fg)]">
-            Officer directives for a new hold. Claim rewards in order. Mine output sliders are not in Voidhold,
-            so those OGame steps are skipped.
+            Officer directives in order: first the beginner mines, then yards, research, small hulls and guns,
+            climbing until every flyable ship and defence is on the list.
           </p>
           {DIRECTIVES.map((spec) => (
             <DirectiveCard key={spec.id} spec={spec} />

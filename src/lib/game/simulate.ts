@@ -15,6 +15,11 @@ import {
   crystalProductionPerHour,
   debrisFromWrecks,
   deuteriumProductionPerHour,
+  fusionDeuteriumBurnPerHour,
+  crawlerProductionBonus,
+  workingCrawlers,
+  deutEnergyDrain,
+  mineEnergyDrain,
   attackFlightSeconds,
   attackFuel,
   harvestDebris,
@@ -25,7 +30,6 @@ import {
   rollMaxFields,
   planetTemperature,
   fleetFuelRoundTrip,
-  fusionDeuteriumBurnPerHour,
   hullSpeed,
   slowestHullSpeed,
   expeditionFleetCap,
@@ -92,6 +96,7 @@ export type SimPlanet = {
   tempMax?: number;
   energyTech?: number;
   solarSatellites?: number;
+  crawlers?: number;
   oreMine: number;
   crystalMine: number;
   deuteriumExtractor: number;
@@ -439,6 +444,7 @@ function planetEnergy(planet: SimPlanet, fusion = planet.fusionReactor) {
     planet.solarSatellites ?? 0,
     planet.tempMin ?? 30,
     planet.tempMax ?? 30,
+    planet.crawlers ?? 0,
   );
 }
 
@@ -454,19 +460,31 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
   const fusionLive = planet.fusionReactor <= 0 || planet.deuterium + producedWith + 1e-9 >= burnAmt;
   const energy = fusionLive ? withFusion : planetEnergy(planet, 0);
   const factor = energy.factor;
-  const deutAdd = Math.floor((synth * factor * elapsed) / GAME_HOUR_SECONDS);
+  const bonus = crawlerProductionBonus(
+    workingCrawlers(
+      planet.crawlers ?? 0,
+      planet.oreMine,
+      planet.crystalMine,
+      planet.deuteriumExtractor,
+      energy.output,
+      mineEnergyDrain(planet.oreMine) +
+        mineEnergyDrain(planet.crystalMine) +
+        deutEnergyDrain(planet.deuteriumExtractor),
+    ),
+  );
+  const deutAdd = Math.floor((synth * factor * bonus * elapsed) / GAME_HOUR_SECONDS);
   const deutBurn = fusionLive ? Math.floor((burn * elapsed) / GAME_HOUR_SECONDS) : 0;
   return {
     ...planet,
     ore: harvestAmount(
       planet.ore,
-      mineProductionPerHour(planet.oreMine) * factor,
+      mineProductionPerHour(planet.oreMine) * factor * bonus,
       elapsed,
       storageCap(planet.oreStorage),
     ),
     crystal: harvestAmount(
       planet.crystal,
-      crystalProductionPerHour(planet.crystalMine) * factor,
+      crystalProductionPerHour(planet.crystalMine) * factor * bonus,
       elapsed,
       storageCap(planet.crystalStorage),
     ),
@@ -1236,6 +1254,7 @@ export function catchUpWorld(world: SimWorld, at: number): SimWorld {
       ...p,
       energyTech: empire.energyTech,
       solarSatellites: empire.ships.solar_satellite ?? 0,
+      crawlers: empire.ships.crawler ?? 0,
       economySpeed: empire.economySpeed ?? 1,
     };
     if (p.id !== world.empire.homePlanetId && p.ownerId !== world.empire.userId) return tagged;
@@ -2062,12 +2081,25 @@ export function livePlanet(planet: SimPlanet, at: number) {
     preview.fusionReactor <= 0 || preview.deuterium > 0 || synth * withFusion.factor >= burn;
   const energy = fusionLive ? withFusion : planetEnergy(preview, 0);
   const factor = energy.factor;
+  const bonus = crawlerProductionBonus(
+    workingCrawlers(
+      preview.crawlers ?? 0,
+      preview.oreMine,
+      preview.crystalMine,
+      preview.deuteriumExtractor,
+      energy.output,
+      mineEnergyDrain(preview.oreMine) +
+        mineEnergyDrain(preview.crystalMine) +
+        deutEnergyDrain(preview.deuteriumExtractor),
+    ),
+  );
+  const speed = preview.economySpeed ?? 1;
   return {
     ...preview,
     energy,
-    orePerHour: mineProductionPerHour(preview.oreMine) * factor * (preview.economySpeed ?? 1),
-    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor * (preview.economySpeed ?? 1),
-    deuteriumPerHour: (synth * factor - (fusionLive ? burn : 0)) * (preview.economySpeed ?? 1),
+    orePerHour: mineProductionPerHour(preview.oreMine) * factor * bonus * speed,
+    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor * bonus * speed,
+    deuteriumPerHour: (synth * factor * bonus - (fusionLive ? burn : 0)) * speed,
     oreCap: storageCap(preview.oreStorage),
     crystalCap: storageCap(preview.crystalStorage),
     deuteriumCap: storageCap(preview.deuteriumStorage),

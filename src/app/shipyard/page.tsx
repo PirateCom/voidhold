@@ -2,10 +2,26 @@
 
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
+import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
-import { RAIDER_BUILD_SECONDS, SHIPS, canPayResources, researchSpec, solarSatelliteEnergy, unmetShipBuild, type ResearchId, type ShipStat } from "@/lib/game/catalog";
+import {
+  CRAWLER_ENERGY,
+  RAIDER_BUILD_SECONDS,
+  SHIPS,
+  canPayResources,
+  crawlerCap,
+  crawlerProductionBonus,
+  deutEnergyDrain,
+  mineEnergyDrain,
+  researchSpec,
+  solarSatelliteEnergy,
+  unmetShipBuild,
+  workingCrawlers,
+  type ResearchId,
+  type ShipStat,
+} from "@/lib/game/catalog";
 import type { EmpireRow } from "@/lib/game/types";
 import { useState } from "react";
 
@@ -29,11 +45,13 @@ function ShipStats({
   empire,
   shipyardLevel,
   satEnergy,
+  crawlerInfo,
 }: {
   ship: ShipStat;
   empire: EmpireRow;
   shipyardLevel: number;
   satEnergy?: { each: number; docked: number; count: number };
+  crawlerInfo?: { owned: number; working: number; cap: number; bonus: number };
 }) {
   const speed =
     ship.speedUpgraded != null ? `${ship.speed.toLocaleString()} (${ship.speedUpgraded.toLocaleString()})` : ship.speed.toLocaleString();
@@ -58,6 +76,13 @@ function ShipStats({
           {satEnergy.count > 0
             ? ` · ${satEnergy.docked.toLocaleString()} from ${satEnergy.count.toLocaleString()} in orbit`
             : ""}
+        </p>
+      ) : null}
+      {crawlerInfo ? (
+        <p className="text-emerald-300">
+          Working {crawlerInfo.working.toLocaleString()} / {crawlerInfo.owned.toLocaleString()} (cap{" "}
+          {crawlerInfo.cap.toLocaleString()}) · {CRAWLER_ENERGY} energy each · +
+          {((crawlerInfo.bonus - 1) * 100).toFixed(2)}% mines
         </p>
       ) : null}
       <ul className="space-y-0.5">
@@ -96,10 +121,66 @@ export default function ShipyardPage() {
   const busyId = state.empire.ship_building || (state.empire.raiders_queued > 0 ? "small_cargo" : null);
   const queued = state.empire.raiders_queued ?? 0;
   const yardBusy = queued > 0 && Boolean(busyId);
+  const crawlerOwned = dockedCount("crawler", state.empire);
+  const docked = SHIPS.map((ship) => ({ ship, count: dockedCount(ship.id, state.empire) })).filter((row) => row.count > 0);
+  const hulls = docked.reduce((sum, row) => sum + row.count, 0);
+  const fleetHull = docked.reduce((sum, row) => sum + row.ship.hull * row.count, 0);
+  const fleetShield = docked.reduce((sum, row) => sum + row.ship.shield * row.count, 0);
+  const fleetAttack = docked.reduce((sum, row) => sum + row.ship.attack * row.count, 0);
+  const crawlerHud =
+    live == null
+      ? null
+      : (() => {
+          const cap = crawlerCap(live.oreMine, live.crystalMine, live.deuteriumExtractor);
+          const mineDrain =
+            mineEnergyDrain(live.oreMine) +
+            mineEnergyDrain(live.crystalMine) +
+            deutEnergyDrain(live.deuteriumExtractor);
+          const working = workingCrawlers(
+            crawlerOwned,
+            live.oreMine,
+            live.crystalMine,
+            live.deuteriumExtractor,
+            live.energy.output,
+            mineDrain,
+          );
+          return {
+            owned: crawlerOwned,
+            working,
+            cap,
+            bonus: crawlerProductionBonus(working),
+          };
+        })();
 
   return (
     <AppShell title="Shipyard">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
+      <CurrentDirective />
+      <article className="sci-card mb-3 p-4">
+        <h2 className="font-semibold">Docked fleet</h2>
+        <p className="mt-2 font-mono text-sm">
+          {docked.length > 0
+            ? docked.map((row) => `${row.ship.name} ×${row.count.toLocaleString()}`).join(" · ")
+            : "No ships docked."}
+        </p>
+        <p className="mt-1 font-mono text-sm">
+          Fleet hull {fleetHull.toLocaleString()} · shield {fleetShield.toLocaleString()} · attack{" "}
+          {fleetAttack.toLocaleString()}
+          {" · "}
+          {hulls.toLocaleString()} hull{hulls === 1 ? "" : "s"}
+        </p>
+        <p className="mt-1 text-xs text-[var(--muted-fg)]">
+          Shipyard {state.planet.shipyard ?? 0}. Hulls listed here are docked at this hold, not in flight.
+        </p>
+        {yardBusy && busyId ? (
+          <p className="mt-2 text-sm">
+            In yard {SHIPS.find((ship) => ship.id === busyId)?.name ?? busyId} ×{queued}{" "}
+            <Countdown until={state.empire.raider_completes_at} now={now} />
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-[var(--muted-fg)]">Yard idle.</p>
+        )}
+      </article>
       <div className="flex flex-col gap-3">
         {SHIPS.map((ship) => {
           const missing = unmetShipBuild(ship, state.planet.shipyard ?? 0, (id) => levelOf(id, state.empire));
@@ -141,6 +222,7 @@ export default function ShipyardPage() {
                           }
                         : undefined
                     }
+                    crawlerInfo={ship.id === "crawler" ? crawlerHud ?? undefined : undefined}
                   />
                 </div>
               </div>

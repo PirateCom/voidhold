@@ -218,6 +218,29 @@ button {
   color: #a5f3fc;
 }
 
+.sci-card-active {
+  border-color: rgba(0, 240, 255, 0.85);
+  animation: sci-card-active-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes sci-card-active-glow {
+  0%,
+  100% {
+    border-color: rgba(0, 240, 255, 0.95);
+    box-shadow:
+      inset 0 0 22px rgba(0, 240, 255, 0.4),
+      0 0 16px rgba(0, 240, 255, 0.55);
+    filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.7));
+  }
+  50% {
+    border-color: rgba(0, 240, 255, 0.35);
+    box-shadow:
+      inset 0 0 12px rgba(0, 240, 255, 0.12),
+      0 0 6px rgba(0, 240, 255, 0.2);
+    filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.2));
+  }
+}
+
 @keyframes pulse-glow {
   0%,
   100% {
@@ -240,7 +263,8 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .globe-spin,
-  .animate-pulse {
+  .animate-pulse,
+  .sci-card-active {
     animation: none;
   }
 }

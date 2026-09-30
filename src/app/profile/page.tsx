@@ -8,7 +8,10 @@ import { useEmpire } from "@/components/empire-provider";
 import { deleteOwnAccount, loadHighscores } from "@/lib/game/actions";
 import type { HighscoreEntry } from "@/lib/game/types";
 import { UniverseRules } from "@/components/universe-rules";
+import { PlanetEconomy } from "@/components/planet-economy";
 import { DebugControls } from "@/components/debug-controls";
+import { starLabel } from "@/lib/game/catalog";
+import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileTab = "commander" | "highscores";
@@ -43,7 +46,7 @@ function TabButton({
 }
 
 export default function ProfilePage() {
-  const { state, error, configured, pending, refresh } = useEmpire();
+  const { state, live, error, configured, pending, refresh } = useEmpire();
   const router = useRouter();
   const [tab, setTab] = useState<ProfileTab>("commander");
   const [email, setEmail] = useState<string | null>(null);
@@ -123,6 +126,8 @@ export default function ProfilePage() {
   }
 
   const planet = state?.planet;
+  const used = live ? totalFieldsUsed(live) : 0;
+  const fieldCap = live ? planetFieldCapOf(live) : planet?.max_fields;
   const typedOk = typed.trim().toLowerCase() === "delete";
   const myId = state?.profile.user_id;
 
@@ -155,7 +160,22 @@ export default function ProfilePage() {
               />
               <Fact label="Account id" value={state.profile.user_id} />
               {planet ? (
-                <Fact label="Homeworld" value={`[${planet.galaxy}:${planet.system}:${planet.slot}] ${planet.name}`} />
+                <>
+                  <Fact label="Homeworld" value={`[${planet.galaxy}:${planet.system}:${planet.slot}] ${planet.name}`} />
+                  {planet.diameter_km != null ? (
+                    <Fact
+                      label="Diameter"
+                      value={`${planet.diameter_km.toLocaleString()} km (${used}/${fieldCap})`}
+                    />
+                  ) : null}
+                  <Fact label="Temperature" value={`${planet.temp_min}°C to ${planet.temp_max}°C`} />
+                </>
+              ) : null}
+              {state.star ? (
+                <Fact
+                  label="Star"
+                  value={`${starLabel(state.star.type)} · solar ×${state.star.multiplier}`}
+                />
               ) : null}
               <Fact
                 label="Score"
@@ -164,6 +184,7 @@ export default function ProfilePage() {
               <Fact label="Research" value={`${(state.rank.research ?? 0).toLocaleString()} tech levels`} />
               <Fact label="Fleet" value={`${(state.rank.fleet ?? 0).toLocaleString()} ships`} />
             </dl>
+            <PlanetEconomy />
             <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
             <UniverseRules />
             <DebugControls />

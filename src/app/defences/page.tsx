@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
+import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
@@ -58,6 +59,7 @@ export default function DefencesPage() {
   return (
     <AppShell title="Defence">
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
+      <CurrentDirective />
       <article className="sci-card mb-3 p-4">
         <h2 className="font-semibold">Hold strength</h2>
         <p className="mt-2 font-mono text-sm">

@@ -674,7 +674,7 @@ export const SHIPS: ShipStat[] = [
       ["Most ships", 5],
       ["Deathstar", 1250],
     ],
-    note: "Stays on the planet. Each crawler adds 0.02% mine production.",
+    note: "Cannot fly. Working crawlers are min(owned, (ore+crystal+deut mine levels)×8, leftover energy after mines ÷ 50). Each working unit uses 50 energy and adds 0.02% mine production; extras stay idle.",
   },
   {
     id: "solar_satellite",

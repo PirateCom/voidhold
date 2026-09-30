@@ -171,6 +171,10 @@ export async function setDirectiveTracked(id: string, tracked: boolean): Promise
   return rpc("set_directive_tracked", { p_id: id, p_tracked: tracked });
 }
 
+export async function deleteReport(id: number): Promise<EmpireState> {
+  return rpc("delete_report", { p_id: id });
+}
+
 export async function recallFleet(id: number): Promise<EmpireState> {
   return rpc("recall_fleet", { p_id: id });
 }

@@ -4,21 +4,9 @@ import { AppShell } from "@/components/app-shell";
 import { ResourceBuildings } from "@/components/building-list";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
-import { UniverseRules } from "@/components/universe-rules";
-import { starLabel } from "@/lib/game/catalog";
-import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-[var(--border)] py-3">
-      <dt className="text-sm text-[var(--muted-fg)]">{label}</dt>
-      <dd className="text-right text-sm font-semibold">{value}</dd>
-    </div>
-  );
-}
 
 export default function OverviewPage() {
-  const { state, live, error, configured } = useEmpire();
+  const { state, error, configured } = useEmpire();
 
   if (!configured) {
     return (
@@ -33,8 +21,6 @@ export default function OverviewPage() {
 
   const planet = state?.planet;
   const ready = Boolean(state?.star && planet && planet.diameter_km != null && planet.max_fields != null);
-  const used = live ? totalFieldsUsed(live) : 0;
-  const fieldCap = live ? planetFieldCapOf(live) : planet?.max_fields;
 
   return (
     <AppShell title="Resources">
@@ -42,29 +28,6 @@ export default function OverviewPage() {
       {ready && state && planet ? (
         <>
           <CurrentDirective />
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">
-            {state.profile.display_name}
-          </p>
-          <dl className="sci-card mb-4 px-4">
-            <Fact
-              label="Diameter"
-              value={`${planet.diameter_km.toLocaleString()} km (${used}/${fieldCap})`}
-            />
-            <Fact label="Temperature" value={`${planet.temp_min}°C to ${planet.temp_max}°C`} />
-            <Fact label="Position" value={`[${planet.galaxy}:${planet.system}:${planet.slot}]`} />
-            <Fact
-              label="Score"
-              value={`${state.rank.points.toLocaleString()} pts (place ${state.rank.place.toLocaleString()} of ${state.rank.total.toLocaleString()})`}
-            />
-            <Fact label="Research rank" value={`${(state.rank.research ?? 0).toLocaleString()} levels`} />
-            <Fact label="Fleet rank" value={`${(state.rank.fleet ?? 0).toLocaleString()} ships`} />
-            <Fact
-              label="Star"
-              value={`${starLabel(state.star.type)} · solar ×${state.star.multiplier}`}
-            />
-          </dl>
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
-          <UniverseRules />
           <ResourceBuildings />
         </>
       ) : state ? (

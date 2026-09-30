@@ -118,6 +118,7 @@ function UpgradeCard({
       live.solarSatellites ?? 0,
       live.tempMin ?? 30,
       live.tempMax ?? 30,
+      live.crawlers ?? 0,
     );
   const currentPower =
     id === "power_plant"
@@ -164,13 +165,13 @@ function UpgradeCard({
               ? "Need resources"
               : "Upgrade";
   return (
-    <article className="sci-card p-4">
+    <article className={`sci-card p-4${thisBusy ? " sci-card-active" : ""}`}>
       <div className="flex items-start gap-3">
         <SpriteThumb id={id} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-semibold">{name}</h2>
-            <span className="sci-badge">L{level}</span>
+            <span className="sci-badge">LVL {level}</span>
           </div>
           <p className="mt-1 text-xs text-[var(--muted-fg)]">{blurb}</p>
         </div>
@@ -264,6 +265,12 @@ function UpgradeCard({
   );
 }
 
+const RESOURCE_GROUPS: { title: string; ids: ResourceBuildingId[] }[] = [
+  { title: "Mines", ids: ["ore_mine", "crystal_mine", "deuterium_extractor"] },
+  { title: "Power", ids: ["power_plant", "fusion_reactor"] },
+  { title: "Storage", ids: ["ore_storage", "crystal_storage", "deuterium_storage"] },
+];
+
 export function ResourceBuildings() {
   const { live, state } = useEmpire();
   if (!live || !state) return null;
@@ -271,25 +278,37 @@ export function ResourceBuildings() {
     researchLevelOf("energy_tech", state.empire) < 3 ? "Energy technology 3" : null,
     live.deuteriumExtractor < 5 ? "Deuterium extractor 5" : null,
   ].filter(Boolean) as string[];
+  const byId = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));
   return (
     <div className="flex flex-col gap-3">
-      {BUILDINGS.map((b) => (
-        <UpgradeCard
-          key={b.id}
-          id={b.id}
-          name={b.name}
-          blurb={b.blurb}
-          level={resourceLevel(b.id, live)}
-          locked={b.id === "fusion_reactor" && fusionMissing.length > 0}
-          lockLabel={
-            b.id === "fusion_reactor" && fusionMissing.length > 0 ? "Research locked" : undefined
-          }
-          extra={
-            b.id === "fusion_reactor" && fusionMissing.length > 0 ? (
-              <p className="mt-1 text-xs text-amber-200">Needs {fusionMissing.join(", ")}.</p>
-            ) : null
-          }
-        />
+      {RESOURCE_GROUPS.map((group) => (
+        <section key={group.title}>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">{group.title}</p>
+          <div className="flex flex-col gap-3">
+            {group.ids.map((id) => {
+              const b = byId[id];
+              if (!b) return null;
+              return (
+                <UpgradeCard
+                  key={b.id}
+                  id={b.id}
+                  name={b.name}
+                  blurb={b.blurb}
+                  level={resourceLevel(b.id, live)}
+                  locked={b.id === "fusion_reactor" && fusionMissing.length > 0}
+                  lockLabel={
+                    b.id === "fusion_reactor" && fusionMissing.length > 0 ? "Research locked" : undefined
+                  }
+                  extra={
+                    b.id === "fusion_reactor" && fusionMissing.length > 0 ? (
+                      <p className="mt-1 text-xs text-amber-200">Needs {fusionMissing.join(", ")}.</p>
+                    ) : null
+                  }
+                />
+              );
+            })}
+          </div>
+        </section>
       ))}
     </div>
   );

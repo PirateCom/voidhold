@@ -17,7 +17,7 @@ const rows = [
     { href: "/fleets", label: "Fleet", icon: FleetIcon },
     { href: "/missions", label: "Missions", icon: MissionsIcon },
     { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
-    { href: "/communications", label: "Communications", icon: CommsIcon },
+    { href: "/communications", label: "Comms", icon: CommsIcon },
   ],
 ];
 
