@@ -49,6 +49,7 @@ export function TimedStripedProgress({
   until,
   durationMs,
   now,
+  startedAt,
   tone = "var(--accent)",
   label,
   className,
@@ -57,6 +58,7 @@ export function TimedStripedProgress({
   until: number | string | null | undefined;
   durationMs: number;
   now: number;
+  startedAt?: number | string | null;
   tone?: string;
   label?: string;
   className?: string;
@@ -64,15 +66,16 @@ export function TimedStripedProgress({
 }) {
   const untilKey = until == null ? "" : String(until);
   const origin = useRef<{ untilKey: string; base: number; perf: number; span: number } | null>(null);
+  const span = effectiveJobDurationMs(until, durationMs, now, startedAt);
   if (!origin.current || origin.current.untilKey !== untilKey) {
     origin.current = {
       untilKey,
       base: now,
       perf: typeof performance !== "undefined" ? performance.now() : 0,
-      span: effectiveJobDurationMs(until, durationMs, now),
+      span,
     };
   } else {
-    origin.current.span = Math.max(origin.current.span, durationMs, 1);
+    origin.current.span = span;
   }
 
   const [clock, setClock] = useState(now);

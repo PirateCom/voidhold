@@ -61,6 +61,7 @@ export type PlanetRow = {
   space_station: number;
   upgrade_building: BuildingId | null;
   upgrade_completes_at: string | null;
+  upgrade_started_at?: string | null;
   small_shield_dome: number;
   large_shield_dome: number;
   rocket_launcher: number;
@@ -120,6 +121,7 @@ export type EmpireRow = {
   ship_building?: string | null;
   research_tech: ResearchId | null;
   research_completes_at: string | null;
+  research_started_at?: string | null;
   next_pirate_at: string | null;
   pirate_raids_enabled?: boolean;
   claimed_directives?: string[];

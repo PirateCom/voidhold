@@ -133,7 +133,12 @@ function UpgradeCard({
         cost,
         progressToward(
           state.planet.upgrade_completes_at,
-          effectiveJobDurationMs(state.planet.upgrade_completes_at, durationMs, now),
+          effectiveJobDurationMs(
+            state.planet.upgrade_completes_at,
+            durationMs,
+            now,
+            state.planet.upgrade_started_at,
+          ),
           now,
         ),
       )
@@ -175,6 +180,7 @@ function UpgradeCard({
           className="mt-3"
           until={state.planet.upgrade_completes_at}
           durationMs={durationMs}
+          startedAt={state.planet.upgrade_started_at}
           now={now}
           tone="var(--accent)"
           label={`${name} upgrade`}

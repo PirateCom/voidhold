@@ -1386,20 +1386,30 @@ export function progressToward(
   return (now - start) / durationMs;
 }
 
+function parseClock(value: number | string | null | undefined): number | null {
+  if (value == null) return null;
+  const ms = typeof value === "string" ? new Date(value).getTime() : value;
+  return Number.isFinite(ms) ? ms : null;
+}
+
 /**
- * Client formulas can be shorter than the live timer. Use the longer of the
- * estimate and time still left so the bar covers the whole wait.
+ * Length of a timed job. Prefer completes − started so a mid-job refresh
+ * (another device, a later visit) still sits at 50% of a 30-minute upgrade
+ * when 15 minutes remain. Do not use remaining time as the span — that
+ * always paints 0%.
  */
 export function effectiveJobDurationMs(
   completesAt: number | string | null | undefined,
   estimatedDurationMs: number,
   now: number,
+  startedAt?: number | string | null,
 ): number {
-  const estimate = Math.max(0, estimatedDurationMs);
-  if (completesAt == null) return Math.max(estimate, 1);
-  const end = typeof completesAt === "string" ? new Date(completesAt).getTime() : completesAt;
-  if (!Number.isFinite(end)) return Math.max(estimate, 1);
-  return Math.max(estimate, Math.max(0, end - now), 1);
+  const estimate = Math.max(estimatedDurationMs, 1);
+  const end = parseClock(completesAt);
+  const start = parseClock(startedAt ?? null);
+  if (end != null && start != null && end > start) return end - start;
+  void now;
+  return estimate;
 }
 
 /** Remaining construction returns this share of the original cost. 50% done → 50% back. */

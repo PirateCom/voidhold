@@ -322,15 +322,27 @@ describe("production formulas", () => {
     expect(progressToward(null, 1000, 500)).toBe(0);
   });
 
-  it("stretches a progress bar to the live remaining time when the estimate is short", () => {
-    const now = 1_000_000;
-    const completes = now + 2 * 60 * 60 * 1000;
-    expect(effectiveJobDurationMs(completes, 60_000, now)).toBe(2 * 60 * 60 * 1000);
-    const span = effectiveJobDurationMs(completes, 60_000, now);
-    expect(progressToward(completes, span, now)).toBe(0);
-    expect(progressToward(completes, span, now + 60 * 60 * 1000)).toBe(0.5);
-    expect(effectiveJobDurationMs(completes, 3 * 60 * 60 * 1000, now)).toBe(3 * 60 * 60 * 1000);
-    expect(progressToward(completes, 3 * 60 * 60 * 1000, now + 60 * 60 * 1000)).toBeCloseTo(2 / 3);
+  it("keeps mid-job progress when another device opens with remaining time", () => {
+    const started = 1_000_000;
+    const now = started + 15 * 60 * 1000;
+    const completes = started + 30 * 60 * 1000;
+    const span = effectiveJobDurationMs(completes, 30 * 60 * 1000, now, started);
+    expect(span).toBe(30 * 60 * 1000);
+    expect(progressToward(completes, span, now)).toBeCloseTo(0.5);
+    expect(effectiveJobDurationMs(completes, 30 * 60 * 1000, now)).toBe(30 * 60 * 1000);
+    expect(progressToward(completes, 30 * 60 * 1000, now)).toBeCloseTo(0.5);
+  });
+
+  it("reads start/end from ISO timestamps the way empire_state_json returns them", () => {
+    const startedAt = "2026-09-30T18:00:00.000Z";
+    const completesAt = "2026-09-30T18:30:00.000Z";
+    const now = Date.parse("2026-09-30T18:15:00.000Z");
+    const remainingAsSpan = Date.parse(completesAt) - now;
+    const span = effectiveJobDurationMs(completesAt, 30 * 60 * 1000, now, startedAt);
+    expect(remainingAsSpan).toBe(15 * 60 * 1000);
+    expect(progressToward(completesAt, remainingAsSpan, now)).toBe(0);
+    expect(span).toBe(30 * 60 * 1000);
+    expect(progressToward(completesAt, span, now)).toBeCloseTo(0.5);
   });
 
   it("refunds the remaining share of an upgrade cost", () => {

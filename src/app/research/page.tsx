@@ -80,6 +80,7 @@ export default function ResearchPage() {
                       className="mt-3"
                       until={state.empire.research_completes_at}
                       durationMs={researchTimeSeconds(level) * 1000}
+                      startedAt={state.empire.research_started_at}
                       now={now}
                       tone="var(--crystal)"
                       label={tech.name}
