@@ -75,6 +75,9 @@ export default function MissionsPage() {
         <p className="text-sm text-[var(--muted-fg)]">Contacting agents…</p>
       ) : (
         <div className="flex flex-col gap-3">
+          <p className="rounded border border-amber-400/40 bg-amber-950/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-200">
+            WIP · Missions are a work in progress. More contracts are coming.
+          </p>
           <p className="text-sm text-[var(--muted-fg)]">
             Agents post contracts. Accept one, fly it from Galaxy, then collect ore, crystal, and deuterium here.
           </p>

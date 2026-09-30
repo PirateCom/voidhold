@@ -3,10 +3,20 @@
 import { AppShell } from "@/components/app-shell";
 import { DirectiveCard } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
-import { DIRECTIVES } from "@/lib/game/directives";
+import { useEffect, useRef } from "react";
+import { DIRECTIVES, trackedDirectiveSpecs } from "@/lib/game/directives";
 
 export default function DirectivesPage() {
   const { error, configured, state } = useEmpire();
+  const scrolled = useRef(false);
+
+  useEffect(() => {
+    if (!state || scrolled.current) return;
+    scrolled.current = true;
+    const [first] = trackedDirectiveSpecs(state.empire.tracked_directives, state.empire.claimed_directives);
+    if (!first) return;
+    document.getElementById(`directive-${first.id}`)?.scrollIntoView({ block: "start" });
+  }, [state]);
 
   if (!configured) {
     return (

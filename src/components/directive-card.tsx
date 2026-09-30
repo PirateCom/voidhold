@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  DIRECTIVES,
   directiveComplete,
   directiveProgress,
   directiveUnlocked,
@@ -40,12 +41,17 @@ export function DirectiveCard({
   const { done, total } = directiveProgress(spec, levels);
   const complete = directiveComplete(spec, levels);
   const canCollect = unlocked && complete && !claimed && !pending;
+  const number = DIRECTIVES.findIndex((d) => d.id === spec.id) + 1;
 
   return (
-    <article className={`sci-card p-4 ${claimed ? "opacity-70" : ""}`}>
+    <article
+      id={compact ? undefined : `directive-${spec.id}`}
+      className={`sci-card scroll-mt-4 p-4 ${claimed ? "opacity-70" : ""}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-sm font-bold tracking-wide text-cyan-300 uppercase">
+            <span className="mr-1.5 font-mono text-[var(--muted-fg)]">#{number}</span>
             {spec.title}
           </h2>
           <p className="mt-0.5 font-mono text-xs text-[var(--muted-fg)]">
