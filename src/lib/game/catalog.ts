@@ -451,6 +451,20 @@ export function defenceTimeSeconds(id: DefenceId): number {
   return DEFENCE_BY_ID[id].buildSeconds;
 }
 
+/** Ship/defence seconds per unit: (metal + crystal) / 12500 hours, divided by (1 + robotics) × 2^nanite × speed. Mirrors private.unit_build_seconds. */
+export function unitBuildSeconds(
+  cost: { ore: number; crystal: number },
+  roboticsLevel = 0,
+  naniteLevel = 0,
+  economySpeed = 1,
+): number {
+  const hours =
+    (cost.ore + cost.crystal) /
+    12500 /
+    ((1 + Math.max(0, Math.trunc(roboticsLevel))) * 2 ** Math.max(0, Math.trunc(naniteLevel)) * Math.max(1, economySpeed));
+  return Math.max(1, Math.floor(hours * 3600));
+}
+
 export type DefenceCounts = Record<DefenceId, number>;
 
 export function emptyDefenceCounts(): DefenceCounts {

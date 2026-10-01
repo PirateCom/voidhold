@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AttackSheet } from "@/components/attack-sheet";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
 import { useEmpire } from "@/components/empire-provider";
+import { PlanetAvatar } from "@/components/planet-avatar";
 import { loadSolarSystem } from "@/lib/game/actions";
 import { attackFlightSeconds, attackFuel, canColonizeSlot, colonizeSlotRange, flightSeconds, hullSpeed, maxPlanets, starLabel, debrisVisible, fleetFuelRoundTrip } from "@/lib/game/catalog";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
@@ -264,6 +265,9 @@ export function GalaxyGrid() {
                 onClick={() => setSelected(slot)}
               >
                 <span className="w-6 font-mono text-xs">{slot.slot}</span>
+                {slot.owner_id && (slot.kind === "home" || slot.kind === "player") ? (
+                  <PlanetAvatar seed={slot.owner_id} size={20} own={slot.kind === "home"} />
+                ) : null}
                 <span className="font-semibold">{label}</span>
                 {debrisVisible(slot.debris_ore ?? 0, slot.debris_crystal ?? 0) ? <DebrisMark /> : null}
                 {slot.kind === "outer" ? (

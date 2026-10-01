@@ -9,7 +9,6 @@ import {
   FACILITIES,
   type FacilityId,
   GAME_HOUR_SECONDS,
-  RAIDER_BUILD_SECONDS,
   buildingCost,
   buildingTimeSeconds,
   crystalProductionPerHour,
@@ -40,8 +39,9 @@ import {
   rollExpeditionKind,
   counterEspionageChance,
   defenceSpec,
-  defenceTimeSeconds,
+  defenceCost,
   defenceUnitCount,
+  unitBuildSeconds,
   energyNow,
   espionageSees,
   facilitySpec,
@@ -521,6 +521,11 @@ function completeUpgrade(planet: SimPlanet): SimPlanet {
   return next;
 }
 
+export function planetUnitSeconds(planet: SimPlanet, id: string): number {
+  const cost = shipSpec(id)?.cost ?? (isDefenceId(id) ? defenceCost(id) : { ore: 0, crystal: 0 });
+  return unitBuildSeconds(cost, planet.roboticsFactory, planet.naniteFactory, planet.economySpeed ?? 1);
+}
+
 export function catchUpPlanet(planet: SimPlanet, at: number): SimPlanet {
   let next = planet;
   if (next.upgradeCompletesAt != null && next.upgradeCompletesAt <= at) {
@@ -536,7 +541,7 @@ export function catchUpPlanet(planet: SimPlanet, at: number): SimPlanet {
       next = {
         ...next,
         defencesQueued: remaining,
-        defenceCompletesAt: due + defenceTimeSeconds(building) * 1000,
+        defenceCompletesAt: due + planetUnitSeconds(next, building) * 1000,
       };
     } else {
       next = { ...next, defenceBuilding: null, defenceCompletesAt: null, defencesQueued: 0 };
@@ -760,7 +765,7 @@ function completePlanetShips(
     nextPlanet = {
       ...nextPlanet,
       shipsQueued: remaining,
-      shipCompletesAt: remaining > 0 ? nextPlanet.shipCompletesAt + RAIDER_BUILD_SECONDS * 1000 : null,
+      shipCompletesAt: remaining > 0 ? nextPlanet.shipCompletesAt + planetUnitSeconds(nextPlanet, hull) * 1000 : null,
       shipBuilding: remaining > 0 ? nextPlanet.shipBuilding : null,
     };
   }
@@ -1638,7 +1643,7 @@ export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: 
     deuterium: planet.deuterium - deuterium,
     defenceBuilding: id,
     defencesQueued: planet.defencesQueued + count,
-    defenceCompletesAt: startsNow ? at + spec.buildSeconds * 1000 : planet.defenceCompletesAt,
+    defenceCompletesAt: startsNow ? at + planetUnitSeconds(planet, id) * 1000 : planet.defenceCompletesAt,
   });
 }
 
@@ -1672,7 +1677,7 @@ export function queueShip(world: SimWorld, id: string, count: number, at: number
       deuterium: planet.deuterium - deuterium,
       shipBuilding: id,
       shipsQueued: queued + count,
-      shipCompletesAt: startsNow ? at + RAIDER_BUILD_SECONDS * 1000 : planet.shipCompletesAt,
+      shipCompletesAt: startsNow ? at + planetUnitSeconds(planet, id) * 1000 : planet.shipCompletesAt,
     }),
   );
 }

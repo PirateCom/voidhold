@@ -8,9 +8,10 @@ import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
   CRAWLER_ENERGY,
-  RAIDER_BUILD_SECONDS,
   SHIPS,
   canPayResources,
+  formatDuration,
+  unitBuildSeconds,
   crawlerCap,
   crawlerProductionBonus,
   deutEnergyDrain,
@@ -22,6 +23,7 @@ import {
   type ResearchId,
   type ShipStat,
 } from "@/lib/game/catalog";
+import { planetUnitSeconds } from "@/lib/game/simulate";
 import type { EmpireRow } from "@/lib/game/types";
 import { useState } from "react";
 
@@ -187,6 +189,7 @@ export default function ShipyardPage() {
           const ready = missing.length === 0;
           const thisBusy = busyId === ship.id && queued > 0;
           const count = Math.max(1, queues[ship.id] ?? 1);
+          const buildSecs = live ? planetUnitSeconds(live, ship.id) : unitBuildSeconds(ship.cost);
           const poor = live ? !canPayResources(live, ship.cost, count) : true;
           const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
           return (
@@ -196,7 +199,7 @@ export default function ShipyardPage() {
                 <div className="min-w-0 flex-1">
                   <h2 className="font-semibold">{ship.name}</h2>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    Docked: {dockedCount(ship.id, state.empire)}.
+                    Docked: {dockedCount(ship.id, state.empire)}. Build time {formatDuration(buildSecs)} each.
                     {thisBusy ? ` In yard: ${queued}.` : ""}
                   </p>
                   <ShipStats
@@ -230,7 +233,7 @@ export default function ShipyardPage() {
                 <TimedStripedProgress
                   className="mt-3"
                   until={state.empire.raider_completes_at}
-                  durationMs={RAIDER_BUILD_SECONDS * 1000}
+                  durationMs={buildSecs * 1000}
                   now={now}
                   tone="var(--ore)"
                   label={ship.name}

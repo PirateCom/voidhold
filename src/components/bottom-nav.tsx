@@ -8,14 +8,14 @@ const rows = [
   [
     { href: "/", label: "Resources", icon: ResourcesIcon },
     { href: "/buildings", label: "Facilities", icon: FacilitiesIcon },
-    { href: "/directives", label: "Directives", icon: DirectivesIcon },
     { href: "/research", label: "Research", icon: ResearchIcon },
-    { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
+    { href: "/directives", label: "Directives", icon: DirectivesIcon },
+    { href: "/missions", label: "Missions", icon: MissionsIcon },
   ],
   [
     { href: "/defences", label: "Defence", icon: DefenceIcon },
+    { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
     { href: "/fleets", label: "Fleet", icon: FleetIcon },
-    { href: "/missions", label: "Missions", icon: MissionsIcon },
     { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
     { href: "/communications", label: "Comms", icon: CommsIcon },
   ],

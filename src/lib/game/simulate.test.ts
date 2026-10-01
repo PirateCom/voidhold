@@ -28,6 +28,7 @@ import {
   selectPlanet,
   tickPlanet,
   totalFieldsUsed,
+  planetUnitSeconds,
   type SimPlanet,
   type SimWorld,
 } from "./simulate";
@@ -285,7 +286,10 @@ describe("time-skip simulation", () => {
     expect(() => queueDefence(world(0), "rocket_launcher", 1, 0)).toThrow(/Shipyard 1/);
     const started = queueDefence(richer, "rocket_launcher", 2, 0);
     expect(started.planets[0].ore).toBe(40000 - defenceCost("rocket_launcher").ore * 2);
-    const done = catchUpWorld(started, started.planets[0].defenceCompletesAt! + 10_000);
+    const done = catchUpWorld(
+      started,
+      started.planets[0].defenceCompletesAt! + planetUnitSeconds(started.planets[0], "rocket_launcher") * 1000,
+    );
     expect(done.planets[0].rocketLauncher).toBe(2);
     expect(done.planets[0].defencesQueued).toBe(0);
     expect(() => queueDefence(done, "small_shield_dome", 1, done.planets[0].lastHarvestedAt)).toThrow(

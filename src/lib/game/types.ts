@@ -171,6 +171,7 @@ export type SolarSlot = {
   kind: "empty" | "home" | "player" | "npc" | "outer";
   planet_id: number | null;
   name: string | null;
+  owner_id?: string | null;
   owner_name: string | null;
   debris_ore?: number;
   debris_crystal?: number;

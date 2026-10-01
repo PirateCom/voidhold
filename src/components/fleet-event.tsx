@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Countdown } from "@/components/countdown";
 import { progressToward } from "@/lib/game/catalog";
 import type { FleetRow } from "@/lib/game/types";
@@ -191,6 +192,11 @@ export function FleetEventStrip({
   pending?: boolean;
   onReturn?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const shipEntries = Object.entries(fleet.composition ?? {})
+    .filter(([, n]) => n > 0)
+    .sort(([, a], [, b]) => b - a);
+  const cargoTotal = (fleet.cargo_ore ?? 0) + (fleet.cargo_crystal ?? 0) + (fleet.cargo_deuterium ?? 0);
   const returning = !inbound && isReturnMission(fleet.mission);
   const start =
     durationMs > 0
@@ -307,6 +313,53 @@ export function FleetEventStrip({
           </span>
         </div>
       </div>
+
+      {shipEntries.length > 0 || cargoTotal > 0 ? (
+        <>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-2 flex w-full items-center justify-center gap-1 text-[11px] font-semibold tracking-wide text-cyan-300 uppercase"
+          >
+            {expanded ? "Hide details" : "Show details"}
+            <span className={`inline-block transition-transform ${expanded ? "-rotate-90" : "rotate-90"}`}>
+              <Chevron />
+            </span>
+          </button>
+          {expanded ? (
+            <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-xs">
+              {shipEntries.length > 0 ? (
+                <ul className="flex flex-col gap-0.5">
+                  {shipEntries.map(([id, n]) => (
+                    <li key={id} className="flex justify-between">
+                      <span className="text-slate-300">{HULL_LABELS[id] ?? id.replace(/_/g, " ")}</span>
+                      <span className="font-mono text-slate-100">{n.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {cargoTotal > 0 ? (
+                <div className={shipEntries.length > 0 ? "mt-2 border-t border-slate-800 pt-2" : ""}>
+                  <p className="mb-0.5 text-[10px] tracking-wide text-[var(--muted-fg)] uppercase">Cargo</p>
+                  {(
+                    [
+                      ["Ore", fleet.cargo_ore ?? 0],
+                      ["Crystal", fleet.cargo_crystal ?? 0],
+                      ["Deuterium", fleet.cargo_deuterium ?? 0],
+                    ] as const
+                  ).map(([label, n]) => (
+                    <p key={label} className="flex justify-between">
+                      <span className="text-slate-300">{label}</span>
+                      <span className="font-mono text-slate-100">{n.toLocaleString()}</span>
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : null}
 
       {canReturn && onReturn ? (
         <button

@@ -23,7 +23,7 @@ import {
   type DefenceId,
   type ResearchId,
 } from "@/lib/game/catalog";
-import { defenceCountsOf, defenceOwned, type SimPlanet } from "@/lib/game/simulate";
+import { defenceCountsOf, defenceOwned, planetUnitSeconds, type SimPlanet } from "@/lib/game/simulate";
 import type { EmpireRow } from "@/lib/game/types";
 
 function countOf(id: DefenceId, planet: SimPlanet): number {
@@ -89,6 +89,7 @@ export default function DefencesPage() {
             </h2>
             {DEFENCES.filter((d) => d.group === group.id).map((d) => {
           const owned = countOf(d.id, live);
+          const buildSecs = planetUnitSeconds(live, d.id);
           const thisBusy = busyId === d.id && queued > 0;
           const yardBusy = queued > 0 && Boolean(busyId);
           const count = d.unique ? 1 : Math.max(1, queues[d.id] ?? 1);
@@ -131,7 +132,7 @@ export default function DefencesPage() {
                 <TimedStripedProgress
                   className="mt-3"
                   until={state.planet.defence_completes_at}
-                  durationMs={d.buildSeconds * 1000}
+                  durationMs={buildSecs * 1000}
                   now={now}
                   label={d.name}
                 />
@@ -148,7 +149,7 @@ export default function DefencesPage() {
                   .filter(Boolean)
                   .join(" · ")}
                 {" · "}
-                {formatDuration(d.buildSeconds)}
+                {formatDuration(buildSecs)}
                 {thisBusy ? ` · in yard ${queued}` : ""}
               </p>
               <ul className="mt-1 space-y-0.5 text-xs">

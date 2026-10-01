@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildingCost,
   canPayResources,
+  formatDuration,
+  unitBuildSeconds,
   buildingTimeSeconds,
   crystalProductionPerHour,
   deuteriumProductionPerHour,
@@ -228,6 +230,11 @@ describe("production formulas", () => {
       "Energy technology 3",
     ]);
     expect(unmetResearch("graviton_tech", () => 0, 12)).toEqual([]);
+    const ship = (id: string) => SHIPS.find((s) => s.id === id)!;
+    expect(formatDuration(unitBuildSeconds(ship("light_fighter").cost))).toBe(formatDuration(19 * 60 + 12));
+    expect(unitBuildSeconds(ship("deathstar").cost)).toBe(30 * 24 * 3600);
+    expect(unitBuildSeconds(ship("espionage_probe").cost)).toBe(4 * 60 + 48);
+    expect(unitBuildSeconds(ship("cruiser").cost, 1, 1, 1)).toBe(Math.floor((2 * 3600 + 9 * 60 + 36) / 4));
     expect(unmetShipBuild(SHIPS.find((ship) => ship.id === "small_cargo")!, 0, () => 2).map((need) => need.name)).toEqual([
       "Shipyard",
       "Impulse drive",

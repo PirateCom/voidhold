@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { DebugInfoDialog } from "@/components/debug-info-dialog";
 import { useEmpire } from "@/components/empire-provider";
+import { setGhostFleetEnabled, useGhostFleetEnabled } from "@/components/ghost-fleet-toggle";
+import {
+  PLANET_AVATAR_COUNT,
+  PlanetAvatar,
+  planetAvatarIndex,
+  setPlanetAvatarOverride,
+  usePlanetAvatarOverride,
+} from "@/components/planet-avatar";
 
 export function DebugControls() {
   const {
@@ -20,6 +28,10 @@ export function DebugControls() {
   const economySpeed =
     state?.empire.economy_speed === 3 || state?.empire.economy_speed === 5 ? state.empire.economy_speed : 1;
   const [infoOpen, setInfoOpen] = useState(false);
+  const userId = state?.empire.user_id ?? "";
+  const avatarOverride = usePlanetAvatarOverride();
+  const ghostFleetOn = useGhostFleetEnabled();
+  const avatarIndex = avatarOverride ?? planetAvatarIndex(userId);
 
   if (!isDebug) return null;
 
@@ -121,6 +133,44 @@ export function DebugControls() {
           </button>
         </div>
       </div>
+      <div className="mt-2">
+        <p className="mb-2 text-center text-xs font-semibold tracking-wide text-[#fde68a] uppercase">
+          Debug: planet icon {avatarIndex + 1} / {PLANET_AVATAR_COUNT}
+          {avatarOverride == null ? " (assigned)" : ""}
+        </p>
+        <div className="grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-2">
+          <PlanetAvatar seed={userId} size={44} />
+          <button
+            type="button"
+            onClick={() => setPlanetAvatarOverride((avatarIndex - 1 + PLANET_AVATAR_COUNT) % PLANET_AVATAR_COUNT)}
+            className="sci-btn sci-btn-muted h-11 w-full"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlanetAvatarOverride((avatarIndex + 1) % PLANET_AVATAR_COUNT)}
+            className="sci-btn sci-btn-warn h-11 w-full"
+          >
+            Next
+          </button>
+          <button
+            type="button"
+            disabled={avatarOverride == null}
+            onClick={() => setPlanetAvatarOverride(null)}
+            className="sci-btn sci-btn-muted h-11 w-full"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setGhostFleetEnabled(!ghostFleetOn)}
+        className={`sci-btn mt-2 h-11 w-full ${ghostFleetOn ? "sci-btn-warn" : "sci-btn-muted"}`}
+      >
+        Debug: ghost fleet {ghostFleetOn ? "on" : "off"}
+      </button>
       <button
         type="button"
         onClick={() => setInfoOpen(true)}
