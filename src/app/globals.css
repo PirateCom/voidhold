@@ -166,6 +166,13 @@ button {
   );
 }
 
+.sci-card-danger {
+  border-color: rgba(239, 68, 68, 0.75);
+  box-shadow:
+    inset 0 0 15px rgba(239, 68, 68, 0.22),
+    0 0 10px rgba(0, 240, 255, 0.2);
+}
+
 .sci-btn {
   background: var(--accent);
   color: var(--accent-fg);

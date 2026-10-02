@@ -9,7 +9,7 @@ import { SheetDock, SheetPortal } from "@/components/sheet-portal";
 import { useEmpire } from "@/components/empire-provider";
 import { PlanetAvatar } from "@/components/planet-avatar";
 import { loadSolarSystem } from "@/lib/game/actions";
-import { attackFlightSeconds, attackFuel, canColonizeSlot, colonizeSlotRange, flightSeconds, hullSpeed, maxPlanets, starLabel, debrisVisible, fleetFuelRoundTrip } from "@/lib/game/catalog";
+import { attackFlightSeconds, attackFuel, canColonizeSlot, colonizeSlotRange, flightSeconds, hullSpeed, maxPlanets, starLabel, debrisVisible, fleetFuelRoundTrip, shipSpec } from "@/lib/game/catalog";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
 
 function DebrisMark() {
@@ -124,6 +124,13 @@ export function GalaxyGrid() {
 
   const probesDocked = Math.max(0, state?.empire.ships?.espionage_probe ?? 0);
   const recyclersDocked = Math.max(0, state?.empire.ships?.recycler ?? 0);
+  const recyclersNeeded = useMemo(() => {
+    if (!selected) return 0;
+    const total = Number(selected.debris_ore ?? 0) + Number(selected.debris_crystal ?? 0);
+    if (total <= 0) return 0;
+    const hold = shipSpec("recycler")?.cargo ?? 20000;
+    return Math.ceil(total / hold);
+  }, [selected]);
   const harvestFuel = useMemo(() => {
     if (!state || !selected || !home) return 0;
     if (selected.kind === "outer") return 0;
@@ -302,8 +309,8 @@ export function GalaxyGrid() {
                 onClick={() => setSelected(slot)}
               >
                 <span className="w-6 font-mono text-xs">{slot.slot}</span>
-                {slot.owner_id && (slot.kind === "home" || slot.kind === "player") ? (
-                  <PlanetAvatar seed={slot.owner_id} size={20} own={slot.kind === "home"} />
+                {slot.planet_id && slot.kind !== "empty" && slot.kind !== "outer" ? (
+                  <PlanetAvatar seed={String(slot.planet_id)} size={20} own={slot.kind === "home"} />
                 ) : null}
                 <span className="font-semibold">{label}</span>
                 {debrisVisible(slot.debris_ore ?? 0, slot.debris_crystal ?? 0) ? <DebrisMark /> : null}
@@ -450,6 +457,17 @@ export function GalaxyGrid() {
               void harvest(galaxy, system, selected.slot, harvestShips).then(() => setAction(null));
             }}
           >
+            {selected.debris_decays_at && new Date(selected.debris_decays_at).getTime() > now ? (
+              <p className="text-xs text-amber-200">
+                Decaying in <Countdown until={selected.debris_decays_at} now={now} />
+              </p>
+            ) : null}
+            {recyclersNeeded > 0 ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                Recyclers needed: {recyclersNeeded.toLocaleString()}
+                {recyclersDocked < recyclersNeeded ? ` · you have ${recyclersDocked}` : ""}
+              </p>
+            ) : null}
             <label className="text-xs text-[var(--muted-fg)]">
               Recyclers (you have {recyclersDocked})
               <input

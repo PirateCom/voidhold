@@ -223,8 +223,8 @@ describe("time-skip simulation", () => {
     const mid = started.planets[0].upgradeCompletesAt! / 2;
     const ticked = catchUpWorld(started, mid);
     const cancelled = cancelUpgrade(started, mid);
-    const refundOre = Math.floor(buildingCost("ore_mine", 1).ore * 0.5);
-    const refundCrystal = Math.floor(buildingCost("ore_mine", 1).crystal * 0.5);
+    const refundOre = Math.floor(buildingCost("ore_mine", 1).ore * 0.5 * 0.75);
+    const refundCrystal = Math.floor(buildingCost("ore_mine", 1).crystal * 0.5 * 0.75);
     expect(cancelled.planets[0].upgradeBuilding).toBeNull();
     expect(cancelled.planets[0].oreMine).toBe(1);
     expect(cancelled.planets[0].ore).toBe(ticked.planets[0].ore + refundOre);

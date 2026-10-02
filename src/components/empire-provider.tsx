@@ -20,6 +20,7 @@ import {
   launchColonize,
   selectPlanet as selectPlanetAction,
   abandonPlanet as abandonPlanetAction,
+  renamePlanet as renamePlanetAction,
   loadEmpireState,
   queueDefence as queueDefenceAction,
   startResearch,
@@ -28,6 +29,7 @@ import {
   setPirateRaids as setPirateRaidsAction,
   fillResources as fillResourcesAction,
   grantDebugFleet as grantDebugFleetAction,
+  grantDebugColony as grantDebugColonyAction,
   setEconomySpeed as setEconomySpeedAction,
   queueShip as queueShipAction,
   launchExpeditionTo,
@@ -64,6 +66,7 @@ type EmpireContextValue = {
   setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
   grantDebugFleet: () => Promise<void>;
+  grantDebugColony: () => Promise<void>;
   setEconomySpeed: (speed: 1 | 3 | 5) => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
@@ -72,6 +75,7 @@ type EmpireContextValue = {
   colonize: (galaxy: number, system: number, slot: number, ships: number) => Promise<void>;
   selectPlanet: (planetId: number) => Promise<void>;
   abandonPlanet: (planetId: number) => Promise<boolean>;
+  renamePlanet: (planetId: number, name: string) => Promise<boolean>;
   sendExpedition: (galaxy: number, system: number, slot: number, ships: Record<string, number>) => Promise<boolean>;
   transport: (
     galaxy: number,
@@ -298,6 +302,7 @@ export function EmpireProvider({
     setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
     grantDebugFleet: () => runAction(() => grantDebugFleetAction()),
+    grantDebugColony: () => runAction(() => grantDebugColonyAction()),
     setEconomySpeed: (speed) => runAction(() => setEconomySpeedAction(speed)),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
@@ -306,6 +311,7 @@ export function EmpireProvider({
     colonize: (galaxy, system, slot, ships) => runAction(() => launchColonize(galaxy, system, slot, ships)),
     selectPlanet: (planetId) => runAction(() => selectPlanetAction(planetId)),
     abandonPlanet: (planetId) => run(() => abandonPlanetAction(planetId)),
+    renamePlanet: (planetId, name) => run(() => renamePlanetAction(planetId, name)),
     sendExpedition: (galaxy, system, slot, ships) => run(() => launchExpeditionTo(galaxy, system, slot, ships)),
     transport: (galaxy, system, slot, ships, cargo, speed) =>
       run(() => launchTransport(galaxy, system, slot, ships, cargo, speed)),

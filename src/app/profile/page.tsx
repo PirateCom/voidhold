@@ -11,6 +11,7 @@ import { UniverseRules } from "@/components/universe-rules";
 import { PlanetEconomy } from "@/components/planet-economy";
 import { DebugControls } from "@/components/debug-controls";
 import { AbandonPlanet } from "@/components/abandon-planet";
+import { RenamePlanets } from "@/components/rename-planets";
 import { starLabel } from "@/lib/game/catalog";
 import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
@@ -162,7 +163,10 @@ export default function ProfilePage() {
               <Fact label="Account id" value={state.profile.user_id} />
               {planet ? (
                 <>
-                  <Fact label="Homeworld" value={`[${planet.galaxy}:${planet.system}:${planet.slot}] ${planet.name}`} />
+                  <Fact
+                    label={planet.is_homeworld ? "Homeworld" : "Colony"}
+                    value={`[${planet.galaxy}:${planet.system}:${planet.slot}] ${planet.name}`}
+                  />
                   {planet.diameter_km != null ? (
                     <Fact
                       label="Diameter"
@@ -186,6 +190,7 @@ export default function ProfilePage() {
               <Fact label="Fleet" value={`${(state.rank.fleet ?? 0).toLocaleString()} ships`} />
             </dl>
             <PlanetEconomy />
+            <RenamePlanets />
             <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
             <UniverseRules />
             <AbandonPlanet />

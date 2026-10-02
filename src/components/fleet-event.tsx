@@ -206,19 +206,14 @@ export function FleetEventStrip({
     durationMs > 0
       ? new Date(fleet.arrives_at).getTime() - durationMs
       : new Date(fleet.created_at ?? fleet.arrives_at).getTime();
-  const pct = Math.min(0.96, Math.max(0.04, progressToward(fleet.arrives_at, durationMs, now)));
+  const rawPct = progressToward(fleet.arrives_at, durationMs, now);
+  const pct = Math.min(0.98, Math.max(0.02, rawPct));
   const arrowLeft = returning ? `${(1 - pct) * 100}%` : `${pct * 100}%`;
   const mission = missionLabel(fleet, inbound);
-  const leftName = returning ? destName : originName;
-  const rightName = returning ? originName : destName;
-  const leftCoords = returning
-    ? coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot)
-    : inbound
-      ? "void"
-      : coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot);
-  const rightCoords = returning
-    ? coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot)
-    : coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot);
+  const leftName = originName;
+  const rightName = destName;
+  const leftCoords = coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot);
+  const rightCoords = coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot);
   const delivery = inbound && fleet.mission === "transport";
   const status = delivery
     ? "STATUS: INCOMING DELIVERY"
@@ -230,9 +225,9 @@ export function FleetEventStrip({
         ? "STATUS: HOLDING IN THE VOID"
         : `STATUS: TRANSIT TO ${destName.toUpperCase()}`;
   const tone = delivery ? "emerald" : inbound ? "red" : returning ? "emerald" : "amber";
-  const cardBorder =
+  const cardTone =
     tone === "red"
-      ? "border-red-500/40"
+      ? "sci-card-danger border-red-500/80"
       : tone === "emerald"
         ? "border-emerald-500/40"
         : "border-amber-500/40";
@@ -260,7 +255,7 @@ export function FleetEventStrip({
     tone === "red" ? "text-red-400" : tone === "emerald" ? "text-emerald-400" : "text-amber-400";
 
   return (
-    <li className={`sci-card overflow-hidden border p-3 ${cardBorder}`}>
+    <li className={`sci-card overflow-hidden border p-3 ${cardTone}`}>
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className={`rounded border px-2 py-0.5 text-[11px] font-bold uppercase ${badge}`}>{mission}</span>
@@ -280,13 +275,13 @@ export function FleetEventStrip({
             <p className="truncate text-xs font-bold text-slate-100">{leftName}</p>
             <p className="font-mono font-bold text-cyan-400">{leftCoords}</p>
             <p className={`mt-0.5 text-[10px] ${returning ? "text-emerald-400" : "text-slate-400"}`}>
-              {returning ? `ETA ${clock(fleet.arrives_at)}` : clock(start)}
+              {clock(start)}
             </p>
           </div>
           <div className="min-w-0 pl-2 text-right">
             <p className="truncate text-xs font-bold text-slate-100">{rightName}</p>
-            <p className={`font-mono font-bold ${returning ? "text-amber-400" : heading}`}>{rightCoords}</p>
-            <p className="mt-0.5 text-[10px] text-slate-400">{clock(returning ? start : fleet.arrives_at)}</p>
+            <p className={`font-mono font-bold ${heading}`}>{rightCoords}</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{clock(fleet.arrives_at)}</p>
           </div>
         </div>
 

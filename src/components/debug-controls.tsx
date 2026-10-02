@@ -23,14 +23,15 @@ export function DebugControls() {
     setPirateRaids,
     fillResources,
     grantDebugFleet,
+    grantDebugColony,
     setEconomySpeed,
   } = useEmpire();
   const pirateRaidsOn = state?.empire.pirate_raids_enabled !== false;
   const economySpeed =
     state?.empire.economy_speed === 3 || state?.empire.economy_speed === 5 ? state.empire.economy_speed : 1;
   const [infoOpen, setInfoOpen] = useState(false);
-  const userId = state?.empire.user_id ?? "";
-  const avatarOverride = usePlanetAvatarOverride();
+  const planetSeed = String(state?.planet.id ?? "");
+  const avatarOverride = usePlanetAvatarOverride(planetSeed);
   const ghostFleetOn = useGhostFleetEnabled();
   const [fakeOn, setFakeOn] = useState<boolean | null>(null);
   const [fakeBusy, setFakeBusy] = useState(false);
@@ -50,7 +51,7 @@ export function DebugControls() {
       cancel = true;
     };
   }, [isDebug]);
-  const avatarIndex = avatarOverride ?? planetAvatarIndex(userId);
+  const avatarIndex = avatarOverride ?? planetAvatarIndex(planetSeed);
 
   if (!isDebug) return null;
 
@@ -116,10 +117,10 @@ export function DebugControls() {
       <button
         type="button"
         disabled={pending}
-        onClick={() => void grantDebugFleet()}
+        onClick={() => void grantDebugColony()}
         className="sci-btn sci-btn-warn mt-2 h-11 w-full"
       >
-        Debug: grant fleet
+        Debug: grant colony [1:1:3]
       </button>
       <button
         type="button"
@@ -156,19 +157,22 @@ export function DebugControls() {
         <p className="mb-2 text-center text-xs font-semibold tracking-wide text-[#fde68a] uppercase">
           Debug: planet icon {avatarIndex + 1} / {PLANET_AVATAR_COUNT}
           {avatarOverride == null ? " (assigned)" : ""}
+          {state?.planet.name ? ` · ${state.planet.name}` : ""}
         </p>
         <div className="grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-2">
-          <PlanetAvatar seed={userId} size={44} />
+          <PlanetAvatar seed={planetSeed} size={44} />
           <button
             type="button"
-            onClick={() => setPlanetAvatarOverride((avatarIndex - 1 + PLANET_AVATAR_COUNT) % PLANET_AVATAR_COUNT)}
+            onClick={() =>
+              setPlanetAvatarOverride(planetSeed, (avatarIndex - 1 + PLANET_AVATAR_COUNT) % PLANET_AVATAR_COUNT)
+            }
             className="sci-btn sci-btn-muted h-11 w-full"
           >
             Prev
           </button>
           <button
             type="button"
-            onClick={() => setPlanetAvatarOverride((avatarIndex + 1) % PLANET_AVATAR_COUNT)}
+            onClick={() => setPlanetAvatarOverride(planetSeed, (avatarIndex + 1) % PLANET_AVATAR_COUNT)}
             className="sci-btn sci-btn-warn h-11 w-full"
           >
             Next
@@ -176,7 +180,7 @@ export function DebugControls() {
           <button
             type="button"
             disabled={avatarOverride == null}
-            onClick={() => setPlanetAvatarOverride(null)}
+            onClick={() => setPlanetAvatarOverride(planetSeed, null)}
             className="sci-btn sci-btn-muted h-11 w-full"
           >
             Reset

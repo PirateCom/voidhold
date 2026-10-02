@@ -2,12 +2,27 @@
 
 import { useSyncExternalStore } from "react";
 
-const OVERRIDE_KEY = "voidhold:planet-avatar-override";
+const OVERRIDE_KEY = "voidhold:planet-avatar-overrides";
+const LEGACY_KEY = "voidhold:planet-avatar-override";
 const listeners = new Set<() => void>();
 
-function readOverride(): number | null {
-  const raw = window.localStorage.getItem(OVERRIDE_KEY);
-  const n = raw == null ? NaN : Number(raw);
+function readMap(): Record<string, number> {
+  try {
+    const raw = window.localStorage.getItem(OVERRIDE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && Number.isInteger(value)) out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function readOverride(seed: string): number | null {
+  const n = readMap()[seed];
   return Number.isInteger(n) ? n : null;
 }
 
@@ -16,13 +31,17 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export function usePlanetAvatarOverride(): number | null {
-  return useSyncExternalStore(subscribe, readOverride, () => null);
+export function usePlanetAvatarOverride(seed: string): number | null {
+  return useSyncExternalStore(subscribe, () => readOverride(seed), () => null);
 }
 
-export function setPlanetAvatarOverride(index: number | null) {
-  if (index == null) window.localStorage.removeItem(OVERRIDE_KEY);
-  else window.localStorage.setItem(OVERRIDE_KEY, String(index));
+export function setPlanetAvatarOverride(seed: string, index: number | null) {
+  const next = readMap();
+  if (index == null) delete next[seed];
+  else next[seed] = index;
+  window.localStorage.removeItem(LEGACY_KEY);
+  if (Object.keys(next).length === 0) window.localStorage.removeItem(OVERRIDE_KEY);
+  else window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify(next));
   listeners.forEach((l) => l());
 }
 
@@ -47,7 +66,7 @@ export function planetAvatarIndex(seed: string): number {
 }
 
 export function PlanetAvatar({ seed, size = 34, own = true }: { seed: string; size?: number; own?: boolean }) {
-  const override = usePlanetAvatarOverride();
+  const override = usePlanetAvatarOverride(seed);
   const index = own && override != null ? override % PLANET_AVATAR_COUNT : planetAvatarIndex(seed);
   const x = COLUMNS_X[index % COLUMNS_X.length];
   const y = ROWS_Y[Math.floor(index / COLUMNS_X.length)];

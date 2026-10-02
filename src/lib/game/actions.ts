@@ -124,6 +124,10 @@ export async function abandonPlanet(planetId: number): Promise<EmpireState> {
   return rpc("abandon_planet", { p_planet_id: planetId });
 }
 
+export async function renamePlanet(planetId: number, name: string): Promise<EmpireState> {
+  return rpc("rename_planet", { p_planet_id: planetId, p_name: name });
+}
+
 export async function launchExpedition(
   galaxy: number,
   system: number,
@@ -192,6 +196,10 @@ export async function fillResources(): Promise<EmpireState> {
 
 export async function grantDebugFleet(): Promise<EmpireState> {
   return rpc("debug_grant_fleet");
+}
+
+export async function grantDebugColony(): Promise<EmpireState> {
+  return rpc("debug_grant_colony");
 }
 
 export async function setEconomySpeed(speed: 1 | 3 | 5): Promise<EmpireState> {

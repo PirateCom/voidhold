@@ -372,14 +372,14 @@ describe("production formulas", () => {
     expect(progressToward(completesAt, span, now)).toBeCloseTo(0.5);
   });
 
-  it("refunds the remaining share of an upgrade cost", () => {
-    expect(cancelRefund({ ore: 90, crystal: 22 }, 0)).toEqual({ ore: 90, crystal: 22, deuterium: 0 });
-    expect(cancelRefund({ ore: 90, crystal: 22 }, 0.5)).toEqual({ ore: 45, crystal: 11, deuterium: 0 });
+  it("refunds 75% of the remaining share of an upgrade cost", () => {
+    expect(cancelRefund({ ore: 100, crystal: 20 }, 0)).toEqual({ ore: 75, crystal: 15, deuterium: 0 });
+    expect(cancelRefund({ ore: 100, crystal: 20 }, 0.5)).toEqual({ ore: 37, crystal: 7, deuterium: 0 });
     expect(cancelRefund({ ore: 90, crystal: 22 }, 1)).toEqual({ ore: 0, crystal: 0, deuterium: 0 });
     expect(cancelRefund({ ore: 400, crystal: 120, deuterium: 200 }, 0.5)).toEqual({
-      ore: 200,
-      crystal: 60,
-      deuterium: 100,
+      ore: 150,
+      crystal: 45,
+      deuterium: 75,
     });
   });
 

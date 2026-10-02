@@ -1483,12 +1483,15 @@ export function effectiveJobDurationMs(
   return estimate;
 }
 
-/** Remaining construction returns this share of the original cost. 50% done → 50% back. */
+/** Share of remaining construction cost returned on cancel. 25% is spent to start the job. */
+export const CANCEL_REFUND_SHARE = 0.75;
+
+/** Remaining construction, after the 25% start tax. Instant cancel → 75% back. */
 export function cancelRefund(
   cost: { ore: number; crystal: number; deuterium?: number },
   progress: number,
 ): { ore: number; crystal: number; deuterium: number } {
-  const remaining = 1 - Math.min(1, Math.max(0, progress));
+  const remaining = (1 - Math.min(1, Math.max(0, progress))) * CANCEL_REFUND_SHARE;
   return {
     ore: Math.floor(cost.ore * remaining),
     crystal: Math.floor(cost.crystal * remaining),

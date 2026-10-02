@@ -13,27 +13,60 @@ import {
 } from "@/lib/game/catalog";
 import type { FleetRow, PlanetRow } from "@/lib/game/types";
 
-function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbound: boolean): number {
-  if (fleet.created_at && (!inbound || fleet.mission === "transport")) {
-    const start = new Date(fleet.created_at).getTime();
-    const end = new Date(fleet.arrives_at).getTime();
-    if (Number.isFinite(start) && end > start) return end - start;
-  }
-  if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
-  if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
+function fleetDestName(fleet: FleetRow, fallback: string): string {
+  if (fleet.mission === "harvest" || fleet.mission === "harvest_return") return "Debris field";
+  if (fleet.mission.startsWith("expedition")) return fleet.dest_name || "Empty slot";
+  return fleet.dest_name || fallback;
+}
+
+function isReturnMission(mission: FleetRow["mission"]) {
+  return (
+    mission === "return" ||
+    mission === "espionage_return" ||
+    mission === "harvest_return" ||
+    mission === "colonize_return" ||
+    mission === "expedition_return" ||
+    mission === "transport_return"
+  );
+}
+
+function oneWayMs(fleet: FleetRow, planet: PlanetRow, propulsion: number): number {
   if (fleet.dest_system == null || fleet.dest_slot == null) return PIRATE_FLIGHT_SECONDS * 1000;
-  const fn = fleet.mission === "expedition" || fleet.mission === "expedition_return" ? expeditionFlightSeconds : flightSeconds;
+  const originGalaxy = fleet.origin_galaxy ?? planet.galaxy;
+  const originSystem = fleet.origin_system ?? planet.system;
+  const originSlot = fleet.origin_slot ?? planet.slot;
+  const fn =
+    fleet.mission === "expedition" || fleet.mission === "expedition_return"
+      ? expeditionFlightSeconds
+      : flightSeconds;
   return (
     fn(
-      planet.system,
-      planet.slot,
+      originSystem,
+      originSlot,
       fleet.dest_system,
       fleet.dest_slot,
       propulsion,
-      planet.galaxy,
-      fleet.dest_galaxy ?? planet.galaxy,
+      originGalaxy,
+      fleet.dest_galaxy ?? originGalaxy,
     ) * 1000
   );
+}
+
+function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbound: boolean): number {
+  const created = fleet.created_at ? new Date(fleet.created_at).getTime() : NaN;
+  const arrives = new Date(fleet.arrives_at).getTime();
+  const fromCreated = Number.isFinite(created) && arrives > created ? arrives - created : 0;
+
+  if (isReturnMission(fleet.mission) && !inbound) {
+    const oneWay = oneWayMs(fleet, planet, propulsion);
+    if (fromCreated > 0 && fromCreated <= oneWay * 1.25) return fromCreated;
+    return oneWay;
+  }
+
+  if (fromCreated > 0 && (!inbound || fleet.mission === "transport")) return fromCreated;
+  if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
+  if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
+  return oneWayMs(fleet, planet, propulsion);
 }
 
 const GHOST_ELAPSED_MS = 60_000;
@@ -98,7 +131,7 @@ export default function FleetsPage() {
                   fleet={fleet}
                   now={now}
                   durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, true)}
-                  originName={fleet.attacker_name || "Pirates"}
+                  originName={fleet.attacker_name || fleet.origin_name || "Pirates"}
                   destName={fleet.dest_name || state.planet.name}
                   inbound
                 />
@@ -150,8 +183,8 @@ export default function FleetsPage() {
                     fleet={fleet}
                     now={now}
                     durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, false)}
-                    originName={fleet.origin_name || state.planet.name}
-                    destName={fleet.dest_name || (fleet.mission.startsWith("expedition") ? "Empty slot" : "Unknown")}
+                  originName={fleet.origin_name || state.planet.name}
+                    destName={fleetDestName(fleet, "Unknown")}
                     canReturn={canReturn}
                     pending={pending}
                     onReturn={() => void recallFleet(fleet.id)}

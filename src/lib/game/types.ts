@@ -59,6 +59,7 @@ export type PlanetRow = {
   phalanx_sensor: number;
   stargate: number;
   space_station: number;
+  is_homeworld?: boolean;
   upgrade_building: BuildingId | null;
   upgrade_completes_at: string | null;
   upgrade_started_at?: string | null;

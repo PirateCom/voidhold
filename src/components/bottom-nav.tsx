@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { latestReportAt, useCommsSeenAt } from "@/components/comms-seen";
 import { useEmpire } from "@/components/empire-provider";
+import { isInboundFleet } from "@/lib/game/catalog";
 import {
   DIRECTIVES,
   directiveComplete,
@@ -65,9 +66,15 @@ export function BottomNav() {
         directiveComplete(spec, levels),
     );
   })();
+  const underAttack = Boolean(
+    state?.fleets.some(
+      (fleet) => isInboundFleet(fleet, state.empire.user_id, state.planet.id) && fleet.mission === "attack",
+    ),
+  );
   const dotFor: Record<string, boolean> = {
     "/communications": unread,
     "/directives": collectable,
+    "/fleets": underAttack,
   };
 
   return (
@@ -95,8 +102,14 @@ export function BottomNav() {
                   >
                     {dotFor[href] && !active ? (
                       <span
-                        aria-label={href === "/directives" ? "Reward ready" : "New reports"}
-                        className="absolute top-1 right-2 h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                        aria-label={
+                          href === "/directives" ? "Reward ready" : href === "/fleets" ? "Incoming attack" : "New reports"
+                        }
+                        className={`absolute top-1 right-2 h-2 w-2 animate-pulse rounded-full ${
+                          href === "/fleets"
+                            ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.9)]"
+                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                        }`}
                       />
                     ) : null}
                     <Icon />
