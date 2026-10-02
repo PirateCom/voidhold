@@ -6,7 +6,9 @@ import { useEmpire } from "@/components/empire-provider";
 import { SheetPortal } from "@/components/sheet-portal";
 import { SHIPS, attackFlightSeconds, attackFuel, formatDuration, slowestHullSpeed } from "@/lib/game/catalog";
 
-export function AttackSheet({
+type Load = { ore: number; crystal: number; deuterium: number };
+
+export function TransportSheet({
   open,
   galaxy,
   system,
@@ -21,10 +23,11 @@ export function AttackSheet({
   targetName: string;
   onClose: () => void;
 }) {
-  const { state, pending, attack, now } = useEmpire();
+  const { state, live, pending, transport, now } = useEmpire();
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [load, setLoad] = useState<Load>({ ore: 0, crystal: 0, deuterium: 0 });
   const [speed, setSpeed] = useState(100);
-  const flyable = useMemo(() => SHIPS.filter((ship) => ship.speed > 0), []);
+  const carriers = useMemo(() => SHIPS.filter((ship) => ship.speed > 0 && ship.cargo > 0), []);
   if (!open || !state) return null;
 
   const docked: Record<string, number> = {
@@ -58,20 +61,42 @@ export function AttackSheet({
     state.empire.impulse_drive ?? 0,
     speed,
   );
-  const cargo = flyable.reduce((sum, ship) => sum + Math.max(0, counts[ship.id] ?? 0) * ship.cargo, 0);
+  const capacity = carriers.reduce((sum, ship) => sum + Math.max(0, counts[ship.id] ?? 0) * ship.cargo, 0);
+  const loaded = load.ore + load.crystal + load.deuterium;
+  const stock = {
+    ore: Math.floor(live?.ore ?? Number(state.planet.ore)),
+    crystal: Math.floor(live?.crystal ?? Number(state.planet.crystal)),
+    deuterium: Math.floor(live?.deuterium ?? Number(state.planet.deuterium)),
+  };
   const blocked =
     selected < 1
-      ? "Send at least one ship."
-      : Number(state.planet.deuterium) < fuel
-        ? "Not enough deuterium for fuel."
-        : null;
+      ? "Pick at least one cargo-carrying ship."
+      : loaded < 1
+        ? "Load some cargo."
+        : loaded > capacity
+          ? "Not enough cargo space."
+          : load.ore > stock.ore || load.crystal > stock.crystal
+            ? "Not enough resources on this planet."
+            : load.deuterium + fuel > stock.deuterium
+              ? "Not enough deuterium for cargo and fuel."
+              : null;
+
+  function setRes(key: keyof Load, value: number) {
+    setLoad((prev) => ({ ...prev, [key]: Math.max(0, Math.floor(value) || 0) }));
+  }
+
+  function fill(key: keyof Load, share = 1) {
+    const room = Math.max(0, capacity - (loaded - load[key]));
+    const reserve = key === "deuterium" ? fuel : 0;
+    setRes(key, Math.min(room, Math.max(0, stock[key] - reserve)) * share);
+  }
 
   return (
     <SheetPortal>
       <div className="sci-card max-h-full w-full max-w-md overflow-y-auto p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Attack</h2>
+            <h2 className="font-semibold">Transport</h2>
             <p className="mt-1 text-xs text-[var(--muted-fg)]">
               [{galaxy}:{system}:{slot}] {targetName}
             </p>
@@ -81,11 +106,10 @@ export function AttackSheet({
           </button>
         </div>
         <p className="mt-3 text-xs text-[var(--muted-fg)]">
-          A win plunders up to half of each resource, limited by surviving cargo. Six rounds with both sides still
-          standing is a draw and takes nothing. Docked ships and defenses fight back.
+          The fleet unloads its cargo on arrival, then flies home empty. Only ships with cargo holds are listed.
         </p>
         <ul className="mt-3 flex flex-col gap-2">
-          {flyable.map((ship) => {
+          {carriers.map((ship) => {
             const have = docked[ship.id] ?? 0;
             return (
               <li key={ship.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2">
@@ -114,6 +138,37 @@ export function AttackSheet({
             );
           })}
         </ul>
+        <div className="mt-3 flex flex-col gap-2">
+          {(
+            [
+              ["ore", "Ore"],
+              ["crystal", "Crystal"],
+              ["deuterium", "Deuterium"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} className="text-xs text-[var(--muted-fg)]">
+              {label} (on planet {stock[key].toLocaleString()})
+              <span className="mt-1 flex gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={load[key]}
+                  onChange={(e) => setRes(key, Number(e.target.value))}
+                  className="sci-input h-11 w-full px-3"
+                />
+                <button type="button" className="sci-btn sci-btn-muted h-11 px-3" onClick={() => fill(key)}>
+                  Max
+                </button>
+                <button type="button" className="sci-btn sci-btn-muted h-11 px-3" onClick={() => fill(key, 0.5)}>
+                  50%
+                </button>
+                <button type="button" className="sci-btn sci-btn-muted h-11 px-3" onClick={() => setRes(key, 0)}>
+                  0
+                </button>
+              </span>
+            </label>
+          ))}
+        </div>
         <label className="mt-3 block text-xs text-[var(--muted-fg)]">
           Speed {speed}%
           <input
@@ -128,8 +183,7 @@ export function AttackSheet({
         </label>
         <p className="mt-2 text-xs text-[var(--muted-fg)]">
           Flight {flight == null ? "—" : formatDuration(flight)} each way · fuel {fuel.toLocaleString()} deut · cargo{" "}
-          {cargo.toLocaleString()} · slowest {slowest > 0 ? slowest.toLocaleString() : "—"} · now{" "}
-          {new Date(now).toLocaleTimeString()}
+          {loaded.toLocaleString()} / {capacity.toLocaleString()} · now {new Date(now).toLocaleTimeString()}
         </p>
         {blocked ? <p className="mt-2 text-sm text-amber-200">{blocked}</p> : null}
         <button
@@ -138,12 +192,12 @@ export function AttackSheet({
           className="sci-btn mt-3 h-11 w-full"
           onClick={() => {
             const payload = Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
-            void attack(galaxy, system, slot, payload, speed).then((ok) => {
+            void transport(galaxy, system, slot, payload, load, speed).then((ok) => {
               if (ok) onClose();
             });
           }}
         >
-          Launch attack
+          Send transport
         </button>
       </div>
     </SheetPortal>

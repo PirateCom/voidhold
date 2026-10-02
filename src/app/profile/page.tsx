@@ -10,6 +10,7 @@ import type { HighscoreEntry } from "@/lib/game/types";
 import { UniverseRules } from "@/components/universe-rules";
 import { PlanetEconomy } from "@/components/planet-economy";
 import { DebugControls } from "@/components/debug-controls";
+import { AbandonPlanet } from "@/components/abandon-planet";
 import { starLabel } from "@/lib/game/catalog";
 import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
@@ -187,6 +188,7 @@ export default function ProfilePage() {
             <PlanetEconomy />
             <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
             <UniverseRules />
+            <AbandonPlanet />
             <DebugControls />
             <button
               type="button"

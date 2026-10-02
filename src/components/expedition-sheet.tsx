@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { useEmpire } from "@/components/empire-provider";
+import { SheetPortal } from "@/components/sheet-portal";
 import {
   EXPEDITION_HOLD_SECONDS,
   EXPEDITION_SLOT,
@@ -16,11 +17,13 @@ export function ExpeditionSheet({
   open,
   galaxy,
   system,
+  slot = EXPEDITION_SLOT,
   onClose,
 }: {
   open: boolean;
   galaxy: number;
   system: number;
+  slot?: number;
   onClose: () => void;
 }) {
   const { state, pending, sendExpedition, now } = useEmpire();
@@ -45,7 +48,7 @@ export function ExpeditionSheet({
     state.planet.system,
     state.planet.slot,
     system,
-    EXPEDITION_SLOT,
+    slot,
     state.empire.propulsion_level,
     state.planet.galaxy,
     galaxy,
@@ -57,7 +60,7 @@ export function ExpeditionSheet({
     state.planet.slot,
     galaxy,
     system,
-    EXPEDITION_SLOT,
+    slot,
     "small_cargo",
     state.empire.impulse_drive ?? 0,
   );
@@ -75,13 +78,13 @@ export function ExpeditionSheet({
               : null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-3">
-      <div className="sci-card max-h-[80vh] w-full max-w-md overflow-y-auto p-4">
+    <SheetPortal>
+      <div className="sci-card max-h-full w-full max-w-md overflow-y-auto p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Expedition</h2>
             <p className="mt-1 text-xs text-[var(--muted-fg)]">
-              [{galaxy}:{system}:{EXPEDITION_SLOT}] Outer space · hold {EXPEDITION_HOLD_SECONDS}s · slots {active}/{cap}
+              [{galaxy}:{system}:{slot}] {slot === EXPEDITION_SLOT ? "Outer space" : "Empty slot"} · hold {EXPEDITION_HOLD_SECONDS}s · slots {active}/{cap}
             </p>
           </div>
           <button type="button" className="sci-btn sci-btn-quiet h-11 px-3" onClick={onClose}>
@@ -126,7 +129,7 @@ export function ExpeditionSheet({
           disabled={pending || Boolean(blocked)}
           className="sci-btn mt-3 h-11 w-full"
           onClick={() => {
-            void sendExpedition(galaxy, system, { small_cargo: cargo }).then((ok) => {
+            void sendExpedition(galaxy, system, slot, { small_cargo: cargo }).then((ok) => {
               if (ok) onClose();
             });
           }}
@@ -134,6 +137,6 @@ export function ExpeditionSheet({
           Send expedition
         </button>
       </div>
-    </div>
+    </SheetPortal>
   );
 }

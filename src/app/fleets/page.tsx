@@ -14,12 +14,12 @@ import {
 import type { FleetRow, PlanetRow } from "@/lib/game/types";
 
 function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbound: boolean): number {
-  if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
-  if (fleet.created_at) {
+  if (fleet.created_at && (!inbound || fleet.mission === "transport")) {
     const start = new Date(fleet.created_at).getTime();
     const end = new Date(fleet.arrives_at).getTime();
     if (Number.isFinite(start) && end > start) return end - start;
   }
+  if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
   if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
   if (fleet.dest_system == null || fleet.dest_slot == null) return PIRATE_FLIGHT_SECONDS * 1000;
   const fn = fleet.mission === "expedition" || fleet.mission === "expedition_return" ? expeditionFlightSeconds : flightSeconds;
@@ -99,7 +99,7 @@ export default function FleetsPage() {
                   now={now}
                   durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, true)}
                   originName={fleet.attacker_name || "Pirates"}
-                  destName={state.planet.name}
+                  destName={fleet.dest_name || state.planet.name}
                   inbound
                 />
               ))}
@@ -151,7 +151,7 @@ export default function FleetsPage() {
                     now={now}
                     durationMs={durationMs(fleet, state.planet, state.empire.propulsion_level, false)}
                     originName={fleet.origin_name || state.planet.name}
-                    destName={fleet.dest_name || "Unknown"}
+                    destName={fleet.dest_name || (fleet.mission.startsWith("expedition") ? "Empty slot" : "Unknown")}
                     canReturn={canReturn}
                     pending={pending}
                     onReturn={() => void recallFleet(fleet.id)}

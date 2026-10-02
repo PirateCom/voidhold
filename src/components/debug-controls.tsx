@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fakeCommanderStatus, setFakeCommander } from "@/lib/game/actions";
 import { DebugInfoDialog } from "@/components/debug-info-dialog";
 import { useEmpire } from "@/components/empire-provider";
 import { setGhostFleetEnabled, useGhostFleetEnabled } from "@/components/ghost-fleet-toggle";
@@ -31,6 +32,24 @@ export function DebugControls() {
   const userId = state?.empire.user_id ?? "";
   const avatarOverride = usePlanetAvatarOverride();
   const ghostFleetOn = useGhostFleetEnabled();
+  const [fakeOn, setFakeOn] = useState<boolean | null>(null);
+  const [fakeBusy, setFakeBusy] = useState(false);
+  const [fakeError, setFakeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isDebug) return;
+    let cancel = false;
+    fakeCommanderStatus()
+      .then((on) => {
+        if (!cancel) setFakeOn(on);
+      })
+      .catch((err: unknown) => {
+        if (!cancel) setFakeError(err instanceof Error ? err.message : "Could not read fake commander.");
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isDebug]);
   const avatarIndex = avatarOverride ?? planetAvatarIndex(userId);
 
   if (!isDebug) return null;
@@ -164,6 +183,23 @@ export function DebugControls() {
           </button>
         </div>
       </div>
+      <button
+        type="button"
+        disabled={fakeBusy || fakeOn == null}
+        onClick={() => {
+          const next = !fakeOn;
+          setFakeBusy(true);
+          setFakeError(null);
+          void setFakeCommander(next)
+            .then(setFakeOn)
+            .catch((err: unknown) => setFakeError(err instanceof Error ? err.message : "Could not toggle."))
+            .finally(() => setFakeBusy(false));
+        }}
+        className={`sci-btn mt-2 h-11 w-full ${fakeOn ? "sci-btn-warn" : "sci-btn-muted"}`}
+      >
+        Debug: fake commander [1:1:2] {fakeOn == null ? "…" : fakeOn ? "on" : "off"}
+      </button>
+      {fakeError ? <p className="mt-1 text-center text-xs text-red-300">{fakeError}</p> : null}
       <button
         type="button"
         onClick={() => setGhostFleetEnabled(!ghostFleetOn)}

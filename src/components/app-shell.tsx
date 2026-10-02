@@ -19,8 +19,9 @@ export function AppShell({
         <PlanetHeader title={title} />
         <ResourceBar />
       </header>
-      <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
-        {children}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">{children}</div>
+        <div id="sheet-root" className="pointer-events-none absolute inset-0 z-40 [&>*]:pointer-events-auto" />
       </div>
       <BottomNav />
     </div>

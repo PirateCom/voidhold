@@ -1,11 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
+import { latestReportAt, markCommsSeen } from "@/components/comms-seen";
 import { useEmpire } from "@/components/empire-provider";
 import { REPORT_TTL_DAYS } from "@/lib/game/catalog";
 
 export default function CommunicationsPage() {
   const { state, error, pending, deleteReport } = useEmpire();
+  const latest = latestReportAt(state?.reports);
+
+  useEffect(() => {
+    if (latest > 0) markCommsSeen(latest);
+  }, [latest]);
 
   return (
     <AppShell title="Comms">

@@ -1,7 +1,14 @@
+import Link from "next/link";
+
 export default function PrivacyPage() {
   return (
     <main className="mx-auto min-h-dvh max-w-[430px] bg-[var(--surface)] px-5 py-8">
-      <h1 className="font-[family-name:var(--font-display)] text-2xl">Privacy</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-[family-name:var(--font-display)] text-2xl">Privacy</h1>
+        <Link href="/" className="sci-btn sci-btn-quiet flex h-11 items-center px-3">
+          Close
+        </Link>
+      </div>
       <p className="mt-4 text-sm text-[var(--muted-fg)]">
         Voidhold stores your account email (via Supabase Auth) and game progress: planet, buildings, fleets,
         and battle reports. We do not sell data. From Profile you can delete your account, which removes

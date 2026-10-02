@@ -144,7 +144,7 @@ export type FleetRow = {
   origin_slot?: number;
   created_at?: string;
   raiders: number;
-  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return";
+  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;
@@ -175,6 +175,8 @@ export type SolarSlot = {
   owner_name: string | null;
   debris_ore?: number;
   debris_crystal?: number;
+  debris_decays_at?: string | null;
+  debris_gone_at?: string | null;
 };
 
 export type SolarSystemView = {

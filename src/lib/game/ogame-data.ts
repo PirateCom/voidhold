@@ -587,7 +587,7 @@ export const SHIPS: ShipStat[] = [
     hull: 1000,
     shield: 0.01,
     attack: 0.01,
-    cargo: 5,
+    cargo: 0,
     speed: 100000000,
     fuel: 1,
     shipyard: 3,

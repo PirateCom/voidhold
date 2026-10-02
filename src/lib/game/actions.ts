@@ -120,12 +120,47 @@ export async function selectPlanet(planetId: number): Promise<EmpireState> {
   return rpc("select_planet", { p_planet_id: planetId });
 }
 
+export async function abandonPlanet(planetId: number): Promise<EmpireState> {
+  return rpc("abandon_planet", { p_planet_id: planetId });
+}
+
 export async function launchExpedition(
   galaxy: number,
   system: number,
   ships: Record<string, number>,
 ): Promise<EmpireState> {
   return rpc("send_expedition", { p_galaxy: galaxy, p_system: system, p_ships: ships });
+}
+
+export async function launchExpeditionTo(
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: Record<string, number>,
+): Promise<EmpireState> {
+  return rpc("send_expedition_to", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_ships: ships });
+}
+
+export type TransportCargo = { ore: number; crystal: number; deuterium: number };
+
+export async function launchTransport(
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: Record<string, number>,
+  cargo: TransportCargo,
+  speed: number,
+): Promise<EmpireState> {
+  return rpc("send_transport", {
+    p_galaxy: galaxy,
+    p_system: system,
+    p_slot: slot,
+    p_ships: ships,
+    p_ore: cargo.ore,
+    p_crystal: cargo.crystal,
+    p_deuterium: cargo.deuterium,
+    p_speed: speed,
+  });
 }
 
 export async function loadSolarSystem(galaxy: number, system: number): Promise<SolarSystemView> {
@@ -169,6 +204,22 @@ export async function claimDirective(id: string): Promise<EmpireState> {
 
 export async function setDirectiveTracked(id: string, tracked: boolean): Promise<EmpireState> {
   return rpc("set_directive_tracked", { p_id: id, p_tracked: tracked });
+}
+
+async function rpcBoolean(fn: string, args: Record<string, unknown> = {}): Promise<boolean> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) rpcError(error);
+  return Boolean(data);
+}
+
+export async function fakeCommanderStatus(): Promise<boolean> {
+  return rpcBoolean("debug_fake_commander_status");
+}
+
+export async function setFakeCommander(on: boolean): Promise<boolean> {
+  return rpcBoolean("debug_set_fake_commander", { p_on: on });
 }
 
 export async function deleteReport(id: number): Promise<EmpireState> {

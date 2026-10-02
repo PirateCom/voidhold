@@ -72,6 +72,9 @@ function ShipStats({
       <p>
         Cargo {ship.cargo.toLocaleString()} · Speed {speed} · Fuel {fuel}
       </p>
+      {ship.cargo === 0 && ship.speed > 0 ? (
+        <p className="text-amber-200">No cargo hold: cannot plunder or carry resources.</p>
+      ) : null}
       {satEnergy ? (
         <p className="text-emerald-300">
           Energy {satEnergy.each.toLocaleString()} each

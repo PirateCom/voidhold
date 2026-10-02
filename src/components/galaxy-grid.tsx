@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AttackSheet } from "@/components/attack-sheet";
+import { Countdown } from "@/components/countdown";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
+import { TransportSheet } from "@/components/transport-sheet";
+import { SheetDock, SheetPortal } from "@/components/sheet-portal";
 import { useEmpire } from "@/components/empire-provider";
 import { PlanetAvatar } from "@/components/planet-avatar";
 import { loadSolarSystem } from "@/lib/game/actions";
@@ -25,6 +28,8 @@ function DebrisMark() {
   );
 }
 
+type GalaxyAction = "attack" | "spy" | "transport" | "expedition" | "colonize" | "recycle";
+
 function wrap(value: number, max: number) {
   return ((value - 1 + max) % max) + 1;
 }
@@ -39,7 +44,7 @@ function slotClass(kind: SolarSlot["kind"], selected: boolean) {
 }
 
 export function GalaxyGrid() {
-  const { state, pending, spy, harvest, colonize } = useEmpire();
+  const { state, pending, spy, harvest, colonize, now } = useEmpire();
   const [galaxy, setGalaxy] = useState(1);
   const [system, setSystem] = useState(1);
   const [ready, setReady] = useState(false);
@@ -49,8 +54,11 @@ export function GalaxyGrid() {
   const [spyShips, setSpyShips] = useState(1);
   const [harvestShips, setHarvestShips] = useState(1);
   const [colonizeShips, setColonizeShips] = useState(1);
-  const [attackOpen, setAttackOpen] = useState(false);
-  const [expeditionOpen, setExpeditionOpen] = useState(false);
+  const [action, setAction] = useState<GalaxyAction | null>(null);
+
+  useEffect(() => {
+    setAction(null);
+  }, [selected?.slot, galaxy, system]);
 
   useEffect(() => {
     if (!state || ready) return;
@@ -182,6 +190,31 @@ export function GalaxyGrid() {
 
   if (!state) return null;
 
+  const hasDebris = Boolean(selected && (selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0);
+  const actions: { id: GalaxyAction; label: string; muted?: boolean }[] = [];
+  if (selected) {
+    const isCurrent =
+      selected.kind === "home" &&
+      galaxy === state.planet.galaxy &&
+      system === state.planet.system &&
+      selected.slot === state.planet.slot;
+    if (selected.kind === "npc" || selected.kind === "player") {
+      actions.push({ id: "attack", label: "Attack" }, { id: "spy", label: "Spy", muted: true });
+    }
+    if (selected.kind === "player" || (selected.kind === "home" && !isCurrent)) {
+      actions.push({ id: "transport", label: "Haul", muted: true });
+    }
+    if (selected.kind === "empty" || selected.kind === "outer") {
+      actions.push({ id: "expedition", label: "Expedition" });
+    }
+    if (selected.kind === "empty") {
+      actions.push({ id: "colonize", label: "Colonize", muted: true });
+    }
+    if (hasDebris && selected.kind !== "outer") {
+      actions.push({ id: "recycle", label: "Recycle", muted: true });
+    }
+  }
+
   return (
     <div>
       <div className="grid grid-cols-2 gap-2">
@@ -190,10 +223,11 @@ export function GalaxyGrid() {
           <span className="mt-1 flex gap-1">
             <button
               type="button"
-              className="sci-btn sci-btn-muted h-11 w-11"
+              aria-label="Previous galaxy"
+              className="sci-btn sci-btn-muted h-12 w-14 shrink-0 px-0 text-lg"
               onClick={() => setGalaxy((g) => wrap(g - 1, 9))}
             >
-              −
+              ◀
             </button>
             <input
               type="number"
@@ -201,14 +235,15 @@ export function GalaxyGrid() {
               max={9}
               value={galaxy}
               onChange={(e) => setGalaxy(wrap(Number(e.target.value) || 1, 9))}
-              className="sci-input h-11 w-full px-3 text-center"
+              className="sci-input h-12 w-0 min-w-0 flex-1 px-0 text-center text-base"
             />
             <button
               type="button"
-              className="sci-btn sci-btn-muted h-11 w-11"
+              aria-label="Next galaxy"
+              className="sci-btn sci-btn-muted h-12 w-14 shrink-0 px-0 text-lg"
               onClick={() => setGalaxy((g) => wrap(g + 1, 9))}
             >
-              +
+              ▶
             </button>
           </span>
         </label>
@@ -217,10 +252,11 @@ export function GalaxyGrid() {
           <span className="mt-1 flex gap-1">
             <button
               type="button"
-              className="sci-btn sci-btn-muted h-11 w-11"
+              aria-label="Previous system"
+              className="sci-btn sci-btn-muted h-12 w-14 shrink-0 px-0 text-lg"
               onClick={() => setSystem((s) => wrap(s - 1, 499))}
             >
-              −
+              ◀
             </button>
             <input
               type="number"
@@ -228,14 +264,15 @@ export function GalaxyGrid() {
               max={499}
               value={system}
               onChange={(e) => setSystem(wrap(Number(e.target.value) || 1, 499))}
-              className="sci-input h-11 w-full px-3 text-center"
+              className="sci-input h-12 w-0 min-w-0 flex-1 px-0 text-center text-base"
             />
             <button
               type="button"
-              className="sci-btn sci-btn-muted h-11 w-11"
+              aria-label="Next system"
+              className="sci-btn sci-btn-muted h-12 w-14 shrink-0 px-0 text-lg"
               onClick={() => setSystem((s) => wrap(s + 1, 499))}
             >
-              +
+              ▶
             </button>
           </span>
         </label>
@@ -282,7 +319,7 @@ export function GalaxyGrid() {
       </ul>
 
       {selected ? (
-        <section className="sci-card mt-4 p-4">
+        <section className="sci-card mt-4 mb-16 p-4">
           <h2 className="font-semibold">
             [{galaxy}:{system}:{selected.slot}] {selected.name ?? (selected.kind === "empty" ? "Empty space" : "Outer space")}
           </h2>
@@ -297,160 +334,246 @@ export function GalaxyGrid() {
                     : "Another commander. Attack to raid. Docked ships and defenses fight back."
                   : selected.kind === "outer"
                     ? "Uncolonizable. Expeditions launch from this slot."
-                    : "Empty slot. A colony ship can found a world here if Astrophysics allows it."}
+                    : "Empty slot. A colony ship can found a world here if Astrophysics allows it, or send an expedition."}
           </p>
-          {selected.kind === "empty" ? (
-            <form
-              className="mt-3 flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void colonize(galaxy, system, selected.slot, colonizeShips);
-              }}
-            >
-              <label className="text-xs text-[var(--muted-fg)]">
-                Colony ships (you have {colonyShipsDocked})
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.max(1, colonyShipsDocked)}
-                  value={colonizeShips}
-                  onChange={(e) => setColonizeShips(Number(e.target.value))}
-                  className="sci-input mt-1 h-11 w-full px-3"
-                />
-              </label>
-              {colonizeFlight != null ? (
-                <p className="text-xs text-[var(--muted-fg)]">
-                  Colonize flight ~{colonizeFlight}s · fuel {colonizeFuel.toLocaleString()} deut (round trip reserved) ·
-                  slots {colonizeRange.min}–{colonizeRange.max} · planets {maxPlanets(astro)}
-                </p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={
-                  pending ||
-                  colonyShipsDocked < 1 ||
-                  astro < 1 ||
-                  !canColonizeSlot(selected.slot, astro) ||
-                  Number(state.planet.deuterium) < colonizeFuel
-                }
-                className="sci-btn h-11"
-              >
-                {astro < 1
-                  ? "Needs Astrophysics 1"
-                  : !canColonizeSlot(selected.slot, astro)
-                    ? `Needs slots ${colonizeRange.min}–${colonizeRange.max}`
-                    : "Colonize"}
-              </button>
-            </form>
-          ) : null}
-          {(selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0 ? (
+          {hasDebris ? (
             <p className="mt-2 text-xs text-amber-200">
               Debris field {Number(selected.debris_ore ?? 0).toLocaleString()} ore ·{" "}
               {Number(selected.debris_crystal ?? 0).toLocaleString()} crystal
               {debrisVisible(selected.debris_ore ?? 0, selected.debris_crystal ?? 0) ? "" : " (hidden on the map)"}
+              {selected.debris_decays_at && selected.debris_gone_at ? (
+                <span className="block text-[var(--muted-fg)]">
+                  {new Date(selected.debris_decays_at).getTime() > now ? (
+                    <>
+                      Starts decaying in <Countdown until={selected.debris_decays_at} now={now} />
+                    </>
+                  ) : (
+                    <>
+                      Decaying · gone in <Countdown until={selected.debris_gone_at} now={now} />
+                    </>
+                  )}
+                </span>
+              ) : null}
             </p>
-          ) : null}
-          {(selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0 && selected.kind !== "outer" ? (
-            <form
-              className="mt-3 flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void harvest(galaxy, system, selected.slot, harvestShips);
-              }}
-            >
-              <label className="text-xs text-[var(--muted-fg)]">
-                Recyclers (you have {recyclersDocked})
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.max(1, recyclersDocked)}
-                  value={harvestShips}
-                  onChange={(e) => setHarvestShips(Number(e.target.value))}
-                  className="sci-input mt-1 h-11 w-full px-3"
-                />
-              </label>
-              {harvestFlight != null ? (
-                <p className="text-xs text-[var(--muted-fg)]">
-                  Harvest flight ~{harvestFlight}s each way · fuel {harvestFuel.toLocaleString()} deut round trip
-                </p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={pending || recyclersDocked < 1 || Number(state.planet.deuterium) < harvestFuel}
-                className="sci-btn h-11"
-              >
-                Harvest debris
-              </button>
-            </form>
-          ) : null}
-          {selected.kind === "npc" || selected.kind === "player" ? (
-            <button type="button" className="sci-btn mt-3 h-11 w-full" onClick={() => setAttackOpen(true)}>
-              Attack
-            </button>
-          ) : null}
-          {selected.kind === "npc" || selected.kind === "player" ? (
-            <form
-              className="mt-3 flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void spy(galaxy, system, selected.slot, spyShips);
-              }}
-            >
-              <label className="text-xs text-[var(--muted-fg)]">
-                Espionage probes (you have {probesDocked})
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.max(1, probesDocked)}
-                  value={spyShips}
-                  onChange={(e) => setSpyShips(Number(e.target.value))}
-                  className="sci-input mt-1 h-11 w-full px-3"
-                />
-              </label>
-              {flight != null ? (
-                <p className="text-xs text-[var(--muted-fg)]">
-                  Spy flight ~{flight}s each way · fuel {spyFuel.toLocaleString()} deut round trip
-                </p>
-              ) : null}
-              <button
-                type="submit"
-                disabled={
-                  pending ||
-                  probesDocked < 1 ||
-                  (state.empire.espionage_tech ?? 0) < 2 ||
-                  Number(state.planet.deuterium) < spyFuel
-                }
-                className="sci-btn sci-btn-muted h-11"
-              >
-                {(state.empire.espionage_tech ?? 0) < 2 ? "Needs Espionage 2" : "Launch spy"}
-              </button>
-            </form>
-          ) : null}
-          {selected.kind === "outer" ? (
-            <button
-              type="button"
-              className="sci-btn mt-3 h-11 w-full"
-              onClick={() => setExpeditionOpen(true)}
-            >
-              Expedition
-            </button>
           ) : null}
         </section>
       ) : null}
+
+      {selected ? (
+        <SheetDock>
+          <div className="flex items-center gap-1">
+            {actions.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className={`sci-btn h-9 min-w-0 flex-1 truncate px-1 text-[10px] ${action === a.id ? "sci-btn-warn" : a.muted ? "sci-btn-muted" : ""}`}
+                onClick={() => setAction((cur) => (cur === a.id ? null : a.id))}
+              >
+                {a.label}
+              </button>
+            ))}
+            {actions.length === 0 ? (
+              <span className="text-xs text-[var(--muted-fg)]">No fleet actions for this slot.</span>
+            ) : null}
+            <button
+              type="button"
+              aria-label="Close"
+              className="sci-btn sci-btn-quiet ml-auto h-9 w-9 shrink-0 px-0"
+              onClick={() => {
+                setAction(null);
+                setSelected(null);
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </SheetDock>
+      ) : null}
+
+      {selected && action === "colonize" ? (
+        <ActionSheet title="Colonize" subtitle={`[${galaxy}:${system}:${selected.slot}] Empty slot`} onClose={() => setAction(null)}>
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void colonize(galaxy, system, selected.slot, colonizeShips).then(() => setAction(null));
+            }}
+          >
+            <label className="text-xs text-[var(--muted-fg)]">
+              Colony ships (you have {colonyShipsDocked})
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, colonyShipsDocked)}
+                value={colonizeShips}
+                onChange={(e) => setColonizeShips(Number(e.target.value))}
+                className="sci-input mt-1 h-11 w-full px-3"
+              />
+            </label>
+            {colonizeFlight != null ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                Colonize flight ~{colonizeFlight}s · fuel {colonizeFuel.toLocaleString()} deut (round trip reserved) ·
+                slots {colonizeRange.min}–{colonizeRange.max} · planets {maxPlanets(astro)}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={
+                pending ||
+                colonyShipsDocked < 1 ||
+                astro < 1 ||
+                !canColonizeSlot(selected.slot, astro) ||
+                Number(state.planet.deuterium) < colonizeFuel
+              }
+              className="sci-btn h-11"
+            >
+              {astro < 1
+                ? "Needs Astrophysics 1"
+                : !canColonizeSlot(selected.slot, astro)
+                  ? `Needs slots ${colonizeRange.min}–${colonizeRange.max}`
+                  : "Colonize"}
+            </button>
+          </form>
+        </ActionSheet>
+      ) : null}
+
+      {selected && action === "recycle" ? (
+        <ActionSheet
+          title="Recycle debris"
+          subtitle={`[${galaxy}:${system}:${selected.slot}] ${Number(selected.debris_ore ?? 0).toLocaleString()} ore · ${Number(selected.debris_crystal ?? 0).toLocaleString()} crystal`}
+          onClose={() => setAction(null)}
+        >
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void harvest(galaxy, system, selected.slot, harvestShips).then(() => setAction(null));
+            }}
+          >
+            <label className="text-xs text-[var(--muted-fg)]">
+              Recyclers (you have {recyclersDocked})
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, recyclersDocked)}
+                value={harvestShips}
+                onChange={(e) => setHarvestShips(Number(e.target.value))}
+                className="sci-input mt-1 h-11 w-full px-3"
+              />
+            </label>
+            {harvestFlight != null ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                Harvest flight ~{harvestFlight}s each way · fuel {harvestFuel.toLocaleString()} deut round trip
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={pending || recyclersDocked < 1 || Number(state.planet.deuterium) < harvestFuel}
+              className="sci-btn h-11"
+            >
+              Harvest debris
+            </button>
+          </form>
+        </ActionSheet>
+      ) : null}
+
+      {selected && action === "spy" ? (
+        <ActionSheet
+          title="Espionage"
+          subtitle={`[${galaxy}:${system}:${selected.slot}] ${selected.name ?? "Unknown"}`}
+          onClose={() => setAction(null)}
+        >
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void spy(galaxy, system, selected.slot, spyShips).then(() => setAction(null));
+            }}
+          >
+            <label className="text-xs text-[var(--muted-fg)]">
+              Espionage probes (you have {probesDocked})
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, probesDocked)}
+                value={spyShips}
+                onChange={(e) => setSpyShips(Number(e.target.value))}
+                className="sci-input mt-1 h-11 w-full px-3"
+              />
+            </label>
+            {flight != null ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                Spy flight ~{flight}s each way · fuel {spyFuel.toLocaleString()} deut round trip
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={
+                pending ||
+                probesDocked < 1 ||
+                (state.empire.espionage_tech ?? 0) < 2 ||
+                Number(state.planet.deuterium) < spyFuel
+              }
+              className="sci-btn h-11"
+            >
+              {(state.empire.espionage_tech ?? 0) < 2 ? "Needs Espionage 2" : "Launch spy"}
+            </button>
+          </form>
+        </ActionSheet>
+      ) : null}
+
       <AttackSheet
-        open={attackOpen}
+        open={action === "attack"}
         galaxy={galaxy}
         system={system}
         slot={selected?.slot ?? 1}
         targetName={selected?.name ?? "Unknown"}
-        onClose={() => setAttackOpen(false)}
+        onClose={() => setAction(null)}
       />
       <ExpeditionSheet
-        open={expeditionOpen}
+        open={action === "expedition"}
         galaxy={galaxy}
         system={system}
-        onClose={() => setExpeditionOpen(false)}
+        slot={selected?.slot ?? 16}
+        onClose={() => setAction(null)}
+      />
+      <TransportSheet
+        open={action === "transport"}
+        galaxy={galaxy}
+        system={system}
+        slot={selected?.slot ?? 1}
+        targetName={selected?.name ?? "Unknown"}
+        onClose={() => setAction(null)}
       />
     </div>
+  );
+}
+
+function ActionSheet({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <SheetPortal>
+      <div className="sci-card max-h-full w-full max-w-md overflow-y-auto p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">{title}</h2>
+            <p className="mt-1 text-xs text-[var(--muted-fg)]">{subtitle}</p>
+          </div>
+          <button type="button" className="sci-btn sci-btn-quiet h-11 px-3" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        {children}
+      </div>
+    </SheetPortal>
   );
 }

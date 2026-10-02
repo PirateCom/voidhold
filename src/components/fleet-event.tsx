@@ -44,15 +44,18 @@ function isReturnMission(mission: FleetRow["mission"]) {
     mission === "espionage_return" ||
     mission === "harvest_return" ||
     mission === "colonize_return" ||
-    mission === "expedition_return"
+    mission === "expedition_return" ||
+    mission === "transport_return"
   );
 }
 
 function missionLabel(fleet: FleetRow, inbound?: boolean) {
-  if (inbound) return "Attack";
+  if (inbound) return fleet.mission === "transport" ? "Transport" : "Attack";
   switch (fleet.mission) {
     case "attack":
       return "Attack";
+    case "transport":
+      return "Transport";
     case "espionage":
       return "Espionage";
     case "harvest":
@@ -67,6 +70,7 @@ function missionLabel(fleet: FleetRow, inbound?: boolean) {
     case "harvest_return":
     case "colonize_return":
     case "expedition_return":
+    case "transport_return":
       return "Return";
     default:
       return fleet.mission;
@@ -215,14 +219,17 @@ export function FleetEventStrip({
   const rightCoords = returning
     ? coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot)
     : coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot);
-  const status = inbound
+  const delivery = inbound && fleet.mission === "transport";
+  const status = delivery
+    ? "STATUS: INCOMING DELIVERY"
+    : inbound
     ? "STATUS: INCOMING STRIKE"
     : returning
       ? "STATUS: RETURNING TO HOMEWORLD"
       : fleet.mission === "expedition_hold"
         ? "STATUS: HOLDING IN THE VOID"
         : `STATUS: TRANSIT TO ${destName.toUpperCase()}`;
-  const tone = inbound ? "red" : returning ? "emerald" : "amber";
+  const tone = delivery ? "emerald" : inbound ? "red" : returning ? "emerald" : "amber";
   const cardBorder =
     tone === "red"
       ? "border-red-500/40"

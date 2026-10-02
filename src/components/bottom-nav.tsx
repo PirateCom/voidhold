@@ -3,6 +3,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { latestReportAt, useCommsSeenAt } from "@/components/comms-seen";
+import { useEmpire } from "@/components/empire-provider";
+import {
+  DIRECTIVES,
+  directiveComplete,
+  directiveUnlocked,
+  isDirectiveClaimed,
+  levelsFromHold,
+} from "@/lib/game/directives";
 
 const rows = [
   [
@@ -21,8 +30,45 @@ const rows = [
   ],
 ];
 
+const ACCENTS: Record<string, { idle: string; active: string }> = {
+  "/directives": {
+    idle: "border border-transparent bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.28),transparent_70%)] text-blue-300",
+    active:
+      "border border-blue-400/70 bg-blue-900/50 text-blue-200 shadow-[inset_0_0_15px_rgba(59,130,246,0.25),0_0_10px_rgba(59,130,246,0.35)]",
+  },
+  "/missions": {
+    idle: "border border-transparent bg-[radial-gradient(ellipse_at_center,rgba(168,85,247,0.28),transparent_70%)] text-purple-300",
+    active:
+      "border border-purple-400/70 bg-purple-900/50 text-purple-200 shadow-[inset_0_0_15px_rgba(168,85,247,0.25),0_0_10px_rgba(168,85,247,0.35)]",
+  },
+};
+
 export function BottomNav() {
   const pathname = usePathname();
+  const { state, live } = useEmpire();
+  const seenAt = useCommsSeenAt();
+  const unread = latestReportAt(state?.reports) > seenAt;
+  const collectable = (() => {
+    if (!state?.planet || !state.empire) return false;
+    const levels = levelsFromHold({
+      planet: state.planet,
+      empire: state.empire,
+      energyOutput: live?.energy.output,
+      energyDrain: live?.energy.drain,
+      starType: state.star?.type,
+    });
+    const claimed = state.empire.claimed_directives;
+    return DIRECTIVES.some(
+      (spec) =>
+        !isDirectiveClaimed(claimed, spec.id) &&
+        directiveUnlocked(claimed, spec.id) &&
+        directiveComplete(spec, levels),
+    );
+  })();
+  const dotFor: Record<string, boolean> = {
+    "/communications": unread,
+    "/directives": collectable,
+  };
 
   return (
     <footer className="relative z-30 shrink-0 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
@@ -39,12 +85,20 @@ export function BottomNav() {
                 <li key={href}>
                   <Link
                     href={href}
-                    className={`flex flex-col items-center justify-center rounded px-0.5 py-1.5 text-[9px] leading-tight tracking-tight uppercase ${
-                      active
-                        ? "border border-cyan-500/40 bg-cyan-950/40 font-[family-name:var(--font-display)] font-bold text-cyan-300 shadow-[inset_0_0_15px_rgba(0,240,255,0.15),0_0_10px_rgba(0,240,255,0.2)]"
-                        : "font-[family-name:var(--font-display)] font-medium text-slate-400"
+                    className={`relative flex flex-col items-center justify-center rounded px-0.5 py-1.5 font-[family-name:var(--font-display)] text-[9px] leading-tight tracking-tight uppercase ${
+                      ACCENTS[href]
+                        ? `${active ? ACCENTS[href].active : ACCENTS[href].idle} ${active ? "font-bold" : "font-medium"}`
+                        : active
+                          ? "border border-cyan-500/40 bg-cyan-950/40 font-bold text-cyan-300 shadow-[inset_0_0_15px_rgba(0,240,255,0.15),0_0_10px_rgba(0,240,255,0.2)]"
+                          : "font-medium text-slate-400"
                     }`}
                   >
+                    {dotFor[href] && !active ? (
+                      <span
+                        aria-label={href === "/directives" ? "Reward ready" : "New reports"}
+                        className="absolute top-1 right-2 h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                      />
+                    ) : null}
                     <Icon />
                     <span className="mt-1 text-center">{label}</span>
                   </Link>
