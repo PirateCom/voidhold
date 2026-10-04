@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
+import { QueueCountField } from "@/components/queue-count-field";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
@@ -11,6 +12,7 @@ import {
   SHIPS,
   canPayResources,
   formatDuration,
+  maxAffordableCount,
   unitBuildSeconds,
   crawlerCap,
   crawlerProductionBonus,
@@ -163,19 +165,20 @@ export default function ShipyardPage() {
       <CurrentDirective />
       <article className="sci-card mb-3 p-4">
         <h2 className="font-semibold">Docked fleet</h2>
-        <p className="mt-2 font-mono text-sm">
-          {docked.length > 0
-            ? docked.map((row) => `${row.ship.name} ×${row.count.toLocaleString()}`).join(" · ")
-            : "No ships docked."}
-        </p>
-        <p className="mt-1 font-mono text-sm">
-          Fleet hull {fleetHull.toLocaleString()} · shield {fleetShield.toLocaleString()} · attack{" "}
-          {fleetAttack.toLocaleString()}
-          {" · "}
-          {hulls.toLocaleString()} hull{hulls === 1 ? "" : "s"}
-        </p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <span className="block w-full border border-slate-700/60 bg-zinc-800/80 px-2 py-1 text-left font-mono text-xs text-slate-100">
+            Hull {fleetHull.toLocaleString()}
+          </span>
+          <span className="block w-full border border-cyan-900/60 bg-cyan-950/80 px-2 py-1 text-left font-mono text-xs text-cyan-100">
+            Shield {fleetShield.toLocaleString()}
+          </span>
+          <span className="block w-full border border-blue-900/60 bg-blue-950/80 px-2 py-1 text-left font-mono text-xs text-blue-100">
+            Attack {fleetAttack.toLocaleString()}
+          </span>
+        </div>
         <p className="mt-1 text-xs text-[var(--muted-fg)]">
-          Shipyard {state.planet.shipyard ?? 0}. Hulls listed here are docked at this hold, not in flight.
+          {hulls.toLocaleString()} hull{hulls === 1 ? "" : "s"} docked · Shipyard {state.planet.shipyard ?? 0}. Not in
+          flight.
         </p>
         {yardBusy && busyId ? (
           <p className="mt-2 text-sm">
@@ -194,15 +197,19 @@ export default function ShipyardPage() {
           const count = Math.max(1, queues[ship.id] ?? 1);
           const buildSecs = live ? planetUnitSeconds(live, ship.id) : unitBuildSeconds(ship.cost);
           const poor = live ? !canPayResources(live, ship.cost, count) : true;
+          const affordable = live ? maxAffordableCount(live, ship.cost) : 0;
           const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
           return (
             <article key={ship.id} className="sci-card p-4">
               <div className="flex items-start gap-3">
                 <SpriteThumb id={ship.id} />
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-semibold">{ship.name}</h2>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="font-semibold">{ship.name}</h2>
+                    <span className="sci-badge">×{dockedCount(ship.id, state.empire).toLocaleString()}</span>
+                  </div>
                   <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    Docked: {dockedCount(ship.id, state.empire)}. Build time {formatDuration(buildSecs)} each.
+                    Docked. Build time {formatDuration(buildSecs)} each.
                     {thisBusy ? ` In yard: ${queued}.` : ""}
                   </p>
                   <ShipStats
@@ -249,17 +256,11 @@ export default function ShipyardPage() {
                   Next hull <Countdown until={state.empire.raider_completes_at} now={now} />
                 </p>
               ) : null}
-              <label className="mt-3 block text-xs text-[var(--muted-fg)]">
-                Queue
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={count}
-                  onChange={(e) => setQueues((prev) => ({ ...prev, [ship.id]: Math.max(1, Number(e.target.value) || 1) }))}
-                  className="sci-input mt-1 h-11 w-full px-3"
-                />
-              </label>
+              <QueueCountField
+                value={count}
+                maxAffordable={affordable}
+                onChange={(n) => setQueues((prev) => ({ ...prev, [ship.id]: n }))}
+              />
               <button
                 type="button"
                 disabled={pending || !ready || poor || (yardBusy && !thisBusy)}

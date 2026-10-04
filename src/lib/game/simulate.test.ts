@@ -16,6 +16,7 @@ import {
   sendHarvest,
   sendColonize,
   sendExpedition,
+  sendDeploy,
   spawnPirates,
   recallFleet,
   startResearch,
@@ -169,7 +170,14 @@ describe("time-skip simulation", () => {
     ).toThrow(/Impulse drive 5/);
     const built = catchUpWorld(queued, queued.empire.raiderCompletesAt!);
     expect(built.empire.raiders).toBe(1);
-    const sent = sendRaid(built, 2, 1, built.empire.raiderCompletesAt!);
+    const parked: SimWorld = {
+      ...built,
+      planets: built.planets.map((planet) =>
+        planet.id === 2 ? { ...planet, oreMine: 0, crystalMine: 0, lastHarvestedAt: built.empire.raiderCompletesAt! } : planet,
+      ),
+      empire: { ...built.empire, pirateRaidsEnabled: false, nextPirateAt: null },
+    };
+    const sent = sendRaid(parked, 2, 1, parked.empire.raiderCompletesAt!);
     expect(sent.empire.raiders).toBe(0);
     const attackAt = sent.fleets[0].arrivesAt;
     const afterAttack = catchUpWorld(sent, attackAt);
@@ -393,6 +401,9 @@ describe("time-skip simulation", () => {
       ore: 8000,
       crystal: 4000,
       deuterium: 2000,
+      oreMine: 0,
+      crystalMine: 0,
+      deuteriumExtractor: 0,
     };
     const defended: SimPlanet = {
       ...player,
@@ -404,7 +415,7 @@ describe("time-skip simulation", () => {
     const ready: SimWorld = {
       ...base,
       planets: [...base.planets, player, defended],
-      empire: { ...base.empire, raiders: 2, ships: { small_cargo: 2 } },
+      empire: { ...base.empire, raiders: 2, ships: { small_cargo: 2 }, pirateRaidsEnabled: false, nextPirateAt: null },
     };
     const sent = sendAttack(ready, 3, { small_cargo: 1 }, 0, 100);
     expect(sent.empire.raiders).toBe(1);
@@ -564,9 +575,8 @@ describe("time-skip simulation", () => {
     const arrived = catchUpWorld(sent, sent.fleets[0].arrivesAt);
     const spy = arrived.fleets.find((f) => f.id === sent.fleets[0].id)!;
     expect(spy.mission === "espionage_return" || spy.status === "completed").toBe(true);
-    const home = catchUpWorld(arrived, spy.arrivesAt);
-    expect(home.reports.some((r) => r.title === "Espionage report")).toBe(true);
-    expect(home.reports.find((r) => r.title === "Espionage report")?.body).toMatch(/Resources/);
+    expect(arrived.reports.some((r) => r.title === "Espionage report")).toBe(true);
+    expect(arrived.reports.find((r) => r.title === "Espionage report")?.body).toMatch(/Resources/);
   });
 
   it("sends recyclers to harvest a debris field and returns the cargo", () => {
@@ -675,6 +685,39 @@ describe("time-skip simulation", () => {
     const researching = startResearch(backColony, "energy_tech", 0);
     expect(researching.empire.researchTech).toBe("energy_tech");
     expect(researching.planets.find((p) => p.id === 3)?.upgradeBuilding).toBe("crystal_mine");
+  });
+
+  it("deploys ships to another owned planet and leaves them there", () => {
+    const base = world(0);
+    const colony: SimPlanet = {
+      ...base.planets[0],
+      id: 3,
+      slot: 8,
+      name: "Colony",
+      ships: {},
+    };
+    const two: SimWorld = {
+      ...base,
+      planets: [base.planets[0], base.planets[1], colony],
+      empire: {
+        ...base.empire,
+        ships: { light_fighter: 2, small_cargo: 1 },
+        raiders: 1,
+        pirateRaidsEnabled: false,
+      },
+    };
+    expect(() => sendDeploy(two, 1, 1, 3, { light_fighter: 1 }, { ore: 0, crystal: 0, deuterium: 0 }, 100, 0)).toThrow(
+      /own planets/i,
+    );
+    const sent = sendDeploy(two, 1, 1, 8, { light_fighter: 2 }, { ore: 0, crystal: 0, deuterium: 0 }, 100, 0);
+    expect(sent.empire.ships.light_fighter ?? 0).toBe(0);
+    expect(sent.fleets[0].mission).toBe("deploy");
+    const arrived = catchUpWorld(sent, sent.fleets[0].arrivesAt);
+    expect(arrived.fleets.find((f) => f.id === sent.fleets[0].id)?.status).toBe("completed");
+    expect(arrived.planets.find((p) => p.id === 3)?.ships?.light_fighter).toBe(2);
+    expect(arrived.empire.ships.light_fighter ?? 0).toBe(0);
+    const onColony = selectPlanet(arrived, 3);
+    expect(onColony.empire.ships.light_fighter).toBe(2);
   });
 
   it("triples mine output and shortens construction at ×3 economy speed", () => {

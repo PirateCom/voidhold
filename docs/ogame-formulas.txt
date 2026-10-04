@@ -226,8 +226,9 @@ FLEET MOVEMENT
 Distance
   Same planet, moon, or debris field          5
   Same system      1000 + 5 * |planet difference|
-  Same galaxy      2700 + 95 * |system difference|
+  Same galaxy      2700 + 95 * shorter system gap
   Other galaxy     20000 * |galaxy difference|
+  Systems 1–499 wrap: gap is min(|S1-S2|, 499-|S1-S2|). Galaxies do not wrap.
 
 Ship speed
   actual_speed = base_speed * (1 + drive_level * drive_bonus)

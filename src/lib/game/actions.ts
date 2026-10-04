@@ -167,6 +167,26 @@ export async function launchTransport(
   });
 }
 
+export async function launchDeploy(
+  galaxy: number,
+  system: number,
+  slot: number,
+  ships: Record<string, number>,
+  cargo: TransportCargo,
+  speed: number,
+): Promise<EmpireState> {
+  return rpc("send_deploy", {
+    p_galaxy: galaxy,
+    p_system: system,
+    p_slot: slot,
+    p_ships: ships,
+    p_ore: cargo.ore,
+    p_crystal: cargo.crystal,
+    p_deuterium: cargo.deuterium,
+    p_speed: speed,
+  });
+}
+
 export async function loadSolarSystem(galaxy: number, system: number): Promise<SolarSystemView> {
   const supabase = await createClient();
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -200,6 +220,10 @@ export async function grantDebugFleet(): Promise<EmpireState> {
 
 export async function grantDebugColony(): Promise<EmpireState> {
   return rpc("debug_grant_colony");
+}
+
+export async function boostDebugHold(): Promise<EmpireState> {
+  return rpc("debug_boost_hold");
 }
 
 export async function setEconomySpeed(speed: 1 | 3 | 5): Promise<EmpireState> {

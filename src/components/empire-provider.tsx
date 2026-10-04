@@ -30,10 +30,12 @@ import {
   fillResources as fillResourcesAction,
   grantDebugFleet as grantDebugFleetAction,
   grantDebugColony as grantDebugColonyAction,
+  boostDebugHold as boostDebugHoldAction,
   setEconomySpeed as setEconomySpeedAction,
   queueShip as queueShipAction,
   launchExpeditionTo,
   launchTransport,
+  launchDeploy,
   type TransportCargo,
   recallFleet as recallFleetAction,
   claimDirective as claimDirectiveAction,
@@ -67,6 +69,7 @@ type EmpireContextValue = {
   fillResources: () => Promise<void>;
   grantDebugFleet: () => Promise<void>;
   grantDebugColony: () => Promise<void>;
+  boostDebugHold: () => Promise<void>;
   setEconomySpeed: (speed: 1 | 3 | 5) => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
   attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
@@ -78,6 +81,14 @@ type EmpireContextValue = {
   renamePlanet: (planetId: number, name: string) => Promise<boolean>;
   sendExpedition: (galaxy: number, system: number, slot: number, ships: Record<string, number>) => Promise<boolean>;
   transport: (
+    galaxy: number,
+    system: number,
+    slot: number,
+    ships: Record<string, number>,
+    cargo: TransportCargo,
+    speed: number,
+  ) => Promise<boolean>;
+  deploy: (
     galaxy: number,
     system: number,
     slot: number,
@@ -303,6 +314,7 @@ export function EmpireProvider({
     fillResources: () => runAction(() => fillResourcesAction()),
     grantDebugFleet: () => runAction(() => grantDebugFleetAction()),
     grantDebugColony: () => runAction(() => grantDebugColonyAction()),
+    boostDebugHold: () => runAction(() => boostDebugHoldAction()),
     setEconomySpeed: (speed) => runAction(() => setEconomySpeedAction(speed)),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
     attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
@@ -315,6 +327,8 @@ export function EmpireProvider({
     sendExpedition: (galaxy, system, slot, ships) => run(() => launchExpeditionTo(galaxy, system, slot, ships)),
     transport: (galaxy, system, slot, ships, cargo, speed) =>
       run(() => launchTransport(galaxy, system, slot, ships, cargo, speed)),
+    deploy: (galaxy, system, slot, ships, cargo, speed) =>
+      run(() => launchDeploy(galaxy, system, slot, ships, cargo, speed)),
     recallFleet: (id) => runAction(() => recallFleetAction(id)),
     claimDirective: (id) => runAction(() => claimDirectiveAction(id)),
     setDirectiveTracked: (id, tracked) => runAction(() => setDirectiveTrackedAction(id, tracked)),

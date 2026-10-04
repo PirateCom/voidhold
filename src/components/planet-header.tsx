@@ -71,6 +71,11 @@ export function PlanetHeader({ title }: { title: string }) {
               ))}
             </select>
           ) : null}
+          {colonies.length > 1 ? (
+            <Link href="/colony" className="mt-0.5 block font-mono text-[10px] text-cyan-300 underline-offset-2 hover:underline">
+              Deploy ships
+            </Link>
+          ) : null}
           <div className="flex items-center gap-1 font-mono text-xs text-slate-300">
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${strained ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
             <span>{strained ? "POWER: STRAINED" : "HOLD: NOMINAL"}</span>

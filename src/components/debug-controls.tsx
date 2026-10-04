@@ -24,6 +24,7 @@ export function DebugControls() {
     fillResources,
     grantDebugFleet,
     grantDebugColony,
+    boostDebugHold,
     setEconomySpeed,
   } = useEmpire();
   const pirateRaidsOn = state?.empire.pirate_raids_enabled !== false;
@@ -113,6 +114,22 @@ export function DebugControls() {
         className="sci-btn sci-btn-warn mt-2 h-11 w-full"
       >
         Debug: fill resources
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => void boostDebugHold()}
+        className="sci-btn sci-btn-warn mt-2 h-11 w-full"
+      >
+        Debug: buildings and research 10
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => void grantDebugFleet()}
+        className="sci-btn sci-btn-warn mt-2 h-11 w-full"
+      >
+        Debug: grant fleet
       </button>
       <button
         type="button"

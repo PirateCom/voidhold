@@ -191,6 +191,11 @@ export default function ProfilePage() {
             </dl>
             <PlanetEconomy />
             <RenamePlanets />
+            {(state.colonies?.length ?? 0) > 1 ? (
+              <Link href="/colony" className="sci-btn sci-btn-muted mb-4 flex h-11 w-full items-center justify-center">
+                Deploy ships between planets
+              </Link>
+            ) : null}
             <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Universe</p>
             <UniverseRules />
             <AbandonPlanet />

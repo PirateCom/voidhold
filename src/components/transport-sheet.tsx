@@ -35,7 +35,12 @@ export function TransportSheet({
     small_cargo: state.empire.raiders,
   };
   const selected = Object.values(counts).reduce((sum, n) => sum + (n > 0 ? n : 0), 0);
-  const slowest = slowestHullSpeed(counts, state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0);
+  const slowest = slowestHullSpeed(
+    counts,
+    state.empire.impulse_drive ?? 0,
+    state.empire.hyperspace_drive ?? 0,
+    state.empire.propulsion_level,
+  );
   const flight =
     slowest > 0
       ? attackFlightSeconds(

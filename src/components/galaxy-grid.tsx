@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AttackSheet } from "@/components/attack-sheet";
 import { Countdown } from "@/components/countdown";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
+import { DeploySheet } from "@/components/deploy-sheet";
 import { TransportSheet } from "@/components/transport-sheet";
 import { SheetDock, SheetPortal } from "@/components/sheet-portal";
 import { useEmpire } from "@/components/empire-provider";
@@ -28,7 +29,7 @@ function DebrisMark() {
   );
 }
 
-type GalaxyAction = "attack" | "spy" | "transport" | "expedition" | "colonize" | "recycle";
+type GalaxyAction = "attack" | "spy" | "transport" | "deploy" | "expedition" | "colonize" | "recycle";
 
 function wrap(value: number, max: number) {
   return ((value - 1 + max) % max) + 1;
@@ -103,6 +104,7 @@ export function GalaxyGrid() {
       state.empire.propulsion_level,
       home.galaxy,
       galaxy,
+      hullSpeed("espionage_probe", 0, 0, state.empire.propulsion_level),
     );
   }, [state, selected, home, system, galaxy]);
 
@@ -117,7 +119,7 @@ export function GalaxyGrid() {
       state.empire.propulsion_level,
       home.galaxy,
       galaxy,
-      hullSpeed("recycler", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0),
+      hullSpeed("recycler", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0, state.empire.propulsion_level),
       100,
     );
   }, [state, selected, home, system, galaxy]);
@@ -160,7 +162,7 @@ export function GalaxyGrid() {
       state.empire.propulsion_level,
       home.galaxy,
       galaxy,
-      hullSpeed("colony_ship", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0),
+      hullSpeed("colony_ship", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0, state.empire.propulsion_level),
       100,
     );
   }, [state, selected, home, system, galaxy]);
@@ -210,6 +212,9 @@ export function GalaxyGrid() {
     }
     if (selected.kind === "player" || (selected.kind === "home" && !isCurrent)) {
       actions.push({ id: "transport", label: "Haul", muted: true });
+    }
+    if (selected.kind === "home" && !isCurrent) {
+      actions.push({ id: "deploy", label: "Deploy", muted: true });
     }
     if (selected.kind === "empty" || selected.kind === "outer") {
       actions.push({ id: "expedition", label: "Expedition" });
@@ -557,6 +562,14 @@ export function GalaxyGrid() {
       />
       <TransportSheet
         open={action === "transport"}
+        galaxy={galaxy}
+        system={system}
+        slot={selected?.slot ?? 1}
+        targetName={selected?.name ?? "Unknown"}
+        onClose={() => setAction(null)}
+      />
+      <DeploySheet
+        open={action === "deploy"}
         galaxy={galaxy}
         system={system}
         slot={selected?.slot ?? 1}

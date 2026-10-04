@@ -63,7 +63,7 @@ function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbo
     return oneWay;
   }
 
-  if (fromCreated > 0 && (!inbound || fleet.mission === "transport")) return fromCreated;
+  if (fromCreated > 0 && (!inbound || fleet.mission === "transport" || fleet.mission === "deploy")) return fromCreated;
   if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
   if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
   return oneWayMs(fleet, planet, propulsion);
@@ -176,7 +176,8 @@ export default function FleetsPage() {
                   fleet.mission === "expedition" ||
                   fleet.mission === "espionage" ||
                   fleet.mission === "harvest" ||
-                  fleet.mission === "colonize";
+                  fleet.mission === "colonize" ||
+                  fleet.mission === "deploy";
                 return (
                   <FleetEventStrip
                     key={fleet.id}

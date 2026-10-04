@@ -52,6 +52,8 @@ export function ExpeditionSheet({
     state.empire.propulsion_level,
     state.planet.galaxy,
     galaxy,
+    state.empire.impulse_drive ?? 0,
+    state.empire.hyperspace_drive ?? 0,
   );
   const fuel = fleetFuelRoundTrip(
     cargo,

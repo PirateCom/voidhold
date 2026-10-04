@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useEmpire } from "@/components/empire-provider";
 
+const PLANET_NAME_CHARS = /[^A-Za-z0-9_]/g;
+
 export function RenamePlanets() {
   const { state, pending, error, renamePlanet } = useEmpire();
   const colonies = state?.colonies ?? [];
@@ -23,13 +25,15 @@ export function RenamePlanets() {
       <div className="sci-card mb-4 flex flex-col gap-3 p-4">
         {colonies.map((row) => {
           const draft = drafts[row.id] ?? row.name;
-          const dirty = draft.trim() !== row.name;
+          const dirty = draft !== row.name;
+          const valid = /^[A-Za-z0-9_]+$/.test(draft);
           return (
             <form
               key={row.id}
               className="flex flex-col gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
+                if (!valid) return;
                 void renamePlanet(row.id, draft);
               }}
             >
@@ -40,22 +44,26 @@ export function RenamePlanets() {
                 <input
                   value={draft}
                   maxLength={20}
+                  pattern="[A-Za-z0-9_]+"
+                  title="Letters, numbers, and underscores only"
                   disabled={pending}
-                  onChange={(e) => setDrafts((cur) => ({ ...cur, [row.id]: e.target.value }))}
+                  onChange={(e) =>
+                    setDrafts((cur) => ({
+                      ...cur,
+                      [row.id]: e.target.value.replace(PLANET_NAME_CHARS, "").slice(0, 20),
+                    }))
+                  }
                   className="sci-input h-11 min-w-0 flex-1 px-3 text-sm"
                   aria-label={`Name for [${row.galaxy}:${row.system}:${row.slot}]`}
                 />
-                <button
-                  type="submit"
-                  disabled={pending || !dirty || draft.trim() === ""}
-                  className="sci-btn h-11 shrink-0 px-3"
-                >
+                <button type="submit" disabled={pending || !dirty || !valid} className="sci-btn h-11 shrink-0 px-3">
                   Save
                 </button>
               </div>
             </form>
           );
         })}
+        <p className="text-[11px] text-[var(--muted-fg)]">Letters, numbers, and _ only. No spaces.</p>
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
       </div>
     </>

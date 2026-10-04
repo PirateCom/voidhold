@@ -145,7 +145,7 @@ export type FleetRow = {
   origin_slot?: number;
   created_at?: string;
   raiders: number;
-  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return";
+  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return" | "deploy";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;

@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
+import { QueueCountField } from "@/components/queue-count-field";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
@@ -15,6 +16,7 @@ import {
   canPayResources,
   defenceUnitCount,
   formatDuration,
+  maxAffordableCount,
   planetAttack,
   planetDefence,
   planetHull,
@@ -62,24 +64,21 @@ export default function DefencesPage() {
       <CurrentDirective />
       <article className="sci-card mb-3 p-4">
         <h2 className="font-semibold">Hold strength</h2>
-        <p className="mt-2 font-mono text-sm">
-          Planet hull {hull.toLocaleString()} · shield {def.toLocaleString()} · attack {atk.toLocaleString()}
-          {" · "}
-          {units} gun{units === 1 ? "" : "s"}
-        </p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <span className="block w-full border border-slate-700/60 bg-zinc-800/80 px-2 py-1 text-left font-mono text-xs text-slate-100">
+            Hull {hull.toLocaleString()}
+          </span>
+          <span className="block w-full border border-cyan-900/60 bg-cyan-950/80 px-2 py-1 text-left font-mono text-xs text-cyan-100">
+            Shield {def.toLocaleString()}
+          </span>
+          <span className="block w-full border border-blue-900/60 bg-blue-950/80 px-2 py-1 text-left font-mono text-xs text-blue-100">
+            Attack {atk.toLocaleString()}
+          </span>
+        </div>
         <p className="mt-1 text-xs text-[var(--muted-fg)]">
-          NPC pirates ATK {PIRATE_ATTACK} · DEF {PIRATE_DEFENCE} each. More guns draw more hulls, 1–2 waves
-          per hour.
+          {units} gun{units === 1 ? "" : "s"} · NPC pirates ATK {PIRATE_ATTACK} · DEF {PIRATE_DEFENCE} each. More guns
+          draw more hulls, 1–2 waves per hour.
         </p>
-        {state.empire.pirate_raids_enabled === false ? (
-          <p className="mt-2 text-sm text-[var(--muted-fg)]">Pirate raids off.</p>
-        ) : state.empire.next_pirate_at ? (
-          <p className="mt-2 text-sm">
-            Next pirate scan <Countdown until={state.empire.next_pirate_at} now={now} />
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-[var(--muted-fg)]">Pirate scan not scheduled yet.</p>
-        )}
       </article>
       <div className="flex flex-col gap-3">
         {DEFENCE_GROUPS.map((group) => (
@@ -94,8 +93,9 @@ export default function DefencesPage() {
           const yardBusy = queued > 0 && Boolean(busyId);
           const count = d.unique ? 1 : Math.max(1, queues[d.id] ?? 1);
           const online = d.unique && owned >= 1;
-          const badge = d.unique ? (online ? "Online" : "—") : `×${owned}`;
+          const badge = `×${owned.toLocaleString()}`;
           const poor = !canPayResources(live, d.cost, count);
+          const affordable = maxAffordableCount(live, d.cost);
           const missing = unmetDefenceBuild(
             d,
             state.planet.shipyard ?? 0,
@@ -176,19 +176,11 @@ export default function DefencesPage() {
                 </p>
               ) : null}
               {d.unique ? null : (
-                <label className="mt-3 block text-xs text-[var(--muted-fg)]">
-                  Queue
-                  <input
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={count}
-                    onChange={(e) =>
-                      setQueues((prev) => ({ ...prev, [d.id]: Math.max(1, Number(e.target.value) || 1) }))
-                    }
-                    className="sci-input mt-1 h-11 w-full px-3"
-                  />
-                </label>
+                <QueueCountField
+                  value={count}
+                  maxAffordable={affordable}
+                  onChange={(n) => setQueues((prev) => ({ ...prev, [d.id]: n }))}
+                />
               )}
               <button
                 type="button"

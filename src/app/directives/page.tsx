@@ -4,19 +4,50 @@ import { AppShell } from "@/components/app-shell";
 import { DirectiveCard } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { useEffect, useRef } from "react";
-import { DIRECTIVES, trackedDirectiveSpecs } from "@/lib/game/directives";
+import {
+  DIRECTIVES,
+  activeDirective,
+  directiveComplete,
+  directiveUnlocked,
+  isDirectiveClaimed,
+  levelsFromHold,
+  trackedDirectiveSpecs,
+} from "@/lib/game/directives";
 
 export default function DirectivesPage() {
-  const { error, configured, state } = useEmpire();
+  const { error, configured, state, live } = useEmpire();
   const scrolled = useRef(false);
 
   useEffect(() => {
     if (!state || scrolled.current) return;
+    const claimed = state.empire.claimed_directives;
+    const tracked = trackedDirectiveSpecs(state.empire.tracked_directives, claimed)[0] ?? null;
+    const levels =
+      live && state.planet
+        ? levelsFromHold({
+            planet: state.planet,
+            empire: state.empire,
+            energyOutput: live.energy.output,
+            energyDrain: live.energy.drain,
+            starType: state.star?.type,
+          })
+        : null;
+    const collectable =
+      levels == null
+        ? null
+        : (DIRECTIVES.find(
+            (spec) =>
+              !isDirectiveClaimed(claimed, spec.id) &&
+              directiveUnlocked(claimed, spec.id) &&
+              directiveComplete(spec, levels),
+          ) ?? null);
+    const next = activeDirective(claimed);
+    const target = collectable ?? tracked ?? next;
+    if (!target) return;
     scrolled.current = true;
-    const [first] = trackedDirectiveSpecs(state.empire.tracked_directives, state.empire.claimed_directives);
-    if (!first) return;
-    document.getElementById(`directive-${first.id}`)?.scrollIntoView({ block: "start" });
-  }, [state]);
+    const node = document.getElementById(`directive-${target.id}`);
+    requestAnimationFrame(() => node?.scrollIntoView({ block: "start" }));
+  }, [state, live]);
 
   if (!configured) {
     return (

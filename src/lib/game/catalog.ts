@@ -1,8 +1,10 @@
 import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat, type TechRequirement } from "./ogame-data";
 
 export const GALAXY = 1;
-export const SYSTEM_MAX = 10;
-export const SLOT_MAX = 10;
+export const SYSTEM_MAX = 499;
+export const SLOT_MAX = 15;
+/** Wiki circular systems: 1 sits next to 499. */
+export const SYSTEM_COUNT = 499;
 
 /** Default wiki economy speed ×1. Live empires store 1, 3, or 5. */
 export const ECONOMY_SPEED = 1;
@@ -292,12 +294,19 @@ export const EMPTY_BATTLE_DEBRIS_CRYSTAL = 300;
 export const PIRATE_WAVE_CAP = 8;
 
 export function isInboundFleet(
-  fleet: { owner_id?: string | null; dest_planet_id?: number | null; inbound?: boolean },
+  fleet: {
+    owner_id?: string | null;
+    dest_planet_id?: number | null;
+    inbound?: boolean;
+    mission?: string;
+  },
   userId: string,
   homeId: number,
 ): boolean {
   if (fleet.inbound != null) return fleet.inbound;
-  return fleet.dest_planet_id === homeId && fleet.owner_id !== userId;
+  if (fleet.dest_planet_id !== homeId) return false;
+  if (fleet.mission === "deploy" || fleet.mission === "transport") return true;
+  return fleet.owner_id !== userId;
 }
 
 export type EspionageSection = "resources" | "fleet" | "defense" | "buildings" | "research";
@@ -655,7 +664,8 @@ export function wikiFlightDistance(
 ): number {
   const gal = Math.abs(fromGalaxy - toGalaxy);
   if (gal > 0) return 20000 * gal;
-  const sys = Math.abs(fromSystem - toSystem);
+  const rawSys = Math.abs(fromSystem - toSystem);
+  const sys = Math.min(rawSys, SYSTEM_COUNT - rawSys);
   if (sys > 0) return 2700 + 95 * sys;
   const slot = Math.abs(fromSlot - toSlot);
   if (slot > 0) return 1000 + 5 * slot;
@@ -692,30 +702,75 @@ export function fleetFuelRoundTrip(
   return 2 * fleetFuelOneWay(ships, hullFuelUse(shipId, impulseLevel), distance);
 }
 
-/** Small-cargo combustion speed. Other hulls scale the short flight clock against this. */
+/** Wiki duration is calibrated at this hull speed before drive bonuses. */
 export const REFERENCE_HULL_SPEED = 5000;
+export const FLEET_UNIVERSE_SPEED = 1;
 
-export function hullSpeed(shipId: string, impulseLevel = 0, hyperspaceLevel = 0): number {
+const DRIVE_BONUS = { combustion: 0.1, impulse: 0.2, hyperspace: 0.3 } as const;
+type DriveKind = keyof typeof DRIVE_BONUS;
+
+export function hullDrive(shipId: string, impulseLevel = 0, hyperspaceLevel = 0): DriveKind | null {
+  if (shipId === "small_cargo" && impulseLevel >= 5) return "impulse";
+  if (shipId === "bomber" && hyperspaceLevel >= 8) return "hyperspace";
+  switch (shipId) {
+    case "light_fighter":
+    case "large_cargo":
+    case "recycler":
+    case "espionage_probe":
+    case "small_cargo":
+      return "combustion";
+    case "heavy_fighter":
+    case "cruiser":
+    case "colony_ship":
+    case "bomber":
+      return "impulse";
+    case "battleship":
+    case "battlecruiser":
+    case "destroyer":
+    case "deathstar":
+    case "reaper":
+    case "pathfinder":
+      return "hyperspace";
+    default:
+      return null;
+  }
+}
+
+export function hullSpeed(shipId: string, impulseLevel = 0, hyperspaceLevel = 0, combustionLevel = 0): number {
   const hull = shipSpec(shipId);
   if (!hull || hull.speed <= 0) return 0;
-  if (shipId === "small_cargo" && impulseLevel >= 5 && hull.speedUpgraded) return hull.speedUpgraded;
-  if (shipId === "bomber" && hyperspaceLevel >= 8 && hull.speedUpgraded) return hull.speedUpgraded;
-  return hull.speed;
+  const drive = hullDrive(shipId, impulseLevel, hyperspaceLevel);
+  if (!drive) return 0;
+  let base = hull.speed;
+  if (shipId === "small_cargo" && impulseLevel >= 5 && hull.speedUpgraded) base = hull.speedUpgraded;
+  if (shipId === "bomber" && hyperspaceLevel >= 8 && hull.speedUpgraded) base = hull.speedUpgraded;
+  const level = drive === "combustion" ? combustionLevel : drive === "impulse" ? impulseLevel : hyperspaceLevel;
+  return Math.floor(base * (1 + level * DRIVE_BONUS[drive]));
 }
 
 export function slowestHullSpeed(
   ships: Record<string, number>,
   impulseLevel = 0,
   hyperspaceLevel = 0,
+  combustionLevel = 0,
 ): number {
   let slowest = 0;
   for (const [id, count] of Object.entries(ships)) {
     if (count <= 0) continue;
-    const speed = hullSpeed(id, impulseLevel, hyperspaceLevel);
+    const speed = hullSpeed(id, impulseLevel, hyperspaceLevel, combustionLevel);
     if (speed <= 0) continue;
     if (slowest === 0 || speed < slowest) slowest = speed;
   }
   return slowest;
+}
+
+/** Wiki: round((35000 / % * sqrt(distance * 1000 / speed) + 10) / universe fleet speed). */
+export function wikiTravelSeconds(distance: number, actualSpeed: number, speedPercent = 100): number {
+  const pct = Math.min(100, Math.max(10, Math.round(speedPercent / 10) * 10));
+  const speed = Math.max(1, actualSpeed);
+  const dist = Math.max(1, distance);
+  const seconds = Math.round((35000 / pct) * Math.sqrt((dist * 1000) / speed) + 10);
+  return Math.max(1, Math.round(seconds / FLEET_UNIVERSE_SPEED));
 }
 
 /** Wiki fuel grows with the speed setting: ((percent/10)+1)^2, normalized so 100% matches today's cost. */
@@ -729,16 +784,15 @@ export function attackFlightSeconds(
   fromSlot: number,
   toSystem: number,
   toSlot: number,
-  propulsionLevel: number,
+  _propulsionLevel: number,
   fromGalaxy: number,
   toGalaxy: number,
   slowestSpeed: number,
   speedPercent: number,
 ): number {
-  const base = flightSeconds(fromSystem, fromSlot, toSystem, toSlot, propulsionLevel, fromGalaxy, toGalaxy);
-  const ratio = REFERENCE_HULL_SPEED / Math.max(1, slowestSpeed);
-  const pct = Math.min(100, Math.max(10, speedPercent));
-  return Math.max(15, Math.floor(base * ratio * (100 / pct)));
+  void _propulsionLevel;
+  const distance = wikiFlightDistance(fromGalaxy, fromSystem, fromSlot, toGalaxy, toSystem, toSlot);
+  return wikiTravelSeconds(distance, slowestSpeed, speedPercent);
 }
 
 export function attackFuel(
@@ -760,6 +814,33 @@ export function attackFuel(
   }
   if (total <= 0) return 0;
   return Math.max(1, Math.round(total * speedFuelFactor(speedPercent)));
+}
+
+/** Deployment is one-way, so fuel is half of an attack's round trip. */
+export function deployFuel(
+  ships: Record<string, number>,
+  fromGalaxy: number,
+  fromSystem: number,
+  fromSlot: number,
+  toGalaxy: number,
+  toSystem: number,
+  toSlot: number,
+  impulseLevel: number,
+  speedPercent: number,
+): number {
+  const roundTrip = attackFuel(
+    ships,
+    fromGalaxy,
+    fromSystem,
+    fromSlot,
+    toGalaxy,
+    toSystem,
+    toSlot,
+    impulseLevel,
+    speedPercent,
+  );
+  if (roundTrip <= 0) return 0;
+  return Math.max(1, Math.round(roundTrip / 2));
 }
 
 export type StarType = "young_hot" | "medium" | "old_cold" | "pulsar";
@@ -1007,6 +1088,16 @@ export function canPayResources(have: ResourceStock, cost: ResourceStock, count 
     have.crystal >= (cost.crystal ?? 0) * n &&
     (have.deuterium ?? 0) >= (cost.deuterium ?? 0) * n
   );
+}
+
+export function maxAffordableCount(have: ResourceStock, cost: ResourceStock): number {
+  const limits = [
+    cost.ore > 0 ? Math.floor(have.ore / cost.ore) : Infinity,
+    cost.crystal > 0 ? Math.floor(have.crystal / cost.crystal) : Infinity,
+    (cost.deuterium ?? 0) > 0 ? Math.floor((have.deuterium ?? 0) / (cost.deuterium ?? 1)) : Infinity,
+  ];
+  const n = Math.min(...limits);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
 
 export function buildingCost(id: BuildingId, currentLevel: number): { ore: number; crystal: number; deuterium: number } {
@@ -1257,11 +1348,11 @@ export function flightSeconds(
   propulsionLevel: number,
   fromGalaxy = 0,
   toGalaxy = 0,
+  actualSpeed?: number,
 ): number {
-  const distance =
-    Math.abs(fromGalaxy - toGalaxy) * 40 + Math.abs(fromSystem - toSystem) + Math.abs(fromSlot - toSlot);
-  const raw = 20 + 12 * Math.max(distance, 1);
-  return Math.max(15, Math.floor(raw / fleetSpeedMultiplier(propulsionLevel)));
+  const distance = wikiFlightDistance(fromGalaxy, fromSystem, fromSlot, toGalaxy, toSystem, toSlot);
+  const speed = actualSpeed ?? hullSpeed("small_cargo", 0, 0, propulsionLevel);
+  return wikiTravelSeconds(distance, speed, 100);
 }
 
 export const EXPEDITION_SLOT = 16;
@@ -1276,8 +1367,19 @@ export function expeditionFlightSeconds(
   propulsionLevel: number,
   fromGalaxy = 0,
   toGalaxy = 0,
+  impulseLevel = 0,
+  hyperspaceLevel = 0,
 ): number {
-  return Math.min(30, flightSeconds(fromSystem, fromSlot, toSystem, toSlot, propulsionLevel, fromGalaxy, toGalaxy));
+  return flightSeconds(
+    fromSystem,
+    fromSlot,
+    toSystem,
+    toSlot,
+    propulsionLevel,
+    fromGalaxy,
+    toGalaxy,
+    hullSpeed("small_cargo", impulseLevel, hyperspaceLevel, propulsionLevel),
+  );
 }
 
 export function expeditionFleetCap(astrophysics: number): number {

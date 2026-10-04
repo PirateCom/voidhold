@@ -38,6 +38,39 @@ function clock(value: number | string | null | undefined) {
   return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+const FLEET_TONES = {
+  amber: {
+    card: "sci-card-fleet-amber",
+    badge: "border-amber-500/40 bg-amber-950 text-amber-300",
+    heading: "text-amber-400",
+    bar: "bg-gradient-to-r from-cyan-500 via-amber-400 to-amber-300",
+    barReturn: "bg-gradient-to-l from-cyan-500 via-amber-400 to-amber-300",
+    arrow: "border-amber-400 text-amber-300",
+  },
+  red: {
+    card: "sci-card-fleet-red",
+    badge: "border-red-500/40 bg-red-950 text-red-300",
+    heading: "text-red-400",
+    bar: "bg-gradient-to-r from-cyan-500 via-red-400 to-red-300",
+    barReturn: "bg-gradient-to-l from-cyan-500 via-red-400 to-red-300",
+    arrow: "border-red-400 text-red-300",
+  },
+  green: {
+    card: "sci-card-fleet-green",
+    badge: "border-emerald-500/40 bg-emerald-950 text-emerald-300",
+    heading: "text-emerald-400",
+    bar: "bg-gradient-to-r from-cyan-500 via-emerald-400 to-emerald-300",
+    barReturn: "bg-gradient-to-l from-cyan-500 via-emerald-400 to-emerald-300",
+    arrow: "border-emerald-400 text-emerald-300",
+  },
+} as const;
+
+function fleetTone(fleet: FleetRow, inbound?: boolean): keyof typeof FLEET_TONES {
+  if (inbound && fleet.mission !== "transport" && fleet.mission !== "deploy") return "red";
+  if (fleet.mission === "colonize" || fleet.mission === "colonize_return" || fleet.mission === "deploy") return "green";
+  return "amber";
+}
+
 function isReturnMission(mission: FleetRow["mission"]) {
   return (
     mission === "return" ||
@@ -50,12 +83,18 @@ function isReturnMission(mission: FleetRow["mission"]) {
 }
 
 function missionLabel(fleet: FleetRow, inbound?: boolean) {
-  if (inbound) return fleet.mission === "transport" ? "Transport" : "Attack";
+  if (inbound) {
+    if (fleet.mission === "transport") return "Transport";
+    if (fleet.mission === "deploy") return "Deploy";
+    return "Attack";
+  }
   switch (fleet.mission) {
     case "attack":
       return "Attack";
     case "transport":
       return "Transport";
+    case "deploy":
+      return "Deploy";
     case "espionage":
       return "Espionage";
     case "harvest":
@@ -214,9 +253,11 @@ export function FleetEventStrip({
   const rightName = destName;
   const leftCoords = coords(fleet.origin_galaxy, fleet.origin_system, fleet.origin_slot);
   const rightCoords = coords(fleet.dest_galaxy, fleet.dest_system, fleet.dest_slot);
-  const delivery = inbound && fleet.mission === "transport";
+  const delivery = inbound && (fleet.mission === "transport" || fleet.mission === "deploy");
   const status = delivery
-    ? "STATUS: INCOMING DELIVERY"
+    ? fleet.mission === "deploy"
+      ? "STATUS: INCOMING DEPLOY"
+      : "STATUS: INCOMING DELIVERY"
     : inbound
     ? "STATUS: INCOMING STRIKE"
     : returning
@@ -224,45 +265,17 @@ export function FleetEventStrip({
       : fleet.mission === "expedition_hold"
         ? "STATUS: HOLDING IN THE VOID"
         : `STATUS: TRANSIT TO ${destName.toUpperCase()}`;
-  const tone = delivery ? "emerald" : inbound ? "red" : returning ? "emerald" : "amber";
-  const cardTone =
-    tone === "red"
-      ? "sci-card-danger border-red-500/80"
-      : tone === "emerald"
-        ? "border-emerald-500/40"
-        : "border-amber-500/40";
-  const badge =
-    tone === "red"
-      ? "border-red-500/40 bg-red-950 text-red-300"
-      : tone === "emerald"
-        ? "border-emerald-500/40 bg-emerald-950 text-emerald-300"
-        : "border-amber-500/40 bg-amber-950 text-amber-300";
-  const heading =
-    tone === "red" ? "text-red-400" : tone === "emerald" ? "text-emerald-400" : "text-amber-400";
-  const barClass =
-    tone === "red"
-      ? "bg-gradient-to-r from-red-700 via-red-400 to-amber-300"
-      : tone === "emerald"
-        ? "bg-gradient-to-l from-emerald-500 via-cyan-400 to-cyan-300"
-        : "bg-gradient-to-r from-cyan-500 via-amber-400 to-amber-300";
-  const arrowRing =
-    tone === "red"
-      ? "border-red-400 text-red-300"
-      : tone === "emerald"
-        ? "border-emerald-400 text-emerald-300"
-        : "border-amber-400 text-amber-300";
-  const chevronColor =
-    tone === "red" ? "text-red-400" : tone === "emerald" ? "text-emerald-400" : "text-amber-400";
+  const look = FLEET_TONES[fleetTone(fleet, inbound)];
 
   return (
-    <li className={`sci-card overflow-hidden border p-3 ${cardTone}`}>
+    <li className={`sci-card overflow-hidden border p-3 ${look.card}`}>
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={`rounded border px-2 py-0.5 text-[11px] font-bold uppercase ${badge}`}>{mission}</span>
+          <span className={`rounded border px-2 py-0.5 text-[11px] font-bold uppercase ${look.badge}`}>{mission}</span>
           <span className="truncate text-xs font-semibold text-slate-300">{shipSummary(fleet, inbound)}</span>
         </div>
         <div className="shrink-0 text-right">
-          <span className={`block text-[11px] font-bold uppercase ${heading}`}>
+          <span className={`block text-[11px] font-bold uppercase ${look.heading}`}>
             {inbound ? "Incoming" : returning ? "Inbound" : "Outbound"}
           </span>
           <span className="text-[10px] text-slate-400">{clock(start)}</span>
@@ -274,13 +287,13 @@ export function FleetEventStrip({
           <div className="min-w-0 pr-2">
             <p className="truncate text-xs font-bold text-slate-100">{leftName}</p>
             <p className="font-mono font-bold text-cyan-400">{leftCoords}</p>
-            <p className={`mt-0.5 text-[10px] ${returning ? "text-emerald-400" : "text-slate-400"}`}>
+            <p className={`mt-0.5 text-[10px] ${returning ? look.heading : "text-slate-400"}`}>
               {clock(start)}
             </p>
           </div>
           <div className="min-w-0 pl-2 text-right">
             <p className="truncate text-xs font-bold text-slate-100">{rightName}</p>
-            <p className={`font-mono font-bold ${heading}`}>{rightCoords}</p>
+            <p className={`font-mono font-bold ${look.heading}`}>{rightCoords}</p>
             <p className="mt-0.5 text-[10px] text-slate-400">{clock(fleet.arrives_at)}</p>
           </div>
         </div>
@@ -288,18 +301,18 @@ export function FleetEventStrip({
         <div className="relative my-1.5 flex h-8 w-full items-center">
           <div className="relative h-1 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-900">
             <div
-              className={`absolute top-0 h-full ${returning ? "right-0" : "left-0"} ${barClass}`}
+              className={`absolute top-0 h-full ${returning ? "right-0" : "left-0"} ${returning ? look.barReturn : look.bar}`}
               style={{ width: `${pct * 100}%` }}
             />
           </div>
           <div
-            className={`absolute top-1/2 z-10 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-slate-950 ${arrowRing}`}
+            className={`absolute top-1/2 z-10 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-slate-950 ${look.arrow}`}
             style={{ left: arrowLeft }}
           >
             <FlightArrow returning={returning} ships={fleet.ship_count ?? fleet.raiders} />
           </div>
           <div
-            className={`fleet-trajectory pointer-events-none absolute inset-0 flex items-center justify-around text-[10px] ${chevronColor}`}
+            className={`fleet-trajectory pointer-events-none absolute inset-0 flex items-center justify-around text-[10px] ${look.heading}`}
             aria-hidden
           >
             {Array.from({ length: 5 }, (_, i) => (
@@ -310,7 +323,7 @@ export function FleetEventStrip({
 
         <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400">
           <span>{status}</span>
-          <span className={`font-bold ${heading}`}>
+          <span className={`font-bold ${look.heading}`}>
             ETA: <Countdown until={fleet.arrives_at} now={now} />
           </span>
         </div>

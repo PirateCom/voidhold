@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildingCost,
   canPayResources,
+  maxAffordableCount,
   formatDuration,
   unitBuildSeconds,
   buildingTimeSeconds,
@@ -14,6 +15,8 @@ import {
   fleetFuelRoundTrip,
   attackFlightSeconds,
   wikiFlightDistance,
+  wikiTravelSeconds,
+  hullSpeed,
   diameterKm,
   fieldsFromDiameter,
   HOMEWORLD_DIAMETER_KM,
@@ -90,6 +93,8 @@ describe("resource costs", () => {
     expect(cost.deuterium).toBe(400);
     expect(canPayResources({ ore: 10_000, crystal: 10_000, deuterium: 177 }, cost)).toBe(false);
     expect(canPayResources({ ore: 10_000, crystal: 10_000, deuterium: 400 }, cost)).toBe(true);
+    expect(maxAffordableCount({ ore: 10_000, crystal: 10_000, deuterium: 177 }, cost)).toBe(0);
+    expect(maxAffordableCount({ ore: 20_000, crystal: 4_000, deuterium: 1_200 }, { ore: 2000, crystal: 500, deuterium: 100 })).toBe(8);
   });
 });
 
@@ -177,6 +182,13 @@ describe("production formulas", () => {
     expect(deuteriumProductionPerHour(1, 30)).toBe(17);
     expect(fusionDeuteriumBurnPerHour(1)).toBe(11);
     expect(wikiFlightDistance(1, 1, 1, 1, 2, 1)).toBe(2795);
+    expect(wikiFlightDistance(1, 1, 1, 1, 499, 1)).toBe(2795);
+    expect(wikiFlightDistance(1, 1, 1, 1, 1, 2)).toBe(1005);
+    expect(wikiFlightDistance(1, 1, 1, 3, 1, 1)).toBe(40000);
+    expect(wikiTravelSeconds(1005, 5000, 100)).toBe(4972);
+    expect(hullSpeed("light_fighter", 0, 0, 0)).toBe(12500);
+    expect(hullSpeed("light_fighter", 0, 0, 10)).toBe(25000);
+    expect(hullSpeed("small_cargo", 5, 0, 0)).toBe(20000);
     expect(fleetFuelOneWay(1, 10, 2795)).toBe(3);
     expect(fleetFuelRoundTrip(1, 1, 1, 1, 1, 2, 1)).toBe(6);
   });
