@@ -22,7 +22,14 @@ export function SpriteThumb({ id }: { id: string }) {
     sprite.w <= 0 ||
     sprite.h <= 0
   ) {
-    return null;
+    return (
+      <div
+        className="flex shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-black/40 px-2 text-center text-[10px] uppercase tracking-wide text-[var(--muted-fg)]"
+        style={{ width: SPRITE_SIZE, height: SPRITE_SIZE }}
+      >
+        {id.replace(/_/g, " ")}
+      </div>
+    );
   }
   const scale = SPRITE_SIZE / sprite.w;
   return (

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { latestReportAt, useCommsSeenAt } from "@/components/comms-seen";
+import { commsHasUnread, useCommsSeen } from "@/components/comms-seen";
 import { useEmpire } from "@/components/empire-provider";
 import { isInboundFleet } from "@/lib/game/catalog";
 import {
@@ -47,8 +47,8 @@ const ACCENTS: Record<string, { idle: string; active: string }> = {
 export function BottomNav() {
   const pathname = usePathname();
   const { state, live } = useEmpire();
-  const seenAt = useCommsSeenAt();
-  const unread = latestReportAt(state?.reports) > seenAt;
+  const seen = useCommsSeen();
+  const unread = commsHasUnread(state?.reports, state?.notices, seen);
   const collectable = (() => {
     if (!state?.planet || !state.empire) return false;
     const levels = levelsFromHold({
@@ -69,6 +69,15 @@ export function BottomNav() {
   const underAttack = Boolean(
     state?.fleets.some(
       (fleet) => isInboundFleet(fleet, state.empire.user_id, state.planet.id) && fleet.mission === "attack",
+    ),
+  );
+  const fleetsFlying = Boolean(
+    state?.fleets.some(
+      (fleet) =>
+        fleet.status === "en_route" &&
+        fleet.mission !== "expedition_hold" &&
+        fleet.mission !== "mine_hold" &&
+        fleet.owner_id === state.empire.user_id,
     ),
   );
   const dotFor: Record<string, boolean> = {
@@ -92,6 +101,7 @@ export function BottomNav() {
                 <li key={href}>
                   <Link
                     href={href}
+                    aria-label={href === "/fleets" && fleetsFlying ? "Fleet, ships in transit" : undefined}
                     className={`relative flex flex-col items-center justify-center rounded px-0.5 py-1.5 font-[family-name:var(--font-display)] text-[9px] leading-tight tracking-tight uppercase ${
                       ACCENTS[href]
                         ? `${active ? ACCENTS[href].active : ACCENTS[href].idle} ${active ? "font-bold" : "font-medium"}`
@@ -103,7 +113,11 @@ export function BottomNav() {
                     {dotFor[href] && !active ? (
                       <span
                         aria-label={
-                          href === "/directives" ? "Reward ready" : href === "/fleets" ? "Incoming attack" : "New reports"
+                          href === "/directives"
+                            ? "Reward ready"
+                            : href === "/fleets"
+                              ? "Incoming attack"
+                              : "New comms"
                         }
                         className={`absolute top-1 right-2 h-2 w-2 animate-pulse rounded-full ${
                           href === "/fleets"
@@ -112,7 +126,7 @@ export function BottomNav() {
                         }`}
                       />
                     ) : null}
-                    <Icon />
+                    {href === "/fleets" ? <FleetIcon flying={fleetsFlying} /> : <Icon />}
                     <span className="mt-1 text-center">{label}</span>
                   </Link>
                 </li>
@@ -145,8 +159,12 @@ function DirectivesIcon() {
 function ResourcesIcon() {
   return (
     <IconWrap>
-      <path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4 14h7v6H4z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M7.5 14v6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M13 14h7v6h-7z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M16.5 14v6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8.5 8h7v6h-7z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M12 8v6" stroke="currentColor" strokeWidth="1.6" />
     </IconWrap>
   );
 }
@@ -170,8 +188,8 @@ function ResearchIcon() {
 function ShipyardIcon() {
   return (
     <IconWrap>
-      <path d="M12 3 5 19h14L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M12 10v6" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.8" />
     </IconWrap>
   );
 }
@@ -184,10 +202,34 @@ function DefenceIcon() {
   );
 }
 
-function FleetIcon() {
+function FleetIcon({ flying = false }: { flying?: boolean }) {
+  if (!flying) {
+    return (
+      <IconWrap>
+        <path
+          d="M22 2 15 22 11 13 2 9 22 2Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M11 13 22 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </IconWrap>
+    );
+  }
   return (
     <IconWrap>
-      <path d="M3 12h13l4-4M16 12l4 4M5 8l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <g className="fleet-paper-fly">
+        <path d="M2.5 11h3.2M3.2 14.4h2.6M3.6 7.8h2.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.55" />
+        <g transform="rotate(-28 13 12)">
+          <path
+            d="M22 2 15 22 11 13 2 9 22 2Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
+          />
+          <path d="M11 13 22 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </g>
+      </g>
     </IconWrap>
   );
 }
@@ -206,8 +248,14 @@ function MissionsIcon() {
 function GalaxyIcon() {
   return (
     <IconWrap>
-      <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M5 8c2 4 5 6 7 6s5-2 7-6M5 16c2-4 5-6 7-6s5 2 7 6" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 3.2 13.2 9l5.8 1.2L13.2 11.4 12 17.2 10.8 11.4 5 10.2 10.8 9 12 3.2Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M18.5 15.2v4.2M16.4 17.3h4.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M6.2 16.8v2.4M5 18h2.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </IconWrap>
   );
 }

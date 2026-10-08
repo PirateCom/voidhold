@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, mineProductionPerHour, planetFieldCap, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, mineProductionPerHour, MINING_BARGE_RATE_PER_HOUR, planetFieldCap, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
@@ -14,6 +14,7 @@ import {
   sendRaid,
   sendSpy,
   sendHarvest,
+  sendMine,
   sendColonize,
   sendExpedition,
   sendDeploy,
@@ -471,6 +472,7 @@ describe("time-skip simulation", () => {
     const granted = grantDebugFleet(world(0), 0);
     expect(granted.empire.ships.espionage_probe).toBe(50);
     expect(granted.empire.ships.recycler).toBe(20);
+    expect(granted.empire.ships.mining_barge).toBe(20);
     expect(granted.empire.ships.colony_ship).toBe(10);
     expect(granted.empire.ships.light_fighter).toBe(20);
     expect(granted.empire.raiders).toBe(20);
@@ -609,6 +611,103 @@ describe("time-skip simulation", () => {
     expect(home.reports.some((r) => r.title === "Harvest returned")).toBe(true);
   });
 
+  it("mines a shared asteroid belt until the barge hold is full then returns", () => {
+    const base = world(0);
+    const belt = {
+      galaxy: 1,
+      system: 1,
+      beltSlot: 17 as const,
+      afterSlot: 4,
+      ore: 80000,
+      crystal: 20000,
+      capOre: 80000,
+      capCrystal: 20000,
+      emptiedAt: null,
+      lastMinedAt: 0,
+    };
+    const ready: SimWorld = {
+      ...base,
+      belts: [belt],
+      planets: base.planets.map((planet) =>
+        planet.id === 1 ? { ...planet, deuterium: 5000 } : planet,
+      ),
+      empire: { ...base.empire, ships: { mining_barge: 2 }, propulsionLevel: 3 },
+    };
+    const sent = sendMine(ready, 1, 1, 17, 1, 0);
+    expect(sent.empire.ships.mining_barge).toBe(1);
+    expect(sent.fleets[0].mission).toBe("mine");
+    const landAt = sent.fleets[0].arrivesAt;
+    const arrived = catchUpWorld(sent, landAt);
+    const sitting = arrived.fleets.find((f) => f.id === sent.fleets[0].id)!;
+    expect(sitting.mission).toBe("mine_hold");
+    const hourLater = catchUpWorld(arrived, landAt + GAME_HOUR_SECONDS * 1000);
+    const mining = hourLater.fleets.find((f) => f.id === sent.fleets[0].id)!;
+    expect(mining.mission).toBe("mine_hold");
+    expect(mining.cargoOre + mining.cargoCrystal).toBe(MINING_BARGE_RATE_PER_HOUR);
+    const remaining = hourLater.belts!.find((row) => row.beltSlot === 17)!;
+    expect(remaining.ore + remaining.crystal).toBe(100000 - MINING_BARGE_RATE_PER_HOUR);
+
+    const secondAt = landAt + GAME_HOUR_SECONDS * 1000;
+    const second = sendMine(
+      { ...hourLater, empire: { ...hourLater.empire, ships: { mining_barge: 1 } } },
+      1,
+      1,
+      17,
+      1,
+      secondAt,
+    );
+    const bothOnSite = catchUpWorld(second, second.fleets[1].arrivesAt + GAME_HOUR_SECONDS * 1000);
+    const a = bothOnSite.fleets.find((f) => f.id === sent.fleets[0].id)!;
+    const b = bothOnSite.fleets.find((f) => f.id === second.fleets[1].id)!;
+    expect(a.mission === "mine_hold" || a.mission === "mine_return").toBe(true);
+    expect(b.mission === "mine_hold" || b.mission === "mine_return").toBe(true);
+    const taken =
+      100000 -
+      (bothOnSite.belts!.find((row) => row.beltSlot === 17)!.ore +
+        bothOnSite.belts!.find((row) => row.beltSlot === 17)!.crystal);
+    expect(taken).toBeGreaterThan(MINING_BARGE_RATE_PER_HOUR);
+
+    const recalled = recallFleet(arrived, sent.fleets[0].id, landAt + 1000);
+    expect(recalled.fleets[0].mission).toBe("mine_return");
+
+    const spyOnBelt = {
+      ...arrived,
+      empire: {
+        ...arrived.empire,
+        espionageTech: 2,
+        ships: { ...arrived.empire.ships, espionage_probe: 0 },
+      },
+      fleets: [
+        ...arrived.fleets,
+        {
+          id: 99,
+          ownerId: arrived.empire.userId,
+          originPlanetId: 1,
+          destPlanetId: null,
+          destGalaxy: 1,
+          destSystem: 1,
+          destSlot: 17,
+          raiders: 1,
+          composition: { espionage_probe: 1 },
+          mission: "espionage" as const,
+          arrivesAt: landAt + 1000,
+          cargoOre: 0,
+          cargoCrystal: 0,
+          launchedAt: landAt,
+          status: "en_route" as const,
+          report: null,
+        },
+      ],
+    };
+    const spied = catchUpWorld(spyOnBelt, landAt + 1000);
+    const report = spied.reports.find((row) => row.title === "Espionage report");
+    expect(report?.body).toMatch(/Resources at probe arrival/);
+    expect(report?.body).toMatch(/Ore:/);
+    expect(report?.body).toMatch(/Crystal:/);
+    expect(report?.body).toMatch(/Miners/);
+    expect(report?.body).toMatch(/barge/);
+  });
+
   it("sends a colony ship to an empty slot and founds a planet", () => {
     const base = world(0);
     const ready: SimWorld = {
@@ -728,5 +827,72 @@ describe("time-skip simulation", () => {
     expect(grown.planets[0].ore - STARTING_ORE).toBe((slow.planets[0].ore - STARTING_ORE) * 3);
     const building = startUpgrade(fast, "ore_mine", 0);
     expect(building.planets[0].upgradeCompletesAt).toBe(buildingTimeSeconds("ore_mine", 1, 0, 0, 3) * 1000);
+  });
+
+  it("credits eight hours of L11 ore at the live hourly rate when tanks have room", () => {
+    const hours = 8;
+    const later = hours * GAME_HOUR_SECONDS * 1000;
+    const hold: SimPlanet = {
+      ...world(0).planets[0],
+      ore: 0,
+      crystal: 0,
+      oreMine: 11,
+      crystalMine: 1,
+      deuteriumExtractor: 0,
+      powerPlant: 20,
+      oreStorage: 12,
+      crystalStorage: 12,
+      lastHarvestedAt: 0,
+      economySpeed: 1,
+    };
+    const live = livePlanet(hold, 0);
+    expect(Math.floor(live.orePerHour)).toBe(mineProductionPerHour(11));
+    expect(live.energy.factor).toBe(1);
+    const after = tickPlanet(hold, later);
+    expect(after.ore).toBe(Math.floor(live.orePerHour * hours));
+    expect(after.ore).toBe(941 * 8);
+  });
+
+  it("credits eight hours of L11 ore at ×3 economy speed", () => {
+    const hours = 8;
+    const later = hours * GAME_HOUR_SECONDS * 1000;
+    const hold: SimPlanet = {
+      ...world(0).planets[0],
+      ore: 0,
+      oreMine: 11,
+      crystalMine: 1,
+      deuteriumExtractor: 0,
+      powerPlant: 20,
+      oreStorage: 12,
+      lastHarvestedAt: 0,
+      economySpeed: 3,
+    };
+    const live = livePlanet(hold, 0);
+    expect(Math.floor(live.orePerHour)).toBe(mineProductionPerHour(11) * 3);
+    const after = tickPlanet(hold, later);
+    expect(after.ore).toBe(Math.floor(live.orePerHour * hours));
+    expect(after.ore).toBe(941 * 3 * 8);
+  });
+
+  it("stops overnight ore at the tank instead of the live hourly rate times eight hours", () => {
+    const hours = 8;
+    const later = hours * GAME_HOUR_SECONDS * 1000;
+    const hold: SimPlanet = {
+      ...world(0).planets[0],
+      ore: 0,
+      oreMine: 35,
+      crystalMine: 1,
+      deuteriumExtractor: 0,
+      powerPlant: 40,
+      oreStorage: 2,
+      lastHarvestedAt: 0,
+      economySpeed: 1,
+    };
+    const live = livePlanet(hold, 0);
+    expect(Math.floor(live.orePerHour)).toBe(29507);
+    expect(live.orePerHour * hours).toBeGreaterThan(200_000);
+    const after = tickPlanet(hold, later);
+    expect(after.ore).toBe(storageCap(2));
+    expect(after.ore).toBe(40_000);
   });
 });

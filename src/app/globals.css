@@ -82,6 +82,22 @@ button {
   animation: fleet-trajectory 1.8s ease-in-out infinite;
 }
 
+@keyframes fleet-paper-fly {
+  0%,
+  100% {
+    transform: translate(0, 0.6px);
+  }
+  50% {
+    transform: translate(0.8px, -1.2px);
+  }
+}
+
+.fleet-paper-fly {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fleet-paper-fly 1.5s ease-in-out infinite;
+}
+
 .progress-track {
   background-color: var(--muted);
   background-image: linear-gradient(

@@ -29,7 +29,7 @@ function DebrisMark() {
   );
 }
 
-type GalaxyAction = "attack" | "spy" | "transport" | "deploy" | "expedition" | "colonize" | "recycle";
+type GalaxyAction = "attack" | "spy" | "transport" | "deploy" | "expedition" | "colonize" | "recycle" | "mine";
 
 function wrap(value: number, max: number) {
   return ((value - 1 + max) % max) + 1;
@@ -41,11 +41,12 @@ function slotClass(kind: SolarSlot["kind"], selected: boolean) {
   if (kind === "npc") return `bg-[#3a2418] text-[#f0c9a0]${ring}`;
   if (kind === "player") return `bg-[#1d2a4a] text-[#9db7ff]${ring}`;
   if (kind === "outer") return `bg-[#12141c] text-[var(--muted-fg)]${ring}`;
+  if (kind === "belt") return `bg-[#241c12] text-amber-100${ring}`;
   return `bg-[var(--muted)] text-[var(--muted-fg)]${ring}`;
 }
 
 export function GalaxyGrid() {
-  const { state, pending, spy, harvest, colonize, now } = useEmpire();
+  const { state, pending, spy, harvest, mine, colonize, now } = useEmpire();
   const [galaxy, setGalaxy] = useState(1);
   const [system, setSystem] = useState(1);
   const [ready, setReady] = useState(false);
@@ -54,6 +55,7 @@ export function GalaxyGrid() {
   const [selected, setSelected] = useState<SolarSlot | null>(null);
   const [spyShips, setSpyShips] = useState(1);
   const [harvestShips, setHarvestShips] = useState(1);
+  const [mineShips, setMineShips] = useState(1);
   const [colonizeShips, setColonizeShips] = useState(1);
   const [action, setAction] = useState<GalaxyAction | null>(null);
 
@@ -95,12 +97,13 @@ export function GalaxyGrid() {
   const home = state?.planet;
   const flight = useMemo(() => {
     if (!state || !selected || !home) return null;
-    if (selected.kind !== "npc" && selected.kind !== "player") return null;
+    if (selected.kind !== "npc" && selected.kind !== "player" && selected.kind !== "belt") return null;
+    const destSlot = selected.kind === "belt" ? (selected.belt_after_slot ?? selected.slot) : selected.slot;
     return flightSeconds(
       home.system,
       home.slot,
       system,
-      selected.slot,
+      destSlot,
       state.empire.propulsion_level,
       home.galaxy,
       galaxy,
@@ -148,6 +151,38 @@ export function GalaxyGrid() {
       100,
     );
   }, [state, selected, home, harvestShips, galaxy, system]);
+  const bargesDocked = Math.max(0, state?.empire.ships?.mining_barge ?? 0);
+  const mineDestSlot = selected?.kind === "belt" ? (selected.belt_after_slot ?? selected.slot) : selected?.slot ?? 1;
+  const mineFlight = useMemo(() => {
+    if (!state || !selected || !home) return null;
+    if (selected.kind !== "belt") return null;
+    return attackFlightSeconds(
+      home.system,
+      home.slot,
+      system,
+      mineDestSlot,
+      state.empire.propulsion_level,
+      home.galaxy,
+      galaxy,
+      hullSpeed("mining_barge", state.empire.impulse_drive ?? 0, state.empire.hyperspace_drive ?? 0, state.empire.propulsion_level),
+      100,
+    );
+  }, [state, selected, home, system, galaxy, mineDestSlot]);
+  const mineFuel = useMemo(() => {
+    if (!state || !selected || !home) return 0;
+    if (selected.kind !== "belt") return 0;
+    return attackFuel(
+      { mining_barge: Math.max(1, mineShips) },
+      home.galaxy,
+      home.system,
+      home.slot,
+      galaxy,
+      system,
+      mineDestSlot,
+      state.empire.impulse_drive ?? 0,
+      100,
+    );
+  }, [state, selected, home, mineShips, galaxy, system, mineDestSlot]);
   const colonyShipsDocked = Math.max(0, state?.empire.ships?.colony_ship ?? 0);
   const astro = state?.empire.astrophysics ?? 0;
   const colonizeRange = colonizeSlotRange(astro);
@@ -183,7 +218,8 @@ export function GalaxyGrid() {
   }, [state, selected, home, colonizeShips, galaxy, system]);
   const spyFuel = useMemo(() => {
     if (!state || !selected || !home) return 0;
-    if (selected.kind !== "npc" && selected.kind !== "player") return 0;
+    if (selected.kind !== "npc" && selected.kind !== "player" && selected.kind !== "belt") return 0;
+    const destSlot = selected.kind === "belt" ? (selected.belt_after_slot ?? selected.slot) : selected.slot;
     return fleetFuelRoundTrip(
       Math.max(1, spyShips),
       home.galaxy,
@@ -191,7 +227,7 @@ export function GalaxyGrid() {
       home.slot,
       galaxy,
       system,
-      selected.slot,
+      destSlot,
       "espionage_probe",
       state.empire.impulse_drive ?? 0,
     );
@@ -222,7 +258,10 @@ export function GalaxyGrid() {
     if (selected.kind === "empty") {
       actions.push({ id: "colonize", label: "Colonize", muted: true });
     }
-    if (hasDebris && selected.kind !== "outer") {
+    if (selected.kind === "belt") {
+      actions.push({ id: "spy", label: "Spy" }, { id: "mine", label: "Mine", muted: true });
+    }
+    if (hasDebris && selected.kind !== "outer" && selected.kind !== "belt") {
       actions.push({ id: "recycle", label: "Recycle", muted: true });
     }
   }
@@ -303,6 +342,8 @@ export function GalaxyGrid() {
           const label =
             slot.kind === "outer"
               ? "Outer space"
+              : slot.kind === "belt"
+                ? "Asteroid belt"
               : slot.kind === "empty"
                 ? "Empty"
                 : (slot.name ?? "Occupied");
@@ -313,7 +354,9 @@ export function GalaxyGrid() {
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${slotClass(slot.kind, isSelected)}`}
                 onClick={() => setSelected(slot)}
               >
-                <span className="w-6 font-mono text-xs">{slot.slot}</span>
+                <span className="w-6 font-mono text-xs">
+                  {slot.kind === "belt" ? slot.belt_after_slot ?? "·" : slot.slot}
+                </span>
                 {slot.planet_id && slot.kind !== "empty" && slot.kind !== "outer" ? (
                   <PlanetAvatar seed={String(slot.planet_id)} size={20} own={slot.kind === "home"} />
                 ) : null}
@@ -321,6 +364,8 @@ export function GalaxyGrid() {
                 {debrisVisible(slot.debris_ore ?? 0, slot.debris_crystal ?? 0) ? <DebrisMark /> : null}
                 {slot.kind === "outer" ? (
                   <span className="ml-auto text-[10px] uppercase tracking-wide text-cyan-300">Expedition</span>
+                ) : slot.kind === "belt" ? (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-amber-200">Belt</span>
                 ) : slot.owner_name ? (
                   <span className="ml-auto text-xs">{slot.owner_name}</span>
                 ) : null}
@@ -333,7 +378,10 @@ export function GalaxyGrid() {
       {selected ? (
         <section className="sci-card mt-4 mb-16 p-4">
           <h2 className="font-semibold">
-            [{galaxy}:{system}:{selected.slot}] {selected.name ?? (selected.kind === "empty" ? "Empty space" : "Outer space")}
+            [{galaxy}:{system}:{selected.slot}]{" "}
+            {selected.kind === "belt"
+              ? "Asteroid belt"
+              : (selected.name ?? (selected.kind === "empty" ? "Empty space" : "Outer space"))}
           </h2>
           <p className="mt-1 text-xs text-[var(--muted-fg)]">
             {selected.kind === "npc"
@@ -346,6 +394,8 @@ export function GalaxyGrid() {
                     : "Another commander. Attack to raid. Docked ships and defenses fight back."
                   : selected.kind === "outer"
                     ? "Uncolonizable. Expeditions launch from this slot."
+                    : selected.kind === "belt"
+                      ? "Shared rock field. Mining barges sit here and fill cargo over time. Send a spy probe for remaining ore and crystal, and who is mining."
                     : "Empty slot. A colony ship can found a world here if Astrophysics allows it, or send an expedition."}
           </p>
           {hasDebris ? (
@@ -500,10 +550,54 @@ export function GalaxyGrid() {
         </ActionSheet>
       ) : null}
 
+      {selected && action === "mine" ? (
+        <ActionSheet
+          title="Mine asteroid belt"
+          subtitle={`[${galaxy}:${system}:${selected.slot}] Asteroid belt`}
+          onClose={() => setAction(null)}
+        >
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void mine(galaxy, system, selected.slot, mineShips).then(() => setAction(null));
+            }}
+          >
+            <p className="text-xs text-[var(--muted-fg)]">
+              Barges stay on the rocks and fill cargo slowly (300 mixed units/h each). They fly home when the hold is
+              full or the belt is empty. Spy the belt to read remaining ore and crystal.
+            </p>
+            <label className="text-xs text-[var(--muted-fg)]">
+              Mining barges (you have {bargesDocked})
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, bargesDocked)}
+                value={mineShips}
+                onChange={(e) => setMineShips(Number(e.target.value))}
+                className="sci-input mt-1 h-11 w-full px-3"
+              />
+            </label>
+            {mineFlight != null ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                Mine flight ~{mineFlight}s each way · fuel {mineFuel.toLocaleString()} deut round trip
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={pending || bargesDocked < 1 || Number(state.planet.deuterium) < mineFuel}
+              className="sci-btn h-11"
+            >
+              {bargesDocked < 1 ? "Needs a mining barge" : "Launch mining barges"}
+            </button>
+          </form>
+        </ActionSheet>
+      ) : null}
+
       {selected && action === "spy" ? (
         <ActionSheet
           title="Espionage"
-          subtitle={`[${galaxy}:${system}:${selected.slot}] ${selected.name ?? "Unknown"}`}
+          subtitle={`[${galaxy}:${system}:${selected.slot}] ${selected.kind === "belt" ? "Asteroid belt" : (selected.name ?? "Unknown")}`}
           onClose={() => setAction(null)}
         >
           <form
@@ -513,6 +607,11 @@ export function GalaxyGrid() {
               void spy(galaxy, system, selected.slot, spyShips).then(() => setAction(null));
             }}
           >
+            {selected.kind === "belt" ? (
+              <p className="text-xs text-[var(--muted-fg)]">
+                The probe reports remaining ore and crystal at arrival, plus any barges on the rocks.
+              </p>
+            ) : null}
             <label className="text-xs text-[var(--muted-fg)]">
               Espionage probes (you have {probesDocked})
               <input

@@ -13,8 +13,10 @@ import {
   canPayResources,
   buildingTimeSeconds,
   cancelRefund,
+  crawlerProductionBonus,
   crystalProductionPerHour,
   deuteriumProductionPerHour,
+  deutEnergyDrain,
   facilitySpec,
   formatDuration,
   fusionOutput,
@@ -24,8 +26,10 @@ import {
   researchSpec,
   storageCap,
   terraformerEnergy,
+  mineEnergyDrain,
   mineProductionPerHour,
   unmetFacility,
+  workingCrawlers,
   upgradeEnergyDelta,
   upgradeWouldCauseEnergyDeficit,
   type BuildingId,
@@ -99,6 +103,20 @@ function UpgradeCard({
   const { live, state, pending, upgrade, cancelUpgrade, now } = useEmpire();
   if (!live || !state) return null;
   const speed = state.empire.economy_speed ?? 1;
+  const crawlerBonus = crawlerProductionBonus(
+    workingCrawlers(
+      live.crawlers ?? 0,
+      live.oreMine,
+      live.crystalMine,
+      live.deuteriumExtractor,
+      live.energy.output,
+      mineEnergyDrain(live.oreMine) +
+        mineEnergyDrain(live.crystalMine) +
+        deutEnergyDrain(live.deuteriumExtractor),
+    ),
+  );
+  const incomePerHour = (base: number) =>
+    Math.floor(base * live.energy.factor * crawlerBonus * speed);
   const cost = buildingCost(id as never, level);
   const stores = id === "ore_storage" || id === "crystal_storage" || id === "deuterium_storage";
   const energyDelta = upgradeEnergyDelta(id as never, level, state.star.type, state.empire.energy_tech ?? 0);
@@ -191,11 +209,11 @@ function UpgradeCard({
       )}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
         {id === "ore_mine"
-          ? `Produces ${mineProductionPerHour(level).toLocaleString()}/h, next ${mineProductionPerHour(level + 1).toLocaleString()}/h. `
+          ? `Produces ${incomePerHour(mineProductionPerHour(level)).toLocaleString()}/h, next ${incomePerHour(mineProductionPerHour(level + 1)).toLocaleString()}/h. `
           : id === "crystal_mine"
-            ? `Produces ${crystalProductionPerHour(level).toLocaleString()}/h, next ${crystalProductionPerHour(level + 1).toLocaleString()}/h. `
+            ? `Produces ${incomePerHour(crystalProductionPerHour(level)).toLocaleString()}/h, next ${incomePerHour(crystalProductionPerHour(level + 1)).toLocaleString()}/h. `
             : id === "deuterium_extractor"
-              ? `Produces ${deuteriumProductionPerHour(level, live.tempMax ?? 30).toLocaleString()}/h, next ${deuteriumProductionPerHour(level + 1, live.tempMax ?? 30).toLocaleString()}/h. `
+              ? `Produces ${incomePerHour(deuteriumProductionPerHour(level, live.tempMax ?? 30, live.tempMin)).toLocaleString()}/h, next ${incomePerHour(deuteriumProductionPerHour(level + 1, live.tempMax ?? 30, live.tempMin)).toLocaleString()}/h. `
               : null}
         {stores ? `Holds ${storageCap(level).toLocaleString()}, next ${storageCap(level + 1).toLocaleString()}. ` : null}
         {pricedResources(cost, live).map((bit, index) => (

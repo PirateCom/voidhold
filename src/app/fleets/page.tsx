@@ -15,6 +15,9 @@ import type { FleetRow, PlanetRow } from "@/lib/game/types";
 
 function fleetDestName(fleet: FleetRow, fallback: string): string {
   if (fleet.mission === "harvest" || fleet.mission === "harvest_return") return "Debris field";
+  if (fleet.mission === "mine" || fleet.mission === "mine_hold" || fleet.mission === "mine_return") {
+    return "Asteroid belt";
+  }
   if (fleet.mission.startsWith("expedition")) return fleet.dest_name || "Empty slot";
   return fleet.dest_name || fallback;
 }
@@ -26,7 +29,8 @@ function isReturnMission(mission: FleetRow["mission"]) {
     mission === "harvest_return" ||
     mission === "colonize_return" ||
     mission === "expedition_return" ||
-    mission === "transport_return"
+    mission === "transport_return" ||
+    mission === "mine_return"
   );
 }
 
@@ -59,6 +63,8 @@ function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbo
 
   if (isReturnMission(fleet.mission) && !inbound) {
     const oneWay = oneWayMs(fleet, planet, propulsion);
+    // Belt spy/mine keep created_at from the outbound launch, so arrives−created is the round trip.
+    if (fromCreated > oneWay * 1.25 && fromCreated <= oneWay * 2.5) return Math.round(fromCreated / 2);
     if (fromCreated > 0 && fromCreated <= oneWay * 1.25) return fromCreated;
     return oneWay;
   }
@@ -66,6 +72,7 @@ function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbo
   if (fromCreated > 0 && (!inbound || fleet.mission === "transport" || fleet.mission === "deploy")) return fromCreated;
   if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
   if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
+  if (fleet.mission === "mine_hold") return fromCreated > 0 ? fromCreated : oneWayMs(fleet, planet, propulsion);
   return oneWayMs(fleet, planet, propulsion);
 }
 
@@ -177,7 +184,9 @@ export default function FleetsPage() {
                   fleet.mission === "espionage" ||
                   fleet.mission === "harvest" ||
                   fleet.mission === "colonize" ||
-                  fleet.mission === "deploy";
+                  fleet.mission === "deploy" ||
+                  fleet.mission === "mine" ||
+                  fleet.mission === "mine_hold";
                 return (
                   <FleetEventStrip
                     key={fleet.id}

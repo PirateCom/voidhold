@@ -145,7 +145,7 @@ export type FleetRow = {
   origin_slot?: number;
   created_at?: string;
   raiders: number;
-  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return" | "deploy";
+  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return" | "deploy" | "mine" | "mine_hold" | "mine_return";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;
@@ -167,9 +167,19 @@ export type ReportRow = {
   loot_crystal: number;
 };
 
+export type CommsNoticeChannel = "news" | "admin";
+
+export type CommsNoticeRow = {
+  id: number;
+  channel: CommsNoticeChannel;
+  created_at: string;
+  title: string;
+  body: string;
+};
+
 export type SolarSlot = {
   slot: number;
-  kind: "empty" | "home" | "player" | "npc" | "outer";
+  kind: "empty" | "home" | "player" | "npc" | "outer" | "belt";
   planet_id: number | null;
   name: string | null;
   owner_id?: string | null;
@@ -178,6 +188,9 @@ export type SolarSlot = {
   debris_crystal?: number;
   debris_decays_at?: string | null;
   debris_gone_at?: string | null;
+  belt_ore?: number;
+  belt_crystal?: number;
+  belt_after_slot?: number;
 };
 
 export type SolarSystemView = {
@@ -228,6 +241,7 @@ export type EmpireState = {
   rank: { points: number; place: number; total: number; research: number; fleet: number };
   fleets: FleetRow[];
   reports: ReportRow[];
+  notices?: CommsNoticeRow[];
   server_now: string;
   debug?: boolean;
 };

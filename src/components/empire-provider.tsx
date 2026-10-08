@@ -17,6 +17,7 @@ import {
   launchRaid,
   launchSpy,
   launchHarvest,
+  launchMine,
   launchColonize,
   selectPlanet as selectPlanetAction,
   abandonPlanet as abandonPlanetAction,
@@ -41,11 +42,13 @@ import {
   claimDirective as claimDirectiveAction,
   setDirectiveTracked as setDirectiveTrackedAction,
   deleteReport as deleteReportAction,
+  postCommsNotice as postCommsNoticeAction,
+  deleteCommsNotice as deleteCommsNoticeAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { isDebugOperator } from "@/lib/debug-operator";
 import { gameClock } from "@/lib/game/catalog";
-import type { BuildingId, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
+import type { BuildingId, CommsNoticeChannel, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
 import { EMPTY_DEFENCES, livePlanet, type SimPlanet } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
 
@@ -75,6 +78,7 @@ type EmpireContextValue = {
   attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
   spy: (galaxy: number, system: number, slot: number, probes: number) => Promise<void>;
   harvest: (galaxy: number, system: number, slot: number, recyclers: number) => Promise<void>;
+  mine: (galaxy: number, system: number, slot: number, barges: number) => Promise<void>;
   colonize: (galaxy: number, system: number, slot: number, ships: number) => Promise<void>;
   selectPlanet: (planetId: number) => Promise<void>;
   abandonPlanet: (planetId: number) => Promise<boolean>;
@@ -100,6 +104,8 @@ type EmpireContextValue = {
   claimDirective: (id: string) => Promise<void>;
   setDirectiveTracked: (id: string, tracked: boolean) => Promise<void>;
   deleteReport: (id: number) => Promise<void>;
+  postNotice: (channel: CommsNoticeChannel, title: string, body: string) => Promise<boolean>;
+  deleteNotice: (id: number) => Promise<void>;
   isDebug: boolean;
 };
 
@@ -320,6 +326,7 @@ export function EmpireProvider({
     attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
     spy: (galaxy, system, slot, probes) => runAction(() => launchSpy(galaxy, system, slot, probes)),
     harvest: (galaxy, system, slot, recyclers) => runAction(() => launchHarvest(galaxy, system, slot, recyclers)),
+    mine: (galaxy, system, slot, barges) => runAction(() => launchMine(galaxy, system, slot, barges)),
     colonize: (galaxy, system, slot, ships) => runAction(() => launchColonize(galaxy, system, slot, ships)),
     selectPlanet: (planetId) => runAction(() => selectPlanetAction(planetId)),
     abandonPlanet: (planetId) => run(() => abandonPlanetAction(planetId)),
@@ -333,6 +340,8 @@ export function EmpireProvider({
     claimDirective: (id) => runAction(() => claimDirectiveAction(id)),
     setDirectiveTracked: (id, tracked) => runAction(() => setDirectiveTrackedAction(id, tracked)),
     deleteReport: (id) => runAction(() => deleteReportAction(id)),
+    postNotice: (channel, title, body) => run(() => postCommsNoticeAction(channel, title, body)),
+    deleteNotice: (id) => runAction(() => deleteCommsNoticeAction(id)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

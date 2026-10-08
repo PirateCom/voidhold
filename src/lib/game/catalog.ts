@@ -640,11 +640,14 @@ export function crystalProductionPerHour(level: number): number {
   return Math.floor(20 * level * Math.pow(1.1, level));
 }
 
-/** Wiki synthesizer: floor(10 * L * 1.44^L * (1.36 - 0.004 * Tmax)). */
-export function deuteriumProductionPerHour(level: number, tempMax = 30): number {
+/** Wiki synthesizer: floor(10 × L × 1.1^L × (1.36 − 0.004 × Tavg)). */
+export function deuteriumProductionPerHour(level: number, tempMax = 30, tempMin?: number): number {
   const safe = Math.max(0, Math.floor(level));
   if (safe <= 0) return 0;
-  return Math.max(0, Math.floor(10 * safe * Math.pow(1.44, safe) * deuteriumClimate(tempMax)));
+  return Math.max(
+    0,
+    Math.floor(10 * safe * Math.pow(1.1, safe) * deuteriumClimate(tempMax, tempMin)),
+  );
 }
 
 /** Wiki fusion plant consumption: floor(10 * L * 1.1^L) deut per hour. */
@@ -718,6 +721,7 @@ export function hullDrive(shipId: string, impulseLevel = 0, hyperspaceLevel = 0)
     case "recycler":
     case "espionage_probe":
     case "small_cargo":
+    case "mining_barge":
       return "combustion";
     case "heavy_fighter":
     case "cruiser":
@@ -875,9 +879,10 @@ export function mineEnergyDrain(level: number): number {
   return Math.floor(10 * level * Math.pow(1.1, level));
 }
 
-/** Wiki synthesizer climate term: 1.36 − 0.004 × Tmax. */
-export function deuteriumClimate(tempMax: number): number {
-  return 1.36 - 0.004 * tempMax;
+/** Wiki synthesizer climate: 1.36 − 0.004 × average temperature. */
+export function deuteriumClimate(tempMax: number, tempMin?: number): number {
+  const avg = tempMin == null ? tempMax : (tempMin + tempMax) / 2;
+  return 1.36 - 0.004 * avg;
 }
 
 /** Wiki v1.0: floor((average temperature + 160) / 6) before the system star bonus. */
@@ -1105,8 +1110,10 @@ export function buildingCost(id: BuildingId, currentLevel: number): { ore: numbe
   switch (id) {
     case "ore_mine":
       return { ore: Math.floor(60 * mul), crystal: Math.floor(15 * mul), deuterium: 0 };
-    case "crystal_mine":
-      return { ore: Math.floor(48 * mul), crystal: Math.floor(24 * mul), deuterium: 0 };
+    case "crystal_mine": {
+      const crystalMul = Math.pow(1.6, currentLevel);
+      return { ore: Math.floor(48 * crystalMul), crystal: Math.floor(24 * crystalMul), deuterium: 0 };
+    }
     case "deuterium_extractor":
       return { ore: Math.floor(225 * mul), crystal: Math.floor(75 * mul), deuterium: 0 };
     case "power_plant":
@@ -1358,6 +1365,27 @@ export function flightSeconds(
 export const EXPEDITION_SLOT = 16;
 /** Expeditions are not on the economy clock; hold stays a short session beat. */
 export const EXPEDITION_HOLD_SECONDS = 60;
+export const ASTEROID_BELT_SLOT_A = 17;
+export const ASTEROID_BELT_SLOT_B = 18;
+/** Mixed ore+crystal per barge per game hour, before economy speed. Below a L8 metal mine. */
+export const MINING_BARGE_RATE_PER_HOUR = 300;
+export const ASTEROID_BELT_REFILL_SECONDS = 24 * 3600;
+
+export function isAsteroidBeltSlot(slot?: number | null): boolean {
+  return slot === ASTEROID_BELT_SLOT_A || slot === ASTEROID_BELT_SLOT_B;
+}
+
+export function miningBargeCount(composition?: Record<string, number> | null): number {
+  return Math.max(0, Math.floor(composition?.mining_barge ?? 0));
+}
+
+export function miningHoldCapacity(barges: number): number {
+  return Math.max(0, barges) * (shipSpec("mining_barge")?.cargo ?? 12000);
+}
+
+export function miningRatePerHour(barges: number, economySpeed = 1): number {
+  return Math.max(0, barges) * MINING_BARGE_RATE_PER_HOUR * normalizeEconomySpeed(economySpeed);
+}
 
 export function expeditionFlightSeconds(
   fromSystem: number,

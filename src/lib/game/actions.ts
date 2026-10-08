@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type {
   BuildingId,
+  CommsNoticeChannel,
+  CommsNoticeRow,
   DefenceId,
   EmpireState,
   HighscoreEntry,
@@ -16,8 +18,27 @@ function asState(data: unknown): EmpireState {
   return data as EmpireState;
 }
 
+function asNotices(data: unknown): CommsNoticeRow[] {
+  return Array.isArray(data) ? (data as CommsNoticeRow[]) : [];
+}
+
 function rpcError(error: { message: string } | null): never {
   throw new Error(error?.message ?? "The void did not answer.");
+}
+
+async function loadNotices(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+): Promise<CommsNoticeRow[]> {
+  const { data, error } = await supabase.rpc("get_comms_notices");
+  if (error) return [];
+  return asNotices(data);
+}
+
+async function withNotices(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  state: EmpireState,
+): Promise<EmpireState> {
+  return { ...state, notices: await loadNotices(supabase) };
 }
 
 async function rpc(fn: string, args: Record<string, unknown> = {}): Promise<EmpireState> {
@@ -25,7 +46,7 @@ async function rpc(fn: string, args: Record<string, unknown> = {}): Promise<Empi
   if (!supabase) throw new Error("Supabase is not configured.");
   const { data, error } = await supabase.rpc(fn, args);
   if (error) rpcError(error);
-  return asState(data);
+  return withNotices(supabase, asState(data));
 }
 
 export async function loadEmpireState(): Promise<EmpireState | null> {
@@ -37,7 +58,35 @@ export async function loadEmpireState(): Promise<EmpireState | null> {
   if (!user) return null;
   const { data, error } = await supabase.rpc("get_empire_state");
   if (error) rpcError(error);
-  return asState(data);
+  return withNotices(supabase, asState(data));
+}
+
+export async function postCommsNotice(
+  channel: CommsNoticeChannel,
+  title: string,
+  body: string,
+): Promise<EmpireState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.rpc("post_comms_notice", {
+    p_channel: channel,
+    p_title: title,
+    p_body: body,
+  });
+  if (error) rpcError(error);
+  const next = await loadEmpireState();
+  if (!next) throw new Error("Not authenticated");
+  return next;
+}
+
+export async function deleteCommsNotice(id: number): Promise<EmpireState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.rpc("delete_comms_notice", { p_id: id });
+  if (error) rpcError(error);
+  const next = await loadEmpireState();
+  if (!next) throw new Error("Not authenticated");
+  return next;
 }
 
 export async function upgradeBuilding(building: BuildingId): Promise<EmpireState> {
@@ -105,6 +154,15 @@ export async function launchHarvest(
   recyclers: number,
 ): Promise<EmpireState> {
   return rpc("send_harvest", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_recyclers: recyclers });
+}
+
+export async function launchMine(
+  galaxy: number,
+  system: number,
+  slot: number,
+  barges: number,
+): Promise<EmpireState> {
+  return rpc("send_mine", { p_galaxy: galaxy, p_system: system, p_slot: slot, p_barges: barges });
 }
 
 export async function launchColonize(

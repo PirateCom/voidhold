@@ -51,6 +51,7 @@ const RAPID: Record<string, Record<string, number>> = {
     large_cargo: 250,
     colony_ship: 250,
     recycler: 250,
+    mining_barge: 250,
     light_fighter: 200,
     rocket_launcher: 200,
     light_laser: 200,

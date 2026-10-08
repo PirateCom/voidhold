@@ -44,8 +44,55 @@ function Row({
   );
 }
 
+function MineRow({
+  label,
+  perHour,
+  detail,
+  last = false,
+}: {
+  label: string;
+  perHour: number;
+  detail?: string;
+  last?: boolean;
+}) {
+  const h = Math.floor(perHour);
+  const day = h * 24;
+  const week = day * 7;
+  return (
+    <div className={`py-3 ${last ? "" : "border-b border-[var(--border)]"}`}>
+      <div className="flex items-start justify-between gap-4">
+        <dt className="pt-0.5 text-sm text-[var(--muted-fg)]">{label}</dt>
+        <dd className="m-0 flex flex-col items-end gap-1 text-right font-semibold tabular-nums">
+          <span className="text-base leading-none">{fmt(h)}/h</span>
+          <span className="text-base leading-none text-cyan-100/90">{fmt(day)}/day</span>
+          <span className="text-base leading-none text-cyan-100/80">{fmtLarge(week)}/week</span>
+        </dd>
+      </div>
+      {detail ? <p className="mt-2 text-xs leading-relaxed text-[var(--muted-fg)]">{detail}</p> : null}
+    </div>
+  );
+}
+
 function fmt(n: number): string {
   return Math.floor(n).toLocaleString();
+}
+
+/** Compact totals for long horizons (e.g. 5.2M/week). */
+function fmtLarge(n: number): string {
+  const v = Math.floor(n);
+  const sign = v < 0 ? "-" : "";
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) {
+    const millions = abs / 1_000_000;
+    const text =
+      millions >= 100
+        ? String(Math.round(millions))
+        : millions >= 10
+          ? String(Math.round(millions))
+          : millions.toFixed(1).replace(/\.0$/, "");
+    return `${sign}${text}M`;
+  }
+  return `${sign}${abs.toLocaleString()}`;
 }
 
 function pct(factor: number): string {
@@ -63,13 +110,13 @@ export function PlanetEconomy() {
   const tempMin = live.tempMin ?? state.planet.temp_min;
   const tempMax = live.tempMax ?? state.planet.temp_max;
   const avg = (tempMin + tempMax) / 2;
-  const climate = deuteriumClimate(tempMax);
+  const climate = deuteriumClimate(tempMax, tempMin);
   const energyTech = live.energyTech ?? state.empire.energy_tech ?? 0;
   const sats = live.solarSatellites ?? state.empire.ships?.solar_satellite ?? 0;
 
   const oreBase = mineProductionPerHour(live.oreMine);
   const crystalBase = crystalProductionPerHour(live.crystalMine);
-  const deutBase = deuteriumProductionPerHour(live.deuteriumExtractor, tempMax);
+  const deutBase = deuteriumProductionPerHour(live.deuteriumExtractor, tempMax, tempMin);
   const fusionBurn = fusionDeuteriumBurnPerHour(live.fusionReactor);
   const plantBase = solarPlantBase(live.powerPlant);
   const plant = powerOutput(live.powerPlant, star);
@@ -105,19 +152,19 @@ export function PlanetEconomy() {
       <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Planet economy</p>
       <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Mines</p>
       <dl className="sci-card mb-4 px-4">
-        <Row
+        <MineRow
           label={`Ore mine L${live.oreMine}`}
-          value={`${fmt(live.orePerHour)}/h`}
+          perHour={live.orePerHour}
           detail={`Base ${fmt(oreBase)}/h${energyBit}${crawlerBit}${speedBit}`}
         />
-        <Row
+        <MineRow
           label={`Crystal mine L${live.crystalMine}`}
-          value={`${fmt(live.crystalPerHour)}/h`}
+          perHour={live.crystalPerHour}
           detail={`Base ${fmt(crystalBase)}/h${energyBit}${crawlerBit}${speedBit}`}
         />
-        <Row
+        <MineRow
           label={`Deuterium extractor L${live.deuteriumExtractor}`}
-          value={`${fmt(live.deuteriumPerHour ?? 0)}/h`}
+          perHour={live.deuteriumPerHour ?? 0}
           detail={`Base ${fmt(deutBase)}/h at Tmax ${tempMax}°C (climate ×${climate.toFixed(3)})${energyBit}${crawlerBit}${
             live.fusionReactor > 0
               ? ` · fusion ${fusionOnline ? "burns" : "idle, would burn"} ${fmt(fusionBurn * speed)}/h`

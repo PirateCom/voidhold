@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -12,6 +12,13 @@ function safeNext(path: string | null | undefined) {
   return path && path.startsWith("/") && !path.startsWith("//") ? path : "/";
 }
 
+function signupErrorMessage(message: string): string {
+  if (/REGISTRATION_CAP|commander slots/i.test(message)) {
+    return "All 20 commander slots are taken. Registration is closed.";
+  }
+  return message;
+}
+
 export function LoginForm({ next }: { next?: string }) {
   const configured = isSupabaseConfigured();
   const router = useRouter();
@@ -20,6 +27,17 @@ export function LoginForm({ next }: { next?: string }) {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase || !configured) return;
+    void supabase.rpc("registration_open").then(({ data, error }) => {
+      if (error || data !== false) return;
+      setSignupOpen(false);
+      setMode((m) => (m === "signup" ? "signin" : m));
+    });
+  }, [configured]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -53,7 +71,8 @@ export function LoginForm({ next }: { next?: string }) {
       });
       setPending(false);
       if (error) {
-        setStatus(error.message);
+        setStatus(signupErrorMessage(error.message));
+        if (/REGISTRATION_CAP|commander slots/i.test(error.message)) setSignupOpen(false);
         return;
       }
       if (!data.session) {
@@ -127,10 +146,13 @@ export function LoginForm({ next }: { next?: string }) {
             Sign in with password
           </button>
         ) : null}
-        {mode !== "signup" ? (
+        {mode !== "signup" && signupOpen ? (
           <button type="button" className="text-left underline" onClick={() => setMode("signup")}>
             Create an account
           </button>
+        ) : null}
+        {!signupOpen ? (
+          <p className="text-amber-200/90">All 20 commander slots are taken. New registration is closed.</p>
         ) : null}
         {mode !== "reset" ? (
           <button type="button" className="text-left underline" onClick={() => setMode("reset")}>

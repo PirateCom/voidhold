@@ -77,6 +77,11 @@ import {
   type StarType,
   storageCap,
   cancelRefund,
+  ASTEROID_BELT_REFILL_SECONDS,
+  isAsteroidBeltSlot,
+  miningBargeCount,
+  miningHoldCapacity,
+  miningRatePerHour,
 } from "./catalog";
 
 export type { BuildingId, DefenceId, ResearchId };
@@ -388,7 +393,10 @@ export type FleetMission =
   | "expedition_return"
   | "transport"
   | "transport_return"
-  | "deploy";
+  | "deploy"
+  | "mine"
+  | "mine_hold"
+  | "mine_return";
 
 export type SimFleet = {
   id: number;
@@ -419,11 +427,25 @@ export type SimReport = {
   createdAt: number;
 };
 
+export type SimBelt = {
+  galaxy: number;
+  system: number;
+  beltSlot: 17 | 18;
+  afterSlot: number;
+  ore: number;
+  crystal: number;
+  capOre: number;
+  capCrystal: number;
+  emptiedAt: number | null;
+  lastMinedAt: number;
+};
+
 export type SimWorld = {
   planets: SimPlanet[];
   empire: SimEmpire;
   fleets: SimFleet[];
   reports: SimReport[];
+  belts?: SimBelt[];
 };
 
 export function planetLevel(planet: SimPlanet, id: BuildingId): number {
@@ -458,7 +480,7 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
   const speed = Math.max(1, planet.economySpeed ?? 1);
   const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000) * speed;
   const tempMax = planet.tempMax ?? 30;
-  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax);
+  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax, planet.tempMin);
   const burn = fusionDeuteriumBurnPerHour(planet.fusionReactor);
   const withFusion = planetEnergy(planet);
   const producedWith = (synth * withFusion.factor * elapsed) / GAME_HOUR_SECONDS;
@@ -654,6 +676,167 @@ function bumpShip(ships: Record<string, number> | undefined, id: string, n: numb
   return { ...current, [id]: Math.max(0, (current[id] ?? 0) + n) };
 }
 
+function beltFlightSlot(world: SimWorld, fleet: SimFleet): number {
+  const belt = (world.belts ?? []).find(
+    (row) =>
+      row.galaxy === (fleet.destGalaxy ?? 1) &&
+      row.system === (fleet.destSystem ?? 0) &&
+      row.beltSlot === fleet.destSlot,
+  );
+  return belt?.afterSlot ?? fleet.destSlot ?? 17;
+}
+
+function miningReturnFlightMs(world: SimWorld, fleet: SimFleet): number {
+  const origin = planetById(world, fleet.originPlanetId ?? world.empire.homePlanetId);
+  const destSlot = beltFlightSlot(world, fleet);
+  return (
+    attackFlightSeconds(
+      origin.system,
+      origin.slot,
+      fleet.destSystem ?? origin.system,
+      destSlot,
+      world.empire.propulsionLevel,
+      origin.galaxy ?? 1,
+      fleet.destGalaxy ?? origin.galaxy ?? 1,
+      hullSpeed("mining_barge", world.empire.impulseDrive, world.empire.hyperspaceDrive, world.empire.propulsionLevel),
+      100,
+    ) * 1000
+  );
+}
+
+function sendMinerHome(world: SimWorld, fleet: SimFleet, at: number, report: string): SimWorld {
+  const home = planetById(world, fleet.originPlanetId ?? world.empire.homePlanetId);
+  const returning: SimFleet = {
+    ...fleet,
+    mission: "mine_return",
+    destPlanetId: fleet.originPlanetId,
+    destGalaxy: home.galaxy,
+    destSystem: home.system,
+    destSlot: home.slot,
+    launchedAt: at,
+    arrivesAt: at + miningReturnFlightMs(world, fleet),
+    report,
+  };
+  return { ...world, fleets: world.fleets.map((row) => (row.id === fleet.id ? returning : row)) };
+}
+
+export function tickAsteroidMining(world: SimWorld, until: number): SimWorld {
+  let belts = [...(world.belts ?? [])];
+  let fleets = [...world.fleets];
+  let next: SimWorld = { ...world, belts, fleets };
+
+  belts = belts.map((belt) => {
+    if (belt.emptiedAt != null && belt.emptiedAt + ASTEROID_BELT_REFILL_SECONDS * 1000 <= until) {
+      return {
+        ...belt,
+        ore: belt.capOre,
+        crystal: belt.capCrystal,
+        emptiedAt: null,
+        lastMinedAt: Math.max(belt.lastMinedAt, belt.emptiedAt + ASTEROID_BELT_REFILL_SECONDS * 1000),
+      };
+    }
+    return belt;
+  });
+  next = { ...next, belts };
+
+  for (let i = 0; i < belts.length; i++) {
+    let belt = belts[i];
+    let last = belt.lastMinedAt;
+    let guard = 0;
+    while (last < until && guard < 40) {
+      guard += 1;
+      const miners = fleets.filter(
+        (fleet) =>
+          fleet.status === "en_route" &&
+          fleet.mission === "mine_hold" &&
+          (fleet.destGalaxy ?? 1) === belt.galaxy &&
+          (fleet.destSystem ?? 0) === belt.system &&
+          fleet.destSlot === belt.beltSlot,
+      );
+      const remaining = belt.ore + belt.crystal;
+      if (miners.length === 0) {
+        last = until;
+        break;
+      }
+      if (remaining <= 0) {
+        belt = { ...belt, ore: 0, crystal: 0, emptiedAt: belt.emptiedAt ?? last, lastMinedAt: last };
+        for (const miner of miners) {
+          next = sendMinerHome(next, miner, last, "The asteroid belt was exhausted.");
+        }
+        fleets = next.fleets;
+        break;
+      }
+      const rates = miners.map((miner) => {
+        const barges = miningBargeCount(miner.composition);
+        const speed = miner.ownerId === world.empire.userId ? (world.empire.economySpeed ?? 1) : 1;
+        return miningRatePerHour(barges, speed) / (GAME_HOUR_SECONDS * 1000);
+      });
+      const totalRate = rates.reduce((sum, rate) => sum + rate, 0);
+      if (totalRate <= 0) {
+        last = until;
+        break;
+      }
+      let timeToFull = Number.POSITIVE_INFINITY;
+      miners.forEach((miner, index) => {
+        const cap = miningHoldCapacity(miningBargeCount(miner.composition));
+        const left = Math.max(0, cap - miner.cargoOre - miner.cargoCrystal);
+        if (rates[index] > 0) timeToFull = Math.min(timeToFull, left / rates[index]);
+      });
+      const timeToEmpty = remaining / totalRate;
+      const step = Math.min(until - last, timeToEmpty, timeToFull);
+      if (step <= 0) break;
+      const extracted = step * totalRate;
+      const oreShare = belt.ore / remaining;
+      const takeOre = Math.min(belt.ore, Math.floor(extracted * oreShare));
+      const takeCrystal = Math.min(belt.crystal, Math.floor(extracted - takeOre));
+      let givenOre = 0;
+      let givenCrystal = 0;
+      fleets = fleets.map((fleet) => {
+        const index = miners.findIndex((miner) => miner.id === fleet.id);
+        if (index < 0) return fleet;
+        const share = totalRate > 0 ? rates[index] / totalRate : 0;
+        const addOre = Math.floor(takeOre * share);
+        const addCrystal = Math.floor(takeCrystal * share);
+        givenOre += addOre;
+        givenCrystal += addCrystal;
+        return { ...fleet, cargoOre: fleet.cargoOre + addOre, cargoCrystal: fleet.cargoCrystal + addCrystal };
+      });
+      belt = {
+        ...belt,
+        ore: belt.ore - givenOre,
+        crystal: belt.crystal - givenCrystal,
+        lastMinedAt: last + step,
+      };
+      last += step;
+      next = { ...next, fleets, belts: belts.map((row, idx) => (idx === i ? belt : row)) };
+      for (const miner of fleets.filter((fleet) => miners.some((row) => row.id === fleet.id))) {
+        const cap = miningHoldCapacity(miningBargeCount(miner.composition));
+        if (miner.cargoOre + miner.cargoCrystal >= cap && miner.mission === "mine_hold") {
+          next = sendMinerHome(next, miner, last, "The mining barges filled their holds.");
+        }
+      }
+      fleets = next.fleets;
+      if (belt.ore + belt.crystal <= 0) {
+        belt = { ...belt, ore: 0, crystal: 0, emptiedAt: last };
+        for (const miner of fleets.filter(
+          (fleet) =>
+            fleet.mission === "mine_hold" &&
+            fleet.destSlot === belt.beltSlot &&
+            (fleet.destSystem ?? 0) === belt.system,
+        )) {
+          next = sendMinerHome(next, miner, last, "The asteroid belt was exhausted.");
+        }
+        fleets = next.fleets;
+        break;
+      }
+    }
+    belt = { ...belt, lastMinedAt: last };
+    belts[i] = belt;
+    next = { ...next, belts, fleets };
+  }
+  return next;
+}
+
 function restoreReturningShips(empire: SimEmpire, fleet: SimFleet): SimEmpire {
   const composition = fleet.composition;
   const useComposition =
@@ -841,6 +1024,32 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
 
   const origin = planetById(world, fleet.originPlanetId!);
   const destSlot = fleet.destSlot ?? (fleet.destPlanetId != null ? planetById(world, fleet.destPlanetId).slot : EXPEDITION_SLOT);
+
+  if (fleet.mission === "mine") {
+    const belts = [...(world.belts ?? [])];
+    const index = belts.findIndex(
+      (belt) =>
+        belt.galaxy === (fleet.destGalaxy ?? 1) &&
+        belt.system === (fleet.destSystem ?? origin.system) &&
+        belt.beltSlot === fleet.destSlot,
+    );
+    if (index >= 0 && belts[index].lastMinedAt < fleet.arrivesAt) {
+      belts[index] = { ...belts[index], lastMinedAt: fleet.arrivesAt };
+    }
+    const holding: SimFleet = {
+      ...fleet,
+      mission: "mine_hold",
+      arrivesAt: fleet.arrivesAt + ASTEROID_BELT_REFILL_SECONDS * 2000,
+    };
+    return tickAsteroidMining(
+      { ...world, belts, fleets: world.fleets.map((row) => (row.id === fleet.id ? holding : row)) },
+      fleet.arrivesAt,
+    );
+  }
+
+  if (fleet.mission === "mine_hold") {
+    return tickAsteroidMining(world, Math.max(at, fleet.arrivesAt));
+  }
   const destSystem = fleet.destSystem ?? origin.system;
   const destGalaxy = fleet.destGalaxy ?? origin.galaxy ?? 0;
 
@@ -1040,6 +1249,71 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
     return {
       ...withPlanet,
       fleets: withPlanet.fleets.map((f) => (f.id === fleet.id ? returning : f)),
+    };
+  }
+
+  if (fleet.mission === "espionage" && isAsteroidBeltSlot(fleet.destSlot) && fleet.destPlanetId == null) {
+    const ticked = tickAsteroidMining(world, fleet.arrivesAt);
+    const belt = (ticked.belts ?? []).find(
+      (row) =>
+        row.galaxy === (fleet.destGalaxy ?? 1) &&
+        row.system === (fleet.destSystem ?? origin.system) &&
+        row.beltSlot === fleet.destSlot,
+    );
+    const miners = ticked.fleets.filter(
+      (row) =>
+        row.status === "en_route" &&
+        row.mission === "mine_hold" &&
+        row.destSlot === fleet.destSlot &&
+        (row.destSystem ?? 0) === (fleet.destSystem ?? origin.system),
+    );
+    const minerLines =
+      miners.length === 0
+        ? "None"
+        : miners
+            .map((row) => {
+              const n = miningBargeCount(row.composition);
+              const cap = miningHoldCapacity(n);
+              const fill = cap > 0 ? Math.round(((row.cargoOre + row.cargoCrystal) / cap) * 100) : 0;
+              return `${row.ownerId ?? "unknown"}: ${n} barge${n === 1 ? "" : "s"} (${fill}% full)`;
+            })
+            .join("\n");
+    const body = [
+      `Espionage report from asteroid belt [${fleet.destGalaxy ?? 1}:${fleet.destSystem}:${fleet.destSlot}]`,
+      "",
+      "Resources at probe arrival",
+      `Ore: ${belt?.ore ?? 0}`,
+      `Crystal: ${belt?.crystal ?? 0}`,
+      "",
+      "Miners",
+      minerLines,
+    ].join("\n");
+    const destSlot = belt?.afterSlot ?? origin.slot;
+    const duration = flightSeconds(
+      origin.system,
+      origin.slot,
+      fleet.destSystem ?? origin.system,
+      destSlot,
+      world.empire.propulsionLevel,
+      origin.galaxy ?? 0,
+      fleet.destGalaxy ?? origin.galaxy ?? 0,
+      hullSpeed("espionage_probe", 0, 0, world.empire.propulsionLevel),
+    );
+    const returning: SimFleet = {
+      ...fleet,
+      mission: "espionage_return",
+      destPlanetId: origin.id,
+      destGalaxy: origin.galaxy,
+      destSystem: origin.system,
+      destSlot: origin.slot,
+      launchedAt: fleet.arrivesAt,
+      arrivesAt: fleet.arrivesAt + duration * 1000,
+      report: body,
+    };
+    return {
+      ...ticked,
+      fleets: ticked.fleets.map((row) => (row.id === fleet.id ? returning : row)),
+      reports: [{ title: "Espionage report", body, lootOre: 0, lootCrystal: 0, createdAt: fleet.arrivesAt }, ...ticked.reports],
     };
   }
 
@@ -1295,6 +1569,8 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
         ? "the debris field"
         : fleet.mission === "colonize_return"
           ? "the colony site"
+          : fleet.mission === "mine_return"
+            ? "the asteroid belt"
           : fleet.destPlanetId != null
           ? planetById(world, fleet.destPlanetId).name
           : "the void";
@@ -1326,6 +1602,8 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
             ? "Harvest returned"
             : fleet.mission === "colonize_return"
               ? "Colony ship returned"
+              : fleet.mission === "mine_return"
+                ? "Mining barge returned"
               : `Fleet returned from ${destName}`,
         body: fleet.report ?? "The small cargo dumped their holds.",
         lootOre: fleet.cargoOre,
@@ -1359,12 +1637,22 @@ export function catchUpWorld(world: SimWorld, at: number): SimWorld {
     const due = next.fleets
       .filter((f) => {
         if (f.status !== "en_route" || f.arrivesAt > at) return false;
+        if (f.mission === "mine_hold") return false;
         if (f.mission === "attack" && f.ownerId && f.ownerId !== next.empire.userId) return false;
         return true;
       })
       .sort((a, b) => a.arrivesAt - b.arrivesAt)[0];
-    if (!due) break;
-    next = resolveFleet(next, due, at);
+    if (!due) {
+      next = tickAsteroidMining(next, at);
+      break;
+    }
+    next = tickAsteroidMining(next, due.arrivesAt);
+    const live = next.fleets.find((row) => row.id === due.id);
+    if (!live || live.status !== "en_route" || live.arrivesAt > at) {
+      guard += 1;
+      continue;
+    }
+    next = resolveFleet(next, live, at);
     guard += 1;
   }
 
@@ -1503,13 +1791,16 @@ export function recallFleet(world: SimWorld, fleetId: number, at: number): SimWo
     fleet.mission !== "espionage" &&
     fleet.mission !== "harvest" &&
     fleet.mission !== "colonize" &&
-    fleet.mission !== "deploy"
+    fleet.mission !== "deploy" &&
+    fleet.mission !== "mine" &&
+    fleet.mission !== "mine_hold"
   ) {
     throw new Error("That fleet cannot be recalled.");
   }
   if (fleet.arrivesAt <= at) throw new Error("The fleet already reached its target.");
   const origin = planetById(caught, fleet.originPlanetId ?? caught.empire.homePlanetId);
   const flown = Math.max(1, at - (fleet.launchedAt ?? at));
+  const homeMs = fleet.mission === "mine_hold" ? miningReturnFlightMs(caught, fleet) : flown;
   const recalled: SimFleet = {
     ...fleet,
     mission:
@@ -1523,14 +1814,16 @@ export function recallFleet(world: SimWorld, fleetId: number, at: number): SimWo
               ? "colonize_return"
               : fleet.mission === "deploy"
                 ? "return"
+                : fleet.mission === "mine" || fleet.mission === "mine_hold"
+                  ? "mine_return"
             : "return",
     destPlanetId: origin.id,
     destGalaxy: origin.galaxy,
     destSystem: origin.system,
     destSlot: origin.slot,
     launchedAt: at,
-    arrivesAt: at + flown,
-    report: "Fleet recalled.",
+    arrivesAt: at + homeMs,
+    report: fleet.mission === "mine_hold" ? "Mining barge recalled with loaded cargo." : "Fleet recalled.",
   };
   return { ...caught, fleets: caught.fleets.map((row) => (row.id === fleetId ? recalled : row)) };
 }
@@ -2093,6 +2386,83 @@ export function selectPlanet(world: SimWorld, planetId: number): SimWorld {
   return mirrorSelectedYard(next);
 }
 
+export function sendMine(
+  world: SimWorld,
+  galaxy: number,
+  system: number,
+  beltSlot: number,
+  barges: number,
+  at: number,
+): SimWorld {
+  if (barges < 1) throw new Error("Send at least one mining barge.");
+  if (!isAsteroidBeltSlot(beltSlot)) throw new Error("No asteroid belt at that coordinate.");
+  const caught = catchUpWorld(world, at);
+  const belt = (caught.belts ?? []).find(
+    (row) => row.galaxy === galaxy && row.system === system && row.beltSlot === beltSlot,
+  );
+  if (!belt) throw new Error("No asteroid belt at that coordinate.");
+  const docked = caught.empire.ships.mining_barge ?? 0;
+  if (docked < barges) throw new Error("Not enough mining barges.");
+  const origin = planetById(caught, caught.empire.homePlanetId);
+  const destSlot = belt.afterSlot;
+  const slowest = hullSpeed(
+    "mining_barge",
+    caught.empire.impulseDrive,
+    caught.empire.hyperspaceDrive,
+    caught.empire.propulsionLevel,
+  );
+  const duration = attackFlightSeconds(
+    origin.system,
+    origin.slot,
+    system,
+    destSlot,
+    caught.empire.propulsionLevel,
+    origin.galaxy ?? 1,
+    galaxy,
+    slowest,
+    100,
+  );
+  const fuel = attackFuel(
+    { mining_barge: barges },
+    origin.galaxy ?? 1,
+    origin.system,
+    origin.slot,
+    galaxy,
+    system,
+    destSlot,
+    caught.empire.impulseDrive,
+    100,
+  );
+  if (origin.deuterium < fuel) throw new Error("Not enough resources.");
+  const fleet: SimFleet = {
+    id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
+    ownerId: caught.empire.userId,
+    originPlanetId: origin.id,
+    destPlanetId: null,
+    destGalaxy: galaxy,
+    destSystem: system,
+    destSlot: beltSlot,
+    raiders: barges,
+    composition: { mining_barge: barges },
+    flightSeconds: duration,
+    mission: "mine",
+    arrivesAt: at + duration * 1000,
+    cargoOre: 0,
+    cargoCrystal: 0,
+    launchedAt: at,
+    status: "en_route",
+    report: null,
+  };
+  return {
+    ...replacePlanet(caught, { ...origin, deuterium: origin.deuterium - fuel }),
+    empire: {
+      ...caught.empire,
+      ships: bumpShip(caught.empire.ships, "mining_barge", -barges),
+    },
+    fleets: [...caught.fleets, fleet],
+  };
+}
+
 export function sendHarvest(
   world: SimWorld,
   galaxy: number,
@@ -2298,7 +2668,7 @@ export function sendExpedition(
 export function livePlanet(planet: SimPlanet, at: number) {
   const preview = catchUpPlanet(planet, at);
   const tempMax = preview.tempMax ?? 30;
-  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax);
+  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax, preview.tempMin);
   const burn = fusionDeuteriumBurnPerHour(preview.fusionReactor);
   const withFusion = planetEnergy(preview);
   const fusionLive =

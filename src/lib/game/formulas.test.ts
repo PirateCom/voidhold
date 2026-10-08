@@ -173,13 +173,26 @@ describe("production formulas", () => {
   it("produces 33 ore per real hour at ore mine L1", () => {
     expect(GAME_HOUR_SECONDS).toBe(3600);
     expect(mineProductionPerHour(1)).toBe(33);
+    expect(mineProductionPerHour(4)).toBe(175);
+    expect(mineProductionPerHour(4) * 5).toBe(875);
     expect(crystalProductionPerHour(1)).toBe(22);
+    expect(crystalProductionPerHour(5)).toBe(161);
+    expect(crystalProductionPerHour(10)).toBe(518);
     expect(harvestAmount(0, 30, GAME_HOUR_SECONDS, 10000)).toBe(30);
     expect(harvestAmount(0, 30, GAME_HOUR_SECONDS * 2, 10000)).toBe(60);
+    expect(mineProductionPerHour(10)).toBe(778);
+    expect(mineProductionPerHour(11)).toBe(941);
+    expect(mineProductionPerHour(11) * 8).toBe(7528);
+    expect(mineProductionPerHour(35)).toBe(29507);
   });
 
   it("makes deuterium from the synthesizer, burns fusion, and charges wiki fleet fuel", () => {
-    expect(deuteriumProductionPerHour(1, 30)).toBe(17);
+    expect(deuteriumClimate(0)).toBeCloseTo(1.36);
+    expect(deuteriumClimate(30, -10)).toBeCloseTo(1.32);
+    expect(deuteriumProductionPerHour(1, 0)).toBe(14);
+    expect(deuteriumProductionPerHour(1, 30)).toBe(13);
+    expect(deuteriumProductionPerHour(1, 30, -10)).toBe(14);
+    expect(deuteriumProductionPerHour(10, 0)).toBe(352);
     expect(fusionDeuteriumBurnPerHour(1)).toBe(11);
     expect(wikiFlightDistance(1, 1, 1, 1, 2, 1)).toBe(2795);
     expect(wikiFlightDistance(1, 1, 1, 1, 499, 1)).toBe(2795);
@@ -205,6 +218,19 @@ describe("production formulas", () => {
     expect(buildingCost("deuterium_extractor", 0)).toEqual({ ore: 225, crystal: 75, deuterium: 0 });
     expect(buildingCost("deuterium_storage", 0)).toEqual({ ore: 1000, crystal: 1000, deuterium: 0 });
     expect(buildingCost("fusion_reactor", 0)).toEqual({ ore: 900, crystal: 360, deuterium: 180 });
+    expect(buildingCost("ore_mine", 0)).toEqual({ ore: 60, crystal: 15, deuterium: 0 });
+    expect(buildingCost("ore_mine", 4)).toEqual({ ore: 303, crystal: 75, deuterium: 0 });
+    expect(buildingCost("ore_mine", 9)).toEqual({ ore: 2306, crystal: 576, deuterium: 0 });
+    expect(buildingCost("ore_mine", 14)).toEqual({ ore: 17515, crystal: 4378, deuterium: 0 });
+    expect(buildingCost("ore_mine", 19)).toEqual({ ore: 133010, crystal: 33252, deuterium: 0 });
+    expect(buildingCost("crystal_mine", 0)).toEqual({ ore: 48, crystal: 24, deuterium: 0 });
+    expect(buildingCost("crystal_mine", 1)).toEqual({ ore: 76, crystal: 38, deuterium: 0 });
+    expect(buildingCost("crystal_mine", 4)).toEqual({ ore: 314, crystal: 157, deuterium: 0 });
+    expect(buildingCost("crystal_mine", 9)).toEqual({ ore: 3298, crystal: 1649, deuterium: 0 });
+    expect(buildingCost("crystal_mine", 14)).toEqual({ ore: 34587, crystal: 17293, deuterium: 0 });
+    expect(buildingCost("deuterium_extractor", 4)).toEqual({ ore: 1139, crystal: 379, deuterium: 0 });
+    expect(buildingCost("deuterium_extractor", 9)).toEqual({ ore: 8649, crystal: 2883, deuterium: 0 });
+    expect(buildingCost("deuterium_extractor", 14)).toEqual({ ore: 65684, crystal: 21894, deuterium: 0 });
     expect(buildingCost("ore_mine", 1).ore).toBeGreaterThan(60);
     expect(buildingCost("ore_storage", 0)).toEqual({ ore: 1000, crystal: 0, deuterium: 0 });
     expect(buildingCost("crystal_storage", 0)).toEqual({ ore: 1000, crystal: 500, deuterium: 0 });
@@ -283,10 +309,20 @@ describe("production formulas", () => {
         id === "impulse_drive" ? 6 : id === "plasma_tech" ? 5 : 0,
       ).map((need) => `${need.name} ${need.level}`),
     ).toEqual(["Hyperspace drive 8"]);
-    const shipBlockSql = readFileSync(
-      path.join(process.cwd(), "supabase/migrations/036_small_cargo_impulse_gate.sql"),
-      "utf8",
+    const shipBlockSlice = (sql: string) => {
+      const start = sql.indexOf("create or replace function private.ship_block");
+      if (start < 0) return "";
+      const end = sql.indexOf("$$;", start);
+      return end < 0 ? sql.slice(start) : sql.slice(start, end);
+    };
+    const latestShipBlock = shipBlockSlice(
+      readFileSync(path.join(process.cwd(), "supabase/migrations/074_asteroid_belts.sql"), "utf8"),
     );
+    const shipBlockSql =
+      latestShipBlock ||
+      shipBlockSlice(
+        readFileSync(path.join(process.cwd(), "supabase/migrations/036_small_cargo_impulse_gate.sql"), "utf8"),
+      );
     const shipyardInSql: Record<string, number> = {};
     for (const line of shipBlockSql.split("\n")) {
       const m = line.match(/^\s+when '([^']+)' then (\d+)/);

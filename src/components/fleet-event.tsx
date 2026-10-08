@@ -18,6 +18,7 @@ const HULL_LABELS: Record<string, string> = {
   large_cargo: "Large cargo",
   colony_ship: "Colony ship",
   recycler: "Recycler",
+  mining_barge: "Mining barge",
   espionage_probe: "Probe",
   reaper: "Reaper",
   pathfinder: "Pathfinder",
@@ -78,7 +79,8 @@ function isReturnMission(mission: FleetRow["mission"]) {
     mission === "harvest_return" ||
     mission === "colonize_return" ||
     mission === "expedition_return" ||
-    mission === "transport_return"
+    mission === "transport_return" ||
+    mission === "mine_return"
   );
 }
 
@@ -99,6 +101,10 @@ function missionLabel(fleet: FleetRow, inbound?: boolean) {
       return "Espionage";
     case "harvest":
       return "Harvest";
+    case "mine":
+      return "Mine";
+    case "mine_hold":
+      return "Mining";
     case "colonize":
       return "Colonize";
     case "expedition":
@@ -110,6 +116,7 @@ function missionLabel(fleet: FleetRow, inbound?: boolean) {
     case "colonize_return":
     case "expedition_return":
     case "transport_return":
+    case "mine_return":
       return "Return";
     default:
       return fleet.mission;
@@ -264,6 +271,8 @@ export function FleetEventStrip({
       ? "STATUS: RETURNING TO HOMEWORLD"
       : fleet.mission === "expedition_hold"
         ? "STATUS: HOLDING IN THE VOID"
+        : fleet.mission === "mine_hold"
+          ? "STATUS: MINING ASTEROID BELT"
         : `STATUS: TRANSIT TO ${destName.toUpperCase()}`;
   const look = FLEET_TONES[fleetTone(fleet, inbound)];
 
