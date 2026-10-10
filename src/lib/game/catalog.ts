@@ -249,7 +249,7 @@ export const DEFENCES: {
   {
     id: "antiballistic_missile",
     name: "Antiballistic missile",
-    blurb: "Stops one incoming interplanetary missile.",
+    blurb: "Launches automatically. Each one destroys one inbound interplanetary missile.",
     group: "missile",
     unique: false,
     tier: null,
@@ -265,7 +265,7 @@ export const DEFENCES: {
   {
     id: "interplanetary_missile",
     name: "Interplanetary missile",
-    blurb: "Strikes guns on another hold.",
+    blurb: "Launched at a planet to wreck guns. Ignores shields. Anti-ballistic missiles stop them one-for-one.",
     group: "missile",
     unique: false,
     tier: null,
@@ -655,6 +655,57 @@ export function fusionDeuteriumBurnPerHour(level: number): number {
   const safe = Math.max(0, Math.floor(level));
   if (safe <= 0) return 0;
   return Math.floor(10 * safe * Math.pow(1.1, safe));
+}
+
+/** Wiki IPM range in systems: (5 × Impulse Drive) − 1. Same galaxy only. */
+export function ipmRangeSystems(impulseDrive: number): number {
+  return Math.max(0, 5 * Math.max(0, Math.trunc(impulseDrive)) - 1);
+}
+
+export function ipmSystemDistance(fromSystem: number, toSystem: number): number {
+  const raw = Math.abs(Math.trunc(fromSystem) - Math.trunc(toSystem));
+  return Math.min(raw, SYSTEM_COUNT - raw);
+}
+
+/** Wiki: (30 + 60 × systems) / universe speed. Same system is 30s at ×1. */
+export function ipmFlightSeconds(fromSystem: number, toSystem: number, universeSpeed = 1): number {
+  const speed = Math.max(1, universeSpeed);
+  return Math.max(1, Math.floor((30 + 60 * ipmSystemDistance(fromSystem, toSystem)) / speed));
+}
+
+export function siloIpmCapacity(siloLevel: number): number {
+  return 5 * Math.max(0, Math.trunc(siloLevel));
+}
+
+export function siloAbmCapacity(siloLevel: number): number {
+  return 10 * Math.max(0, Math.trunc(siloLevel));
+}
+
+/** Wiki silo: 10 ABM slots per level. One IPM takes two slots. */
+export function siloSlotsUsed(abm: number, ipm: number): number {
+  return Math.max(0, Math.trunc(abm)) + 2 * Math.max(0, Math.trunc(ipm));
+}
+
+export function siloFreeSlots(siloLevel: number, abm: number, ipm: number): number {
+  return Math.max(0, siloAbmCapacity(siloLevel) - siloSlotsUsed(abm, ipm));
+}
+
+export function maxSiloBuild(kind: "antiballistic_missile" | "interplanetary_missile", siloLevel: number, abm: number, ipm: number): number {
+  const free = siloFreeSlots(siloLevel, abm, ipm);
+  return kind === "interplanetary_missile" ? Math.floor(free / 2) : free;
+}
+
+/** Classic yard order cap so Max cannot dump a full warehouse into one click. */
+export const UNIT_QUEUE_CAP = 999;
+
+export function maxUnitQueueCount(
+  have: ResourceStock,
+  cost: ResourceStock,
+  alreadyQueued = 0,
+  extraCap = Number.POSITIVE_INFINITY,
+): number {
+  const room = Math.max(0, UNIT_QUEUE_CAP - Math.max(0, Math.floor(alreadyQueued)));
+  return Math.min(maxAffordableCount(have, cost), room, extraCap);
 }
 
 export function wikiFlightDistance(
@@ -1200,6 +1251,10 @@ export function facilitySpec(id: FacilityId) {
   return FACILITY_BY_ID[id];
 }
 
+export function isFacilityDisabled(id: FacilityId) {
+  return FACILITY_BY_ID[id].disabled === true;
+}
+
 export function unmetFacility(
   id: FacilityId,
   facilityLevelOf: (facility: FacilityId) => number,
@@ -1343,6 +1398,51 @@ export function researchTimeSeconds(currentLevel: number): number {
   return Math.floor(45 * Math.pow(1.5, currentLevel));
 }
 
+/** Wiki IRN: level N connects N extra labs besides the planet where research starts. */
+export function irnExtraLabSlots(irnLevel: number): number {
+  return Math.max(0, Math.trunc(irnLevel));
+}
+
+/**
+ * Wiki: start lab is always included. Remaining IRN slots fill with the highest labs
+ * that meet the technology's lab requirement.
+ */
+export function irnConnectedLabs(
+  startLab: number,
+  otherLabs: number[],
+  irnLevel: number,
+  labNeed: number,
+): number[] {
+  const start = Math.max(0, Math.trunc(startLab));
+  const extras = otherLabs
+    .map((lab) => Math.max(0, Math.trunc(lab)))
+    .filter((lab) => lab >= labNeed)
+    .sort((a, b) => b - a)
+    .slice(0, irnExtraLabSlots(irnLevel));
+  return [start, ...extras];
+}
+
+export function combinedResearchLab(
+  startLab: number,
+  otherLabs: number[],
+  irnLevel: number,
+  labNeed: number,
+): number {
+  return irnConnectedLabs(startLab, otherLabs, irnLevel, labNeed).reduce((sum, lab) => sum + lab, 0);
+}
+
+/** Short session clocks, sped up by wiki IRN: time × (1 + start lab) / (1 + combined labs). */
+export function researchDurationSeconds(
+  currentLevel: number,
+  combinedLab = 0,
+  startLab = 0,
+): number {
+  const base = researchTimeSeconds(currentLevel);
+  const start = Math.max(0, Math.trunc(startLab));
+  const combined = Math.max(Math.trunc(combinedLab), start);
+  return Math.max(1, Math.floor((base * (1 + start)) / (1 + combined)));
+}
+
 export function fleetSpeedMultiplier(propulsionLevel: number): number {
   return 1 + 0.1 * propulsionLevel;
 }
@@ -1414,7 +1514,7 @@ export function expeditionFleetCap(astrophysics: number): number {
   return Math.floor(Math.sqrt(Math.max(0, astrophysics)));
 }
 
-/** Wiki Astrophysics: homeworld plus round(level / 2) further planets. Level 1 allows the first colony. */
+/** Wiki Astronomy: homeworld plus round(level / 2) further planets. Level 1 allows the first colony. */
 export function maxPlanets(astrophysics: number): number {
   return 1 + Math.round(Math.max(0, astrophysics) / 2);
 }
@@ -1593,11 +1693,18 @@ function parseClock(value: number | string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+/** Jobs shorter than this skip the progress bar (countdown still shows). */
+export const MIN_JOB_PROGRESS_MS = 3000;
+
+export function showsJobProgress(durationMs: number): boolean {
+  return Number.isFinite(durationMs) && durationMs >= MIN_JOB_PROGRESS_MS;
+}
+
 /**
  * Length of a timed job. Prefer completes − started so a mid-job refresh
- * (another device, a later visit) still sits at 50% of a 30-minute upgrade
- * when 15 minutes remain. Do not use remaining time as the span — that
- * always paints 0%.
+ * still sits at 50% of a 30-minute upgrade when 15 minutes remain.
+ * If start is missing, keep the longer of the estimate and time left so a
+ * short formula cannot hide a long running job.
  */
 export function effectiveJobDurationMs(
   completesAt: number | string | null | undefined,
@@ -1605,11 +1712,11 @@ export function effectiveJobDurationMs(
   now: number,
   startedAt?: number | string | null,
 ): number {
-  const estimate = Math.max(estimatedDurationMs, 1);
+  const estimate = Math.max(Number.isFinite(estimatedDurationMs) ? estimatedDurationMs : 0, 1);
   const end = parseClock(completesAt);
   const start = parseClock(startedAt ?? null);
   if (end != null && start != null && end > start) return end - start;
-  void now;
+  if (end != null) return Math.max(estimate, Math.max(0, end - now));
   return estimate;
 }
 

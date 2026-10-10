@@ -1,5 +1,7 @@
 "use client";
 
+import { UNIT_QUEUE_CAP } from "@/lib/game/catalog";
+
 export function QueueCountField({
   value,
   maxAffordable,
@@ -9,10 +11,11 @@ export function QueueCountField({
   maxAffordable: number;
   onChange: (n: number) => void;
 }) {
-  const cap = Math.max(1, maxAffordable);
+  const room = Math.max(0, Math.min(UNIT_QUEUE_CAP, Math.floor(maxAffordable)));
+  const cap = Math.max(1, room);
   return (
     <label className="mt-3 block text-xs text-[var(--muted-fg)]">
-      Queue
+      Queue {room > 0 ? `(max ${room.toLocaleString()})` : ""}
       <div className="mt-1 flex gap-2">
         <input
           type="number"
@@ -24,8 +27,8 @@ export function QueueCountField({
         />
         <button
           type="button"
-          disabled={maxAffordable < 1}
-          onClick={() => onChange(maxAffordable)}
+          disabled={room < 1}
+          onClick={() => onChange(room)}
           className="sci-btn sci-btn-muted h-11 shrink-0 px-4"
         >
           Max

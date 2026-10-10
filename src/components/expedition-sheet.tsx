@@ -68,7 +68,7 @@ export function ExpeditionSheet({
   );
   const blocked =
     astro < 1
-      ? "Needs Astrophysics 1."
+      ? "Needs Astronomy 1."
       : active >= cap
         ? "No free expedition slots."
         : cargo < 1
@@ -94,7 +94,7 @@ export function ExpeditionSheet({
           </button>
         </div>
         <p className="mt-3 text-xs text-[var(--muted-fg)]">
-          Wiki expeditions need Astrophysics 1. Only docked hulls can launch. Small cargo is the hull in dock.
+          Wiki expeditions need Astronomy 1. Only docked hulls can launch. Small cargo is the hull in dock.
         </p>
         <ul className="mt-3 flex flex-col gap-2">
           {flyable.map((ship) => {

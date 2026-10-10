@@ -5,6 +5,9 @@ import {
   buildingCost,
   canPayResources,
   maxAffordableCount,
+  maxSiloBuild,
+  maxUnitQueueCount,
+  UNIT_QUEUE_CAP,
   formatDuration,
   unitBuildSeconds,
   buildingTimeSeconds,
@@ -45,6 +48,7 @@ import {
   planetTemperature,
   progressToward,
   effectiveJobDurationMs,
+  showsJobProgress,
   rollMaxFields,
   starMultiplier,
   raidHaul,
@@ -52,8 +56,15 @@ import {
   RAIDER_CARGO,
   expeditionFleetCap,
   rollExpeditionKind,
+  ipmFlightSeconds,
+  ipmRangeSystems,
+  ipmSystemDistance,
   researchCost,
+  researchDurationSeconds,
+  combinedResearchLab,
+  irnConnectedLabs,
   researchTechCost,
+  researchTimeSeconds,
   unmetResearch,
   unmetShipBuild,
   unmetDefenceBuild,
@@ -95,6 +106,15 @@ describe("resource costs", () => {
     expect(canPayResources({ ore: 10_000, crystal: 10_000, deuterium: 400 }, cost)).toBe(true);
     expect(maxAffordableCount({ ore: 10_000, crystal: 10_000, deuterium: 177 }, cost)).toBe(0);
     expect(maxAffordableCount({ ore: 20_000, crystal: 4_000, deuterium: 1_200 }, { ore: 2000, crystal: 500, deuterium: 100 })).toBe(8);
+    expect(UNIT_QUEUE_CAP).toBe(999);
+    expect(
+      maxUnitQueueCount({ ore: 50_000_000, crystal: 50_000_000, deuterium: 50_000_000 }, { ore: 2000, crystal: 0, deuterium: 0 }),
+    ).toBe(999);
+    expect(
+      maxUnitQueueCount({ ore: 50_000_000, crystal: 50_000_000 }, { ore: 2000, crystal: 0 }, 990),
+    ).toBe(9);
+    expect(maxSiloBuild("antiballistic_missile", 2, 0, 0)).toBe(20);
+    expect(maxSiloBuild("interplanetary_missile", 4, 2, 1)).toBe(18);
   });
 });
 
@@ -262,6 +282,14 @@ describe("production formulas", () => {
     expect(researchTechCost("armour_tech", 1)).toEqual({ ore: 2000, crystal: 0, deuterium: 0 });
     expect(researchTechCost("combustion_drive", 0)).toEqual({ ore: 400, crystal: 0, deuterium: 600 });
     expect(researchTechCost("astrophysics", 1).ore).toBe(Math.floor(4000 * 1.75));
+    expect(irnConnectedLabs(10, [8, 6, 4], 2, 6)).toEqual([10, 8, 6]);
+    expect(combinedResearchLab(10, [8, 6, 4], 2, 6)).toBe(24);
+    expect(irnConnectedLabs(10, [8, 6, 4], 2, 7)).toEqual([10, 8]);
+    expect(combinedResearchLab(10, [8, 6, 4], 2, 7)).toBe(18);
+    expect(irnConnectedLabs(6, [10, 8, 4], 1, 6)).toEqual([6, 10]);
+    expect(combinedResearchLab(6, [10, 8, 4], 1, 6)).toBe(16);
+    expect(researchDurationSeconds(0, 10, 10)).toBe(researchTimeSeconds(0));
+    expect(researchDurationSeconds(0, 24, 10)).toBe(Math.floor((researchTimeSeconds(0) * 11) / 25));
     expect(unmetResearch("energy_tech", () => 0, 0).map((need) => need.name)).toEqual(["Research lab"]);
     expect(unmetResearch("weapons_tech", () => 0, 3)[0]).toMatchObject({ name: "Research lab", level: 4 });
     expect(unmetResearch("shielding_tech", () => 0, 6).map((need) => `${need.name} ${need.level}`)).toEqual([
@@ -406,6 +434,10 @@ describe("production formulas", () => {
     expect(progressToward(completes, span, now)).toBeCloseTo(0.5);
     expect(effectiveJobDurationMs(completes, 30 * 60 * 1000, now)).toBe(30 * 60 * 1000);
     expect(progressToward(completes, 30 * 60 * 1000, now)).toBeCloseTo(0.5);
+    expect(showsJobProgress(2999)).toBe(false);
+    expect(showsJobProgress(3000)).toBe(true);
+    expect(showsJobProgress(Number.NaN)).toBe(false);
+    expect(effectiveJobDurationMs(completes, 1000, now)).toBe(15 * 60 * 1000);
   });
 
   it("reads start/end from ISO timestamps the way empire_state_json returns them", () => {
@@ -454,6 +486,10 @@ describe("production formulas", () => {
     expect(defenceSpec("large_shield_dome")).toMatchObject({ hull: 100000, shield: 10000, attack: 1 });
     expect(defenceSpec("antiballistic_missile")).toMatchObject({ hull: 8000, shield: 1, attack: 1 });
     expect(defenceSpec("interplanetary_missile")).toMatchObject({ hull: 15000, shield: 1, attack: 12000 });
+    expect(ipmRangeSystems(5)).toBe(24);
+    expect(ipmSystemDistance(50, 26)).toBe(24);
+    expect(ipmFlightSeconds(100, 100, 1)).toBe(30);
+    expect(ipmFlightSeconds(100, 110, 1)).toBe(630);
   });
 
   it("scales pirate waves with guns and resolves simultaneous fire", () => {

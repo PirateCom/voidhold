@@ -1,6 +1,6 @@
 "use client";
 
-import { effectiveJobDurationMs, progressToward } from "@/lib/game/catalog";
+import { effectiveJobDurationMs, progressToward, showsJobProgress } from "@/lib/game/catalog";
 import { useEffect, useRef, useState } from "react";
 
 export function StripedProgress({
@@ -67,6 +67,9 @@ export function TimedStripedProgress({
   const untilKey = until == null ? "" : String(until);
   const origin = useRef<{ untilKey: string; base: number; perf: number; span: number } | null>(null);
   const span = effectiveJobDurationMs(until, durationMs, now, startedAt);
+  const remaining =
+    until == null ? 0 : Math.max(0, (typeof until === "string" ? Date.parse(until) : until) - now);
+  const visible = showsJobProgress(durationMs) || showsJobProgress(span) || showsJobProgress(remaining);
   if (!origin.current || origin.current.untilKey !== untilKey) {
     origin.current = {
       untilKey,
@@ -81,6 +84,7 @@ export function TimedStripedProgress({
   const [clock, setClock] = useState(now);
 
   useEffect(() => {
+    if (!visible) return;
     let raf = 0;
     const loop = (t: number) => {
       const o = origin.current;
@@ -89,7 +93,9 @@ export function TimedStripedProgress({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [untilKey]);
+  }, [untilKey, visible]);
+
+  if (!visible) return null;
 
   const value = progressToward(until, origin.current.span, clock);
   return (

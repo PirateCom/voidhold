@@ -25,6 +25,7 @@ const HULL_LABELS: Record<string, string> = {
   crawler: "Crawler",
   solar_satellite: "Satellite",
   pirate: "Pirate",
+  interplanetary_missile: "Interplanetary missile",
 };
 
 function coords(galaxy?: number | null, system?: number | null, slot?: number | null) {
@@ -88,11 +89,14 @@ function missionLabel(fleet: FleetRow, inbound?: boolean) {
   if (inbound) {
     if (fleet.mission === "transport") return "Transport";
     if (fleet.mission === "deploy") return "Deploy";
+    if (fleet.mission === "missile") return "Missiles";
     return "Attack";
   }
   switch (fleet.mission) {
     case "attack":
       return "Attack";
+    case "missile":
+      return "Missiles";
     case "transport":
       return "Transport";
     case "deploy":
@@ -125,6 +129,9 @@ function missionLabel(fleet: FleetRow, inbound?: boolean) {
 
 function shipSummary(fleet: FleetRow, inbound?: boolean) {
   const ships = fleet.ship_count ?? fleet.raiders;
+  if (inbound && fleet.mission === "missile") {
+    return `${ships.toLocaleString()} missile${ships === 1 ? "" : "s"}`;
+  }
   if (inbound) return `${ships.toLocaleString()} ship${ships === 1 ? "" : "s"}`;
   const entries = Object.entries(fleet.composition ?? {}).filter(([, n]) => n > 0);
   const hull =

@@ -12,7 +12,8 @@ import {
   SHIPS,
   canPayResources,
   formatDuration,
-  maxAffordableCount,
+  showsJobProgress,
+  maxUnitQueueCount,
   unitBuildSeconds,
   crawlerCap,
   crawlerProductionBonus,
@@ -197,7 +198,7 @@ export default function ShipyardPage() {
           const count = Math.max(1, queues[ship.id] ?? 1);
           const buildSecs = live ? planetUnitSeconds(live, ship.id) : unitBuildSeconds(ship.cost);
           const poor = live ? !canPayResources(live, ship.cost, count) : true;
-          const affordable = live ? maxAffordableCount(live, ship.cost) : 0;
+          const affordable = live ? maxUnitQueueCount(live, ship.cost, thisBusy ? queued : 0) : 0;
           const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
           return (
             <article key={ship.id} className="sci-card p-4">
@@ -248,9 +249,9 @@ export default function ShipyardPage() {
                   tone="var(--ore)"
                   label={ship.name}
                 />
-              ) : (
+              ) : showsJobProgress(buildSecs * 1000) ? (
                 <StripedProgress className="mt-3" value={0} tone="var(--ore)" animated={false} disabled label={ship.name} />
-              )}
+              ) : null}
               {thisBusy ? (
                 <p className="mt-3 text-sm">
                   Next hull <Countdown until={state.empire.raider_completes_at} now={now} />

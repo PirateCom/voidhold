@@ -24,6 +24,7 @@ import {
   progressToward,
   effectiveJobDurationMs,
   researchSpec,
+  showsJobProgress,
   storageCap,
   terraformerEnergy,
   mineEnergyDrain,
@@ -204,9 +205,9 @@ function UpgradeCard({
           tone="var(--accent)"
           label={`${name} upgrade`}
         />
-      ) : (
+      ) : showsJobProgress(durationMs) ? (
         <StripedProgress className="mt-3" value={0} disabled label={name} animated={false} />
-      )}
+      ) : null}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
         {id === "ore_mine"
           ? `Produces ${incomePerHour(mineProductionPerHour(level)).toLocaleString()}/h, next ${incomePerHour(mineProductionPerHour(level + 1)).toLocaleString()}/h. `
@@ -338,9 +339,9 @@ export function BuildingList() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is taken from the tank. Moon buildings stay locked.
+        Costs follow the OGame wiki. Deuterium is taken from the tank.
       </p>
-      {FACILITIES.map((facility) => {
+      {FACILITIES.filter((facility) => !facility.disabled).map((facility) => {
         const missing = unmetFacility(
           facility.id,
           (id) => planetFacilityLevel(id, state.planet),

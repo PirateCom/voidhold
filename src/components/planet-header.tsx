@@ -16,7 +16,9 @@ export function PlanetHeader({ title }: { title: string }) {
   const max = live ? planetFieldCapOf(live) : planet?.max_fields;
   const underAttack = Boolean(
     state?.fleets.some(
-      (fleet) => isInboundFleet(fleet, state.empire.user_id, state.planet.id) && fleet.mission === "attack",
+      (fleet) =>
+        isInboundFleet(fleet, state.empire.user_id, state.planet.id) &&
+        (fleet.mission === "attack" || fleet.mission === "missile"),
     ),
   );
 

@@ -1,4 +1,12 @@
-import { BASH_LIMIT, BASH_WINDOW_MS, cleanFleet, normalizeAttackSpeed, settleAttack } from "./combat";
+import {
+  BASH_LIMIT,
+  BASH_WINDOW_MS,
+  cleanFleet,
+  ipmStrikeReport,
+  normalizeAttackSpeed,
+  resolveIpmStrike,
+  settleAttack,
+} from "./combat";
 import {
   BUILDINGS,
   type BuildingId,
@@ -22,6 +30,10 @@ import {
   attackFlightSeconds,
   attackFuel,
   deployFuel,
+  ipmFlightSeconds,
+  ipmRangeSystems,
+  ipmSystemDistance,
+  normalizeEconomySpeed,
   harvestDebris,
   recyclerHarvestCapacity,
   maxPlanets,
@@ -42,6 +54,8 @@ import {
   defenceSpec,
   defenceCost,
   defenceUnitCount,
+  maxSiloBuild,
+  UNIT_QUEUE_CAP,
   unitBuildSeconds,
   energyNow,
   espionageSees,
@@ -69,7 +83,8 @@ import {
   unmetResearch,
   unmetShipBuild,
   unmetDefenceBuild,
-  researchTimeSeconds,
+  combinedResearchLab,
+  researchDurationSeconds,
   type ResearchId,
   STARTING_CRYSTAL,
   STARTING_ORE,
@@ -381,6 +396,7 @@ export const EMPTY_RESEARCH = {
 
 export type FleetMission =
   | "attack"
+  | "missile"
   | "return"
   | "espionage"
   | "espionage_return"
@@ -1024,6 +1040,42 @@ function resolveFleet(world: SimWorld, fleet: SimFleet, at: number): SimWorld {
 
   const origin = planetById(world, fleet.originPlanetId!);
   const destSlot = fleet.destSlot ?? (fleet.destPlanetId != null ? planetById(world, fleet.destPlanetId).slot : EXPEDITION_SLOT);
+
+  if (fleet.mission === "missile") {
+    const dest = planetById(world, fleet.destPlanetId!);
+    const origin = planetById(world, fleet.originPlanetId ?? world.empire.homePlanetId);
+    const tickedDest = tickPlanet(dest, fleet.arrivesAt);
+    const attackerWeapons = fleet.ownerId === world.empire.userId ? world.empire.weaponsTech : 0;
+    const defenderArmour = tickedDest.ownerId === world.empire.userId ? world.empire.armourTech : 0;
+    const strike = resolveIpmStrike({
+      missiles: fleet.raiders,
+      abm: tickedDest.antiballisticMissile,
+      defenses: defenceCountsOf(tickedDest),
+      weaponsTech: attackerWeapons,
+      armourTech: defenderArmour,
+    });
+    const wrecked = applyDefenceCounts(tickedDest, strike.defenses);
+    const originLabel = `[${origin.galaxy ?? 1}:${origin.system}:${origin.slot}]`;
+    const destLabel = `[${wrecked.galaxy ?? 1}:${wrecked.system}:${wrecked.slot}] ${wrecked.name}`;
+    const body = ipmStrikeReport({
+      attackerName: fleet.ownerId === world.empire.userId ? "you" : "A commander",
+      origin: originLabel,
+      dest: destLabel,
+      launched: strike.launched,
+      intercepted: strike.intercepted,
+      hits: strike.hits,
+      destroyed: strike.destroyed,
+    });
+    const done: SimFleet = { ...fleet, status: "completed", report: body };
+    return {
+      ...replacePlanet(world, wrecked),
+      fleets: world.fleets.map((row) => (row.id === fleet.id ? done : row)),
+      reports: [
+        { title: "Missile strike", body, lootOre: 0, lootCrystal: 0, createdAt: fleet.arrivesAt },
+        ...world.reports,
+      ],
+    };
+  }
 
   if (fleet.mission === "mine") {
     const belts = [...(world.belts ?? [])];
@@ -1838,6 +1890,7 @@ export function startUpgrade(world: SimWorld, building: BuildingId, at: number):
   }
   if (isFacilityId(building)) {
     const spec = facilitySpec(building);
+    if (spec.disabled) throw new Error("That facility is not available.");
     if (spec.moon) throw new Error("Moon facilities wait for a moon.");
     const missing = unmetFacility(
       building,
@@ -1975,6 +2028,16 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
   if (planet.ore < cost.ore || planet.crystal < cost.crystal || planet.deuterium < cost.deuterium) {
     throw new Error("Not enough resources.");
   }
+  const spec = researchSpec(id);
+  const otherLabs = caught.planets
+    .filter((row) => row.ownerId === caught.empire.userId && row.id !== planet.id)
+    .map((row) => row.researchLab);
+  const combined = combinedResearchLab(
+    planet.researchLab,
+    otherLabs,
+    caught.empire.intergalacticResearchNetwork,
+    spec.lab,
+  );
   return {
     ...replacePlanet(caught, {
       ...planet,
@@ -1985,7 +2048,7 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
     empire: {
       ...caught.empire,
       researchTech: id,
-      researchCompletesAt: at + researchTimeSeconds(level) * 1000,
+      researchCompletesAt: at + researchDurationSeconds(level, combined, planet.researchLab) * 1000,
     },
   };
 }
@@ -1993,12 +2056,14 @@ export function startResearch(world: SimWorld, id: ResearchId, at: number): SimW
 export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: number): SimWorld {
   if (!isDefenceId(id)) throw new Error("Unknown defence.");
   if (count < 1) throw new Error("Build at least one.");
+  if (count > UNIT_QUEUE_CAP) throw new Error("Yard queue holds at most 999.");
   const spec = defenceSpec(id);
   const caught = catchUpWorld(world, at);
   const planet = planetById(caught, caught.empire.homePlanetId);
   if (planet.defencesQueued > 0 && planet.defenceBuilding && planet.defenceBuilding !== id) {
     throw new Error("Defence yard occupied.");
   }
+  if (planet.defencesQueued + count > UNIT_QUEUE_CAP) throw new Error("Yard queue holds at most 999.");
   const pendingSame = planet.defenceBuilding === id ? planet.defencesQueued : 0;
   if (spec.unique && defenceOwned(planet, id) + pendingSame + count > 1) {
     throw new Error("Only one of those domes fits on this world.");
@@ -2010,6 +2075,17 @@ export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: 
     (research) => researchLevel(caught.empire, research),
   )[0];
   if (blocked) throw new Error(`Needs ${blocked.name} ${blocked.level}.`);
+  if (id === "antiballistic_missile" || id === "interplanetary_missile") {
+    const pendingAbm = planet.defenceBuilding === "antiballistic_missile" ? planet.defencesQueued : 0;
+    const pendingIpm = planet.defenceBuilding === "interplanetary_missile" ? planet.defencesQueued : 0;
+    const room = maxSiloBuild(
+      id,
+      planet.missileSilo,
+      planet.antiballisticMissile + pendingAbm,
+      planet.interplanetaryMissile + pendingIpm,
+    );
+    if (count > room) throw new Error("Missile silo is full.");
+  }
   const ore = spec.cost.ore * count;
   const crystal = spec.cost.crystal * count;
   const deuterium = spec.cost.deuterium * count;
@@ -2028,8 +2104,26 @@ export function queueDefence(world: SimWorld, id: DefenceId, count: number, at: 
   });
 }
 
+export function cancelDefence(world: SimWorld, at: number): SimWorld {
+  const caught = catchUpWorld(world, at);
+  const planet = planetById(caught, caught.empire.homePlanetId);
+  if (!planet.defenceBuilding || planet.defencesQueued < 1) throw new Error("Nothing is being built.");
+  const spec = defenceSpec(planet.defenceBuilding);
+  const n = planet.defencesQueued;
+  return replacePlanet(caught, {
+    ...planet,
+    ore: Math.min(storageCap(planet.oreStorage), planet.ore + spec.cost.ore * n),
+    crystal: Math.min(storageCap(planet.crystalStorage), planet.crystal + spec.cost.crystal * n),
+    deuterium: Math.min(storageCap(planet.deuteriumStorage), planet.deuterium + spec.cost.deuterium * n),
+    defenceBuilding: null,
+    defencesQueued: 0,
+    defenceCompletesAt: null,
+  });
+}
+
 export function queueShip(world: SimWorld, id: string, count: number, at: number): SimWorld {
   if (count < 1) throw new Error("Build at least one.");
+  if (count > UNIT_QUEUE_CAP) throw new Error("Yard queue holds at most 999.");
   const caught = catchUpWorld(world, at);
   const hull = shipSpec(id);
   if (!hull) throw new Error("Unknown hull.");
@@ -2043,6 +2137,7 @@ export function queueShip(world: SimWorld, id: string, count: number, at: number
   const queued = planet.shipsQueued ?? 0;
   const busy = planet.shipBuilding || "small_cargo";
   if (queued > 0 && busy !== id) throw new Error("Shipyard occupied.");
+  if (queued + count > UNIT_QUEUE_CAP) throw new Error("Yard queue holds at most 999.");
   const ore = hull.cost.ore * count;
   const crystal = hull.cost.crystal * count;
   const deuterium = hull.cost.deuterium * count;
@@ -2175,6 +2270,54 @@ export function sendAttack(
   };
 }
 
+export function sendIpm(world: SimWorld, destPlanetId: number, count: number, at: number): SimWorld {
+  const missiles = Math.floor(count);
+  if (missiles < 1) throw new Error("Launch at least one interplanetary missile.");
+  const caught = catchUpWorld(world, at);
+  const origin = planetById(caught, caught.empire.homePlanetId);
+  const dest = planetById(caught, destPlanetId);
+  if (dest.id === origin.id || dest.ownerId === caught.empire.userId) {
+    throw new Error("Cannot strike your own planet.");
+  }
+  if ((dest.galaxy ?? 1) !== (origin.galaxy ?? 1)) {
+    throw new Error("Interplanetary missiles stay in this galaxy.");
+  }
+  const range = ipmRangeSystems(caught.empire.impulseDrive);
+  const systems = ipmSystemDistance(origin.system, dest.system);
+  if (systems > range) {
+    throw new Error(`Impulse drive range is ${range} system${range === 1 ? "" : "s"}.`);
+  }
+  if (origin.interplanetaryMissile < missiles) throw new Error("Not enough interplanetary missiles.");
+  const duration = ipmFlightSeconds(
+    origin.system,
+    dest.system,
+    normalizeEconomySpeed(caught.empire.economySpeed),
+  );
+  const fleet: SimFleet = {
+    id: Math.max(0, ...caught.fleets.map((f) => f.id)) + 1,
+    ownerId: caught.empire.userId,
+    originPlanetId: origin.id,
+    destPlanetId: dest.id,
+    destGalaxy: dest.galaxy,
+    destSystem: dest.system,
+    destSlot: dest.slot,
+    raiders: missiles,
+    composition: { interplanetary_missile: missiles },
+    flightSeconds: duration,
+    mission: "missile",
+    arrivesAt: at + duration * 1000,
+    cargoOre: 0,
+    cargoCrystal: 0,
+    launchedAt: at,
+    status: "en_route",
+    report: null,
+  };
+  return {
+    ...replacePlanet(caught, { ...origin, interplanetaryMissile: origin.interplanetaryMissile - missiles }),
+    fleets: [...caught.fleets, fleet],
+  };
+}
+
 export function sendDeploy(
   world: SimWorld,
   galaxy: number,
@@ -2301,17 +2444,17 @@ export function sendColonize(
   if (ships < 1) throw new Error("Send at least one colony ship.");
   if (slot === EXPEDITION_SLOT) throw new Error("Outer space cannot be colonized.");
   const caught = catchUpWorld(world, at);
-  if (caught.empire.astrophysics < 1) throw new Error("Needs Astrophysics 1.");
+  if (caught.empire.astrophysics < 1) throw new Error("Needs Astronomy 1.");
   if (!canColonizeSlot(slot, caught.empire.astrophysics)) {
     const range = colonizeSlotRange(caught.empire.astrophysics);
-    throw new Error(`Astrophysics only allows slots ${range.min}–${range.max}.`);
+    throw new Error(`Astronomy only allows slots ${range.min}–${range.max}.`);
   }
   const docked = caught.empire.ships.colony_ship ?? 0;
   if (docked < ships) throw new Error("Not enough colony ships.");
   if (planetAtCoords(caught, galaxy, system, slot)) throw new Error("That slot is already occupied.");
   const reserved = ownedPlanetCount(caught) + inFlightColonizeCount(caught);
   if (reserved >= maxPlanets(caught.empire.astrophysics)) {
-    throw new Error("No free colony slots. Research more Astrophysics.");
+    throw new Error("No free colony slots. Research more Astronomy.");
   }
   const origin = planetById(caught, caught.empire.homePlanetId);
   const slowest = hullSpeed("colony_ship", caught.empire.impulseDrive, caught.empire.hyperspaceDrive, caught.empire.propulsionLevel);
@@ -2601,7 +2744,7 @@ export function sendExpedition(
 ): SimWorld {
   if (ships < 1) throw new Error("Send at least one small cargo.");
   const caught = catchUpWorld(world, at);
-  if (caught.empire.astrophysics < 1) throw new Error("Needs Astrophysics 1.");
+  if (caught.empire.astrophysics < 1) throw new Error("Needs Astronomy 1.");
   const cap = expeditionFleetCap(caught.empire.astrophysics);
   const active = caught.fleets.filter(
     (fleet) =>

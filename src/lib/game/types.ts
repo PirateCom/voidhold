@@ -145,7 +145,7 @@ export type FleetRow = {
   origin_slot?: number;
   created_at?: string;
   raiders: number;
-  mission: "attack" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return" | "deploy" | "mine" | "mine_hold" | "mine_return";
+  mission: "attack" | "missile" | "return" | "espionage" | "espionage_return" | "harvest" | "harvest_return" | "colonize" | "colonize_return" | "expedition" | "expedition_hold" | "expedition_return" | "transport" | "transport_return" | "deploy" | "mine" | "mine_hold" | "mine_return";
   arrives_at: string;
   cargo_ore: number;
   cargo_crystal: number;
@@ -207,6 +207,36 @@ export type HighscoreEntry = {
   points: number;
 };
 
+export type UniverseStats = {
+  generated_at: string;
+  commanders: number;
+  auth_users: number;
+  commander_cap: number;
+  registration_open: boolean;
+  fake_commander: boolean;
+  active_24h: number;
+  active_7d: number;
+  planets: number;
+  homeworlds: number;
+  colonies: number;
+  occupied_systems: number;
+  total_score: number;
+  ore: number;
+  crystal: number;
+  deuterium: number;
+  ships_docked: number;
+  ships_in_flight: number;
+  fleets_en_route: number;
+  player_fleets: number;
+  pirate_fleets: number;
+  mining_holds: number;
+  belts: number;
+  empty_belts: number;
+  belt_ore: number;
+  belt_crystal: number;
+  upgrades_in_progress: number;
+};
+
 export type AgentMissionRow = {
   id: number;
   agent_id: AgentId;
@@ -223,6 +253,8 @@ export type AgentMissionRow = {
   accepted_at: string | null;
 };
 
+export type { DailyMissionRow } from "./dailies";
+
 export type ColonyRow = {
   id: number;
   name: string;
@@ -230,6 +262,7 @@ export type ColonyRow = {
   system: number;
   slot: number;
   is_homeworld: boolean;
+  research_lab?: number;
 };
 
 export type EmpireState = {

@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, mineProductionPerHour, MINING_BARGE_RATE_PER_HOUR, planetFieldCap, storageCap } from "./catalog";
+import { RAIDER_COST, STARTING_CRYSTAL, STARTING_ORE, buildingCost, buildingTimeSeconds, defenceCost, GAME_HOUR_SECONDS, ipmFlightSeconds, mineProductionPerHour, MINING_BARGE_RATE_PER_HOUR, planetFieldCap, researchDurationSeconds, storageCap } from "./catalog";
 import {
   EMPTY_DEFENCES,
   EMPTY_FACILITIES,
   EMPTY_RESEARCH,
   catchUpWorld,
   cancelUpgrade,
+  cancelDefence,
   queueDefence,
   queueRaiders,
   queueShip,
   resetEmpire,
   sendAttack,
+  sendIpm,
   sendRaid,
   sendSpy,
   sendHarvest,
@@ -127,7 +129,9 @@ describe("time-skip simulation", () => {
 
   it("builds a robotics factory and keeps the shipyard gated", () => {
     expect(() => startUpgrade(world(0), "shipyard", 0)).toThrow(/Robotics factory 2/);
-    expect(() => startUpgrade(world(0), "lunar_base", 0)).toThrow(/moon/i);
+    expect(() => startUpgrade(world(0), "lunar_base", 0)).toThrow(/not available/i);
+    expect(() => startUpgrade(world(0), "alliance_depot", 0)).toThrow(/not available/i);
+    expect(() => startUpgrade(world(0), "space_station", 0)).toThrow(/not available/i);
     const started = startUpgrade(world(0), "robotics_factory", 0);
     expect(started.planets[0].ore).toBe(STARTING_ORE - 400);
     const doneAt = started.planets[0].upgradeCompletesAt!;
@@ -213,7 +217,7 @@ describe("time-skip simulation", () => {
 
   it("sends an expedition to outer space and lists it in flight", () => {
     const base = world(0);
-    expect(() => sendExpedition(base, 1, 1, 1, 0)).toThrow(/Astrophysics 1/);
+    expect(() => sendExpedition(base, 1, 1, 1, 0)).toThrow(/Astronomy 1/);
     const ready: SimWorld = {
       ...base,
       empire: { ...base.empire, astrophysics: 1, raiders: 3 },
@@ -283,6 +287,42 @@ describe("time-skip simulation", () => {
     expect(() => startResearch(labWork, "combustion_drive", 0)).toThrow(/being upgraded/);
   });
 
+  it("joins extra labs through IRN for research time", () => {
+    const base = world(0);
+    const colony: SimPlanet = {
+      ...base.planets[0],
+      id: 3,
+      slot: 8,
+      name: "Colony",
+      researchLab: 8,
+      ore: 50000,
+      crystal: 50000,
+      deuterium: 50000,
+    };
+    const networked: SimWorld = {
+      ...base,
+      planets: [
+        { ...base.planets[0], researchLab: 10, ore: 50000, crystal: 50000, deuterium: 50000 },
+        base.planets[1],
+        colony,
+      ],
+      empire: { ...base.empire, energyTech: 3, intergalacticResearchNetwork: 2 },
+    };
+    const solo: SimWorld = {
+      ...networked,
+      planets: networked.planets.filter((planet) => planet.id !== 3),
+      empire: { ...networked.empire, intergalacticResearchNetwork: 0 },
+    };
+    const withIrn = startResearch(networked, "shielding_tech", 0);
+    const without = startResearch(solo, "shielding_tech", 0);
+    expect(withIrn.empire.researchCompletesAt).toBe(researchDurationSeconds(0, 18, 10) * 1000);
+    expect(without.empire.researchCompletesAt).toBe(researchDurationSeconds(0, 10, 10) * 1000);
+    expect(withIrn.empire.researchCompletesAt).toBeLessThan(without.empire.researchCompletesAt!);
+
+    const fromColony = startResearch({ ...networked, empire: { ...networked.empire, homePlanetId: 3 } }, "shielding_tech", 0);
+    expect(fromColony.empire.researchCompletesAt).toBe(researchDurationSeconds(0, 18, 8) * 1000);
+  });
+
   it("builds a rocket launcher and will not raise a second small dome", () => {
     const richer: SimWorld = {
       ...world(0),
@@ -311,6 +351,13 @@ describe("time-skip simulation", () => {
     expect(() => queueDefence(raised, "small_shield_dome", 1, raised.planets[0].lastHarvestedAt)).toThrow(
       /one of those domes/i,
     );
+    expect(() => queueDefence(richer, "rocket_launcher", 1000, 0)).toThrow(/at most 999/);
+    const stacked = queueDefence(richer, "rocket_launcher", 2, 0);
+    const cancelled = cancelDefence(stacked, 0);
+    expect(cancelled.planets[0].defencesQueued).toBe(0);
+    expect(cancelled.planets[0].defenceBuilding).toBeNull();
+    expect(cancelled.planets[0].ore).toBe(40000);
+    expect(cancelled.planets[0].crystal).toBe(40000);
   });
 
   it("resolves a due pirate wave and writes a report", () => {
@@ -436,6 +483,39 @@ describe("time-skip simulation", () => {
     let wave: SimWorld = { ...ready, empire: { ...ready.empire, raiders: 8 } };
     for (let i = 0; i < 6; i += 1) wave = sendAttack(wave, 3, { small_cargo: 1 }, 0, 100);
     expect(() => sendAttack(wave, 3, { small_cargo: 1 }, 0, 100)).toThrow(/Bash protection/);
+  });
+
+  it("fires interplanetary missiles and lets ABMs intercept them", () => {
+    const base = world(0);
+    const target: SimPlanet = {
+      ...base.planets[1],
+      id: 5,
+      ownerId: "u2",
+      slot: 8,
+      name: "Guns",
+      rocketLauncher: 12,
+      antiballisticMissile: 2,
+    };
+    const ready: SimWorld = {
+      ...base,
+      planets: [
+        { ...base.planets[0], interplanetaryMissile: 5, impulseDrive: 5 },
+        base.planets[1],
+        target,
+      ],
+      empire: { ...base.empire, impulseDrive: 5, weaponsTech: 0, pirateRaidsEnabled: false },
+    };
+    expect(() => sendIpm(ready, 1, 1, 0)).toThrow(/own planet/);
+    const launched = sendIpm(ready, 5, 3, 0);
+    expect(launched.planets[0].interplanetaryMissile).toBe(2);
+    expect(launched.fleets[0].mission).toBe("missile");
+    expect(launched.fleets[0].arrivesAt).toBe(ipmFlightSeconds(1, 1, 1) * 1000);
+    const hit = catchUpWorld(launched, launched.fleets[0].arrivesAt);
+    const guns = hit.planets.find((planet) => planet.id === 5)!;
+    expect(guns.antiballisticMissile).toBe(0);
+    expect(guns.rocketLauncher).toBe(6);
+    expect(hit.fleets[0].status).toBe("completed");
+    expect(hit.reports[0].body).toMatch(/anti-ballistic/i);
   });
 
   it("recalls an outbound raid before it hits", () => {
@@ -719,7 +799,7 @@ describe("time-skip simulation", () => {
         ships: { colony_ship: 1 },
       },
     };
-    expect(() => sendColonize(base, 1, 1, 8, 1, 0)).toThrow(/Astrophysics 1/);
+    expect(() => sendColonize(base, 1, 1, 8, 1, 0)).toThrow(/Astronomy 1/);
     expect(() => sendColonize(ready, 1, 1, 4, 1, 0)).toThrow(/slots 7–9/);
     expect(() => sendColonize({ ...ready, empire: { ...ready.empire, astrophysics: 10 } }, 1, 1, 3, 1, 0)).toThrow(
       /occupied/,

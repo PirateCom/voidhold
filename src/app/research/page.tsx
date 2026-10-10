@@ -10,9 +10,12 @@ import {
   RESEARCHES,
   RESEARCH_GROUPS,
   formatDuration,
+  combinedResearchLab,
+  irnConnectedLabs,
+  researchDurationSeconds,
   researchTechCost,
-  researchTimeSeconds,
   canPayResources,
+  showsJobProgress,
   unmetResearch,
   type ResearchId,
 } from "@/lib/game/catalog";
@@ -37,6 +40,11 @@ export default function ResearchPage() {
   const active = state.empire.research_tech ?? (state.empire.research_completes_at ? "combustion_drive" : null);
   const researchRunning = Boolean(state.empire.research_completes_at);
   const labUpgrading = state.planet.upgrade_building === "research_lab";
+  const startLab = state.planet.research_lab ?? 0;
+  const otherLabs = (state.colonies ?? [])
+    .filter((colony) => colony.id !== state.planet.id)
+    .map((colony) => colony.research_lab ?? 0);
+  const irnLevel = state.empire.intergalactic_research_network ?? 0;
 
   return (
     <AppShell title="Research">
@@ -46,7 +54,9 @@ export default function ResearchPage() {
         Costs follow the OGame wiki. Deuterium is taken from the tank on this planet.
         Technologies are empire-wide: Combustion 5 on the homeworld is Combustion 5 on every
         colony. Each planet still needs its own research lab at the listed level to start a
-        new tech. Other buildings can upgrade at the same time. Upgrading the lab on this
+        new tech. Intergalactic Research Network joins extra labs automatically (highest
+        first; labs below the tech's lab level sit out). The lab on this planet always
+        counts. Other buildings can upgrade at the same time. Upgrading the lab on this
         planet itself stops new research here.
       </p>
       <div className="flex flex-col gap-3">
@@ -65,6 +75,13 @@ export default function ResearchPage() {
               );
               const thisBusy = researchRunning && active === tech.id;
               const poor = live ? !canPayResources(live, cost) : true;
+              const linked = irnConnectedLabs(startLab, otherLabs, irnLevel, tech.lab);
+              const combined = combinedResearchLab(startLab, otherLabs, irnLevel, tech.lab);
+              const durationSec = researchDurationSeconds(level, combined, startLab);
+              const runningMs =
+                thisBusy && state.empire.research_completes_at && state.empire.research_started_at
+                  ? Date.parse(state.empire.research_completes_at) - Date.parse(state.empire.research_started_at)
+                  : durationSec * 1000;
               return (
                 <article key={tech.id} className="sci-card p-4">
                   <div className="flex items-start gap-3">
@@ -81,13 +98,13 @@ export default function ResearchPage() {
                     <TimedStripedProgress
                       className="mt-3"
                       until={state.empire.research_completes_at}
-                      durationMs={researchTimeSeconds(level) * 1000}
+                      durationMs={runningMs}
                       startedAt={state.empire.research_started_at}
                       now={now}
                       tone="var(--crystal)"
                       label={tech.name}
                     />
-                  ) : (
+                  ) : showsJobProgress(runningMs) ? (
                     <StripedProgress
                       className="mt-3"
                       value={0}
@@ -96,7 +113,7 @@ export default function ResearchPage() {
                       disabled
                       label={tech.name}
                     />
-                  )}
+                  ) : null}
                   <p className="mt-3 text-xs text-[var(--muted-fg)]">
                     Next:{" "}
                     <span className={live && live.ore < cost.ore ? "text-red-400" : undefined}>
@@ -110,8 +127,9 @@ export default function ResearchPage() {
                     <span className={live && live.deuterium < cost.deuterium ? "text-red-400" : undefined}>
                       {cost.deuterium.toLocaleString()} deut
                     </span>
-                    {tech.energy ? ` · ${tech.energy.toLocaleString()} energy` : ""} · {formatDuration(researchTimeSeconds(level))}
+                    {tech.energy ? ` · ${tech.energy.toLocaleString()} energy` : ""} · {formatDuration(durationSec)}
                     {" · "}lab {tech.lab}
+                    {combined > startLab ? ` · network ${linked.join("+")}=${combined}` : ""}
                   </p>
                   {missing.length > 0 ? (
                     <p className="mt-1 text-xs text-amber-200">

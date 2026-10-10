@@ -16,7 +16,9 @@ import {
   canPayResources,
   defenceUnitCount,
   formatDuration,
-  maxAffordableCount,
+  showsJobProgress,
+  maxSiloBuild,
+  maxUnitQueueCount,
   planetAttack,
   planetDefence,
   planetHull,
@@ -38,7 +40,7 @@ function levelOf(id: ResearchId, empire: EmpireRow): number {
 }
 
 export default function DefencesPage() {
-  const { error, state, live, pending, buildDefence, now } = useEmpire();
+  const { error, state, live, pending, buildDefence, cancelDefence, now } = useEmpire();
   const [queues, setQueues] = useState<Partial<Record<DefenceId, number>>>({});
 
   if (!state || !live) {
@@ -91,11 +93,23 @@ export default function DefencesPage() {
           const buildSecs = planetUnitSeconds(live, d.id);
           const thisBusy = busyId === d.id && queued > 0;
           const yardBusy = queued > 0 && Boolean(busyId);
-          const count = d.unique ? 1 : Math.max(1, queues[d.id] ?? 1);
           const online = d.unique && owned >= 1;
           const badge = `×${owned.toLocaleString()}`;
+          const queuedSame = thisBusy ? queued : 0;
+          const pendingAbm = busyId === "antiballistic_missile" ? queued : 0;
+          const pendingIpm = busyId === "interplanetary_missile" ? queued : 0;
+          const siloRoom =
+            d.id === "antiballistic_missile" || d.id === "interplanetary_missile"
+              ? maxSiloBuild(
+                  d.id,
+                  state.planet.missile_silo ?? 0,
+                  countOf("antiballistic_missile", live) + pendingAbm,
+                  countOf("interplanetary_missile", live) + pendingIpm,
+                )
+              : Number.POSITIVE_INFINITY;
+          const affordable = maxUnitQueueCount(live, d.cost, queuedSame, siloRoom);
+          const count = d.unique ? 1 : Math.max(1, Math.min(Math.max(affordable, 1), queues[d.id] ?? 1));
           const poor = !canPayResources(live, d.cost, count);
-          const affordable = maxAffordableCount(live, d.cost);
           const missing = unmetDefenceBuild(
             d,
             state.planet.shipyard ?? 0,
@@ -136,9 +150,9 @@ export default function DefencesPage() {
                   now={now}
                   label={d.name}
                 />
-              ) : (
+              ) : showsJobProgress(buildSecs * 1000) ? (
                 <StripedProgress className="mt-3" value={0} disabled animated={false} label={d.name} />
-              )}
+              ) : null}
               <p className="mt-3 text-xs text-[var(--muted-fg)]">
                 Next:{" "}
                 {[
@@ -171,9 +185,22 @@ export default function DefencesPage() {
                 })}
               </ul>
               {thisBusy ? (
-                <p className="mt-3 text-sm">
-                  Building… <Countdown until={state.planet.defence_completes_at} now={now} />
-                </p>
+                <>
+                  <p className="mt-3 text-sm">
+                    Building… <Countdown until={state.planet.defence_completes_at} now={now} />
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted-fg)]">
+                    Cancel refunds the remaining {queued.toLocaleString()} in yard.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void cancelDefence()}
+                    className="sci-btn sci-btn-muted mt-3 h-11 w-full disabled:opacity-50"
+                  >
+                    Cancel build
+                  </button>
+                </>
               ) : null}
               {d.unique ? null : (
                 <QueueCountField

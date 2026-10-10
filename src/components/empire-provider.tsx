@@ -14,6 +14,7 @@ import {
   buildRaiders,
   cancelBuildingUpgrade,
   launchAttack,
+  launchIpm,
   launchRaid,
   launchSpy,
   launchHarvest,
@@ -23,6 +24,7 @@ import {
   abandonPlanet as abandonPlanetAction,
   renamePlanet as renamePlanetAction,
   loadEmpireState,
+  cancelDefenceQueue,
   queueDefence as queueDefenceAction,
   startResearch,
   resetEmpireProgress,
@@ -67,6 +69,7 @@ type EmpireContextValue = {
   build: (count: number) => Promise<void>;
   buildShip: (id: string, count: number) => Promise<void>;
   buildDefence: (id: DefenceId, count: number) => Promise<void>;
+  cancelDefence: () => Promise<void>;
   spawnPirates: () => Promise<void>;
   setPirateRaids: (enabled: boolean) => Promise<void>;
   fillResources: () => Promise<void>;
@@ -75,7 +78,14 @@ type EmpireContextValue = {
   boostDebugHold: () => Promise<void>;
   setEconomySpeed: (speed: 1 | 3 | 5) => Promise<void>;
   raid: (galaxy: number, system: number, slot: number, raiders: number) => Promise<void>;
-  attack: (galaxy: number, system: number, slot: number, ships: Record<string, number>, speed: number) => Promise<boolean>;
+  attack: (
+    galaxy: number,
+    system: number,
+    slot: number,
+    ships: Record<string, number>,
+    speed: number,
+    missiles?: number,
+  ) => Promise<boolean>;
   spy: (galaxy: number, system: number, slot: number, probes: number) => Promise<void>;
   harvest: (galaxy: number, system: number, slot: number, recyclers: number) => Promise<void>;
   mine: (galaxy: number, system: number, slot: number, barges: number) => Promise<void>;
@@ -315,6 +325,7 @@ export function EmpireProvider({
     build: (count) => runAction(() => buildRaiders(count)),
     buildShip: (id, count) => runAction(() => queueShipAction(id, count)),
     buildDefence: (id, count) => runAction(() => queueDefenceAction(id, count)),
+    cancelDefence: () => runAction(() => cancelDefenceQueue()),
     spawnPirates: () => runAction(() => spawnPirateWave()),
     setPirateRaids: (enabled) => runAction(() => setPirateRaidsAction(enabled)),
     fillResources: () => runAction(() => fillResourcesAction()),
@@ -323,7 +334,15 @@ export function EmpireProvider({
     boostDebugHold: () => runAction(() => boostDebugHoldAction()),
     setEconomySpeed: (speed) => runAction(() => setEconomySpeedAction(speed)),
     raid: (galaxy, system, slot, raiders) => runAction(() => launchRaid(galaxy, system, slot, raiders)),
-    attack: (galaxy, system, slot, ships, speed) => run(() => launchAttack(galaxy, system, slot, ships, speed)),
+    attack: async (galaxy, system, slot, ships, speed, missiles = 0) => {
+      const hulls = Object.values(ships).some((n) => n > 0);
+      if (missiles > 0) {
+        const ok = await run(() => launchIpm(galaxy, system, slot, missiles));
+        if (!ok || !hulls) return ok;
+      }
+      if (!hulls) return false;
+      return run(() => launchAttack(galaxy, system, slot, ships, speed));
+    },
     spy: (galaxy, system, slot, probes) => runAction(() => launchSpy(galaxy, system, slot, probes)),
     harvest: (galaxy, system, slot, recyclers) => runAction(() => launchHarvest(galaxy, system, slot, recyclers)),
     mine: (galaxy, system, slot, barges) => runAction(() => launchMine(galaxy, system, slot, barges)),

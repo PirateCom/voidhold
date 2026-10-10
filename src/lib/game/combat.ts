@@ -1,6 +1,7 @@
 import {
   DEFENCES,
   DEBRIS_RATIO,
+  DESTROY_ORDER,
   SHIPS,
   defenceSpec,
   emptyDefenceCounts,
@@ -525,6 +526,80 @@ export function settleAttack(args: {
     debris: { ore: debrisOre, crystal: debrisCrystal },
     report,
   };
+}
+
+const IPM_TARGET_ORDER: DefenceId[] = DESTROY_ORDER.filter((id) => id !== "antiballistic_missile");
+
+/** Wiki: IPMs ignore shields. Damage is weapon power × weapons tech vs hull × armour tech. */
+export function resolveIpmStrike(args: {
+  missiles: number;
+  abm: number;
+  defenses: DefenceCounts;
+  weaponsTech: number;
+  armourTech: number;
+}): {
+  launched: number;
+  intercepted: number;
+  hits: number;
+  abmLeft: number;
+  defenses: DefenceCounts;
+  destroyed: Partial<Record<DefenceId, number>>;
+} {
+  const launched = Math.max(0, Math.floor(args.missiles));
+  const abm = Math.max(0, Math.floor(args.abm));
+  const intercepted = Math.min(launched, abm);
+  const hits = launched - intercepted;
+  const next = { ...emptyDefenceCounts(), ...args.defenses, antiballistic_missile: abm - intercepted };
+  const destroyed: Partial<Record<DefenceId, number>> = {};
+  let damage = hits * 12000 * techScale(args.weaponsTech);
+  const hullMul = techScale(args.armourTech);
+  for (const id of IPM_TARGET_ORDER) {
+    if (damage <= 0) break;
+    const have = Math.max(0, next[id] ?? 0);
+    if (have <= 0) continue;
+    const hull = defenceSpec(id).hull * hullMul;
+    if (hull <= 0) continue;
+    const kill = Math.min(have, Math.floor(damage / hull));
+    if (kill <= 0) continue;
+    next[id] = have - kill;
+    destroyed[id] = kill;
+    damage -= kill * hull;
+  }
+  return {
+    launched,
+    intercepted,
+    hits,
+    abmLeft: next.antiballistic_missile,
+    defenses: next,
+    destroyed,
+  };
+}
+
+export function ipmStrikeReport(args: {
+  attackerName: string;
+  origin: string;
+  dest: string;
+  launched: number;
+  intercepted: number;
+  hits: number;
+  destroyed: Partial<Record<DefenceId, number>>;
+}): string {
+  const guns = Object.entries(args.destroyed)
+    .filter(([, n]) => (n ?? 0) > 0)
+    .map(([id, n]) => `${n} ${defenceSpec(id as DefenceId).name}`);
+  const hitLine =
+    args.hits < 1
+      ? "No missiles reached the guns."
+      : guns.length > 0
+        ? `Destroyed: ${guns.join(", ")}.`
+        : "The missiles hit but found no guns left to wreck.";
+  return [
+    `${args.launched} interplanetary missile${args.launched === 1 ? "" : "s"} from ${args.attackerName} at ${args.origin} struck ${args.dest}.`,
+    args.intercepted > 0
+      ? `${args.intercepted} anti-ballistic missile${args.intercepted === 1 ? "" : "s"} intercepted ${args.intercepted} inbound.`
+      : "No anti-ballistic missiles intercepted the strike.",
+    hitLine,
+  ].join(" ");
 }
 
 export function normalizeAttackSpeed(speed: number): number {

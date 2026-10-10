@@ -67,7 +67,7 @@
     { "id": "hyperspace_drive", "name": "Hyperspace drive", "represents": "Hyperspace drive", "x": 1400, "y": 4000, "w": 200, "h": 200 },
     { "id": "espionage_tech", "name": "Espionage technology", "represents": "Espionage technology", "x": 1600, "y": 4000, "w": 200, "h": 200 },
     { "id": "computer_tech", "name": "Computer technology", "represents": "Computer technology", "x": 1800, "y": 4000, "w": 200, "h": 200 },
-    { "id": "astrophysics", "name": "Astrophysics", "represents": "Astrophysics", "x": 2000, "y": 4000, "w": 200, "h": 200 },
+    { "id": "astrophysics", "name": "Astronomy", "represents": "Astronomy", "x": 2000, "y": 4000, "w": 200, "h": 200 },
     { "id": "intergalactic_research_network", "name": "Intergalactic Research Network", "represents": "Intergalactic Research Network", "x": 2200, "y": 4000, "w": 200, "h": 200 },
     { "id": "graviton_tech", "name": "Graviton technology", "represents": "Graviton technology", "x": 2400, "y": 4000, "w": 200, "h": 200 },
     { "id": "weapons_tech", "name": "Weapons technology", "represents": "Weapons technology", "x": 2600, "y": 4000, "w": 200, "h": 200 },

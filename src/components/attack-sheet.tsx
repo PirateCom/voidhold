@@ -4,7 +4,17 @@ import { useMemo, useState } from "react";
 import { SpriteThumb } from "@/components/sprite-thumb";
 import { useEmpire } from "@/components/empire-provider";
 import { SheetPortal } from "@/components/sheet-portal";
-import { SHIPS, attackFlightSeconds, attackFuel, formatDuration, slowestHullSpeed } from "@/lib/game/catalog";
+import {
+  SHIPS,
+  attackFlightSeconds,
+  attackFuel,
+  formatDuration,
+  ipmFlightSeconds,
+  ipmRangeSystems,
+  ipmSystemDistance,
+  normalizeEconomySpeed,
+  slowestHullSpeed,
+} from "@/lib/game/catalog";
 
 export function AttackSheet({
   open,
@@ -24,6 +34,7 @@ export function AttackSheet({
   const { state, pending, attack, now } = useEmpire();
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [speed, setSpeed] = useState(100);
+  const [missiles, setMissiles] = useState(0);
   const flyable = useMemo(() => SHIPS.filter((ship) => ship.speed > 0), []);
   if (!open || !state) return null;
 
@@ -64,12 +75,24 @@ export function AttackSheet({
     speed,
   );
   const cargo = flyable.reduce((sum, ship) => sum + Math.max(0, counts[ship.id] ?? 0) * ship.cargo, 0);
+  const ipmHave = state.planet.interplanetary_missile ?? 0;
+  const ipmRange = ipmRangeSystems(state.empire.impulse_drive ?? 0);
+  const ipmSystems = ipmSystemDistance(state.planet.system, system);
+  const ipmSameGalaxy = (state.planet.galaxy ?? 1) === galaxy;
+  const ipmInRange = ipmSameGalaxy && ipmSystems <= ipmRange;
+  const ipmEta = ipmInRange
+    ? ipmFlightSeconds(state.planet.system, system, normalizeEconomySpeed(state.empire.economy_speed))
+    : null;
   const blocked =
-    selected < 1
-      ? "Send at least one ship."
-      : Number(state.planet.deuterium) < fuel
+    selected < 1 && missiles < 1
+      ? "Send ships or interplanetary missiles."
+      : selected > 0 && Number(state.planet.deuterium) < fuel
         ? "Not enough deuterium for fuel."
-        : null;
+        : missiles > 0 && !ipmInRange
+          ? ipmSameGalaxy
+            ? `Impulse drive range is ${ipmRange} systems.`
+            : "Interplanetary missiles stay in this galaxy."
+          : null;
 
   return (
     <SheetPortal>
@@ -87,8 +110,32 @@ export function AttackSheet({
         </div>
         <p className="mt-3 text-xs text-[var(--muted-fg)]">
           A win plunders up to half of each resource, limited by surviving cargo. Six rounds with both sides still
-          standing is a draw and takes nothing. Docked ships and defenses fight back.
+          standing is a draw and takes nothing. Docked ships and defenses fight back. Interplanetary missiles fly on
+          their own clock, skip fleet slots, and wreck guns. Anti-ballistic missiles intercept them one-for-one.
         </p>
+        {ipmHave > 0 ? (
+          <div className="mt-3 flex items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2">
+            <SpriteThumb id="interplanetary_missile" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Interplanetary missile</p>
+              <p className="text-xs text-[var(--muted-fg)]">
+                Silo {ipmHave} · range {ipmRange} systems · flight{" "}
+                {ipmEta == null ? "out of range" : formatDuration(ipmEta)}
+              </p>
+            </div>
+            <input
+              type="number"
+              min={0}
+              max={ipmHave}
+              disabled={pending}
+              value={missiles}
+              onChange={(e) =>
+                setMissiles(Math.max(0, Math.min(ipmHave, Math.floor(Number(e.target.value) || 0))))
+              }
+              className="sci-input h-11 w-20 px-2 text-center"
+            />
+          </div>
+        ) : null}
         <ul className="mt-3 flex flex-col gap-2">
           {flyable.map((ship) => {
             const have = docked[ship.id] ?? 0;
@@ -143,7 +190,7 @@ export function AttackSheet({
           className="sci-btn mt-3 h-11 w-full"
           onClick={() => {
             const payload = Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
-            void attack(galaxy, system, slot, payload, speed).then((ok) => {
+            void attack(galaxy, system, slot, payload, speed, missiles).then((ok) => {
               if (ok) onClose();
             });
           }}

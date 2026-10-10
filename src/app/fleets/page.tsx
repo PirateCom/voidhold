@@ -69,7 +69,12 @@ function durationMs(fleet: FleetRow, planet: PlanetRow, propulsion: number, inbo
     return oneWay;
   }
 
-  if (fromCreated > 0 && (!inbound || fleet.mission === "transport" || fleet.mission === "deploy")) return fromCreated;
+  if (
+    fromCreated > 0 &&
+    (!inbound || fleet.mission === "transport" || fleet.mission === "deploy" || fleet.mission === "missile")
+  ) {
+    return fromCreated;
+  }
   if (inbound) return PIRATE_FLIGHT_SECONDS * 1000;
   if (fleet.mission === "expedition_hold") return EXPEDITION_HOLD_SECONDS * 1000;
   if (fleet.mission === "mine_hold") return fromCreated > 0 ? fromCreated : oneWayMs(fleet, planet, propulsion);
@@ -151,7 +156,7 @@ export default function FleetsPage() {
               Active fleets
             </h2>
             <span className="font-mono text-xs font-semibold text-cyan-400">
-              FLEETS: {outbound.length}
+              FLEETS: {outbound.filter((fleet) => fleet.mission !== "missile").length}
             </span>
           </div>
           {ghost ? (

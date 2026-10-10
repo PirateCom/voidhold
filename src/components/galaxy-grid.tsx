@@ -396,7 +396,7 @@ export function GalaxyGrid() {
                     ? "Uncolonizable. Expeditions launch from this slot."
                     : selected.kind === "belt"
                       ? "Shared rock field. Mining barges sit here and fill cargo over time. Send a spy probe for remaining ore and crystal, and who is mining."
-                    : "Empty slot. A colony ship can found a world here if Astrophysics allows it, or send an expedition."}
+                    : "Empty slot. A colony ship can found a world here if Astronomy allows it, or send an expedition."}
           </p>
           {hasDebris ? (
             <p className="mt-2 text-xs text-amber-200">
@@ -490,7 +490,7 @@ export function GalaxyGrid() {
               className="sci-btn h-11"
             >
               {astro < 1
-                ? "Needs Astrophysics 1"
+                ? "Needs Astronomy 1"
                 : !canColonizeSlot(selected.slot, astro)
                   ? `Needs slots ${colonizeRange.min}–${colonizeRange.max}`
                   : "Colonize"}

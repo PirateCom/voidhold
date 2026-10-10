@@ -37,7 +37,7 @@ export const RESEARCHES: {
   baseOre: number;
   baseCrystal: number;
   baseDeuterium: number;
-  /** Most technologies double. Astrophysics rises by 1.75. */
+  /** Most technologies double. Astronomy rises by 1.75. */
   costFactor: number;
   lab: number;
   requires: TechRequirement[];
@@ -156,7 +156,7 @@ export const RESEARCHES: {
   {
     id: "espionage_tech",
     name: "Espionage technology",
-    blurb: "Probe reports show more as this level pulls ahead of the target. Required for probes and astrophysics.",
+    blurb: "Probe reports show more as this level pulls ahead of the target. Required for probes and astronomy.",
     group: "empire",
     baseOre: 200,
     baseCrystal: 1000,
@@ -179,7 +179,7 @@ export const RESEARCHES: {
   },
   {
     id: "astrophysics",
-    name: "Astrophysics",
+    name: "Astronomy",
     blurb: "One extra colony every two levels. This is the technology whose cost rises by 1.75 instead of doubling.",
     group: "empire",
     baseOre: 4000,
@@ -195,7 +195,8 @@ export const RESEARCHES: {
   {
     id: "intergalactic_research_network",
     name: "Intergalactic Research Network",
-    blurb: "Links one additional research lab per level.",
+    blurb:
+      "Each level lets one extra lab join the planet where you start research. Eligible labs (at least the tech's lab level) connect automatically, highest first. The starting lab always counts.",
     group: "empire",
     baseOre: 240000,
     baseCrystal: 400000,
@@ -738,6 +739,7 @@ export type FacilityStat = {
   costFactor: number;
   energy?: number;
   moon: boolean;
+  disabled?: boolean;
   requires: FacilityRequirement[];
   note?: string;
 };
@@ -777,12 +779,13 @@ export const FACILITIES: FacilityStat[] = [
     cost: { ore: 20000, crystal: 40000, deuterium: 0 },
     costFactor: 2,
     moon: false,
+    disabled: true,
     requires: [],
   },
   {
     id: "missile_silo",
     name: "Missile silo",
-    blurb: "Ten missile slots per level. Anti-ballistic missiles need silo 2. Interplanetary missiles need silo 4.",
+    blurb: "Stores 10 anti-ballistic and 5 interplanetary missiles per level. ABM need silo 2. IPM need silo 4.",
     cost: { ore: 20000, crystal: 20000, deuterium: 1000 },
     costFactor: 2,
     moon: false,
@@ -821,6 +824,7 @@ export const FACILITIES: FacilityStat[] = [
     cost: { ore: 20000, crystal: 40000, deuterium: 20000 },
     costFactor: 2,
     moon: true,
+    disabled: true,
     requires: [],
   },
   {
@@ -830,6 +834,7 @@ export const FACILITIES: FacilityStat[] = [
     cost: { ore: 20000, crystal: 40000, deuterium: 20000 },
     costFactor: 2,
     moon: true,
+    disabled: true,
     requires: [{ kind: "facility", id: "lunar_base", level: 1 }],
   },
   {
@@ -839,6 +844,7 @@ export const FACILITIES: FacilityStat[] = [
     cost: { ore: 2000000, crystal: 4000000, deuterium: 2000000 },
     costFactor: 2,
     moon: true,
+    disabled: true,
     requires: [
       { kind: "facility", id: "lunar_base", level: 1 },
       { kind: "research", id: "hyperspace_tech", level: 7 },
@@ -851,6 +857,7 @@ export const FACILITIES: FacilityStat[] = [
     cost: { ore: 200, crystal: 0, deuterium: 50 },
     costFactor: 5,
     moon: false,
+    disabled: true,
     requires: [{ kind: "facility", id: "shipyard", level: 2 }],
     note: "The sprite is labelled space station. The wiki building is Space Dock. Cost factor is 5.",
   },

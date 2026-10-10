@@ -8,7 +8,9 @@ import type {
   DefenceId,
   EmpireState,
   HighscoreEntry,
+  UniverseStats,
   AgentMissionRow,
+  DailyMissionRow,
   ResearchId,
   SolarSystemView,
 } from "@/lib/game/types";
@@ -138,6 +140,20 @@ export async function launchAttack(
   });
 }
 
+export async function launchIpm(
+  galaxy: number,
+  system: number,
+  slot: number,
+  missiles: number,
+): Promise<EmpireState> {
+  return rpc("send_ipm", {
+    p_galaxy: galaxy,
+    p_system: system,
+    p_slot: slot,
+    p_missiles: missiles,
+  });
+}
+
 export async function launchSpy(
   galaxy: number,
   system: number,
@@ -260,6 +276,10 @@ export async function queueDefence(id: DefenceId, count: number): Promise<Empire
   return rpc("queue_defence", { p_id: id, p_count: count });
 }
 
+export async function cancelDefenceQueue(): Promise<EmpireState> {
+  return rpc("cancel_defence");
+}
+
 export async function spawnPirateWave(): Promise<EmpireState> {
   return rpc("spawn_pirates");
 }
@@ -332,6 +352,18 @@ export async function loadHighscores(): Promise<HighscoreEntry[]> {
   return (data ?? []) as HighscoreEntry[];
 }
 
+export async function loadUniverseStats(): Promise<UniverseStats> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase.rpc("get_universe_stats");
+  if (error) rpcError(error);
+  return data as UniverseStats;
+}
+
 async function missionRpc(fn: string, args: Record<string, unknown> = {}): Promise<AgentMissionRow[]> {
   const supabase = await createClient();
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -350,6 +382,22 @@ export async function acceptAgentMission(agentId: AgentId): Promise<AgentMission
 
 export async function claimAgentMission(agentId: AgentId): Promise<AgentMissionRow[]> {
   return missionRpc("claim_agent_mission", { p_agent_id: agentId });
+}
+
+async function dailyRpc(fn: string, args: Record<string, unknown> = {}): Promise<DailyMissionRow[]> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) rpcError(error);
+  return (data ?? []) as DailyMissionRow[];
+}
+
+export async function listDailyMissions(): Promise<DailyMissionRow[]> {
+  return dailyRpc("list_daily_missions");
+}
+
+export async function claimDailyMission(id: number): Promise<DailyMissionRow[]> {
+  return dailyRpc("claim_daily_mission", { p_id: id });
 }
 
 export async function deleteOwnAccount(confirmation: string): Promise<void> {

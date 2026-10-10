@@ -68,7 +68,9 @@ export function BottomNav() {
   })();
   const underAttack = Boolean(
     state?.fleets.some(
-      (fleet) => isInboundFleet(fleet, state.empire.user_id, state.planet.id) && fleet.mission === "attack",
+      (fleet) =>
+        isInboundFleet(fleet, state.empire.user_id, state.planet.id) &&
+        (fleet.mission === "attack" || fleet.mission === "missile"),
     ),
   );
   const fleetsFlying = Boolean(

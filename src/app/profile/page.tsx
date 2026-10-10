@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useEmpire } from "@/components/empire-provider";
-import { deleteOwnAccount, loadHighscores } from "@/lib/game/actions";
-import type { HighscoreEntry } from "@/lib/game/types";
+import { deleteOwnAccount, loadHighscores, loadUniverseStats } from "@/lib/game/actions";
+import type { HighscoreEntry, UniverseStats } from "@/lib/game/types";
 import { UniverseRules } from "@/components/universe-rules";
 import { PlanetEconomy } from "@/components/planet-economy";
 import { DebugControls } from "@/components/debug-controls";
@@ -16,7 +16,7 @@ import { starLabel } from "@/lib/game/catalog";
 import { planetFieldCapOf, totalFieldsUsed } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
 
-type ProfileTab = "commander" | "highscores";
+type ProfileTab = "commander" | "highscores" | "universe";
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -47,8 +47,58 @@ function TabButton({
   );
 }
 
+function n(value: number) {
+  return value.toLocaleString();
+}
+
+function UniverseCensus({ stats }: { stats: UniverseStats }) {
+  return (
+    <>
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Commanders</p>
+      <dl className="sci-card mb-4 px-4">
+        <Fact label="Registered" value={`${n(stats.commanders)} / ${n(stats.commander_cap)}`} />
+        <Fact label="Auth users" value={n(stats.auth_users)} />
+        <Fact label="Slots" value={stats.registration_open ? "Open" : "Full"} />
+        <Fact label="Active 24h" value={n(stats.active_24h)} />
+        <Fact label="Active 7d" value={n(stats.active_7d)} />
+        <Fact label="Fake commander" value={stats.fake_commander ? "On" : "Off"} />
+        <Fact label="Total score" value={n(stats.total_score)} />
+      </dl>
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Worlds</p>
+      <dl className="sci-card mb-4 px-4">
+        <Fact label="Planets" value={n(stats.planets)} />
+        <Fact label="Homeworlds" value={n(stats.homeworlds)} />
+        <Fact label="Colonies" value={n(stats.colonies)} />
+        <Fact label="Occupied systems" value={n(stats.occupied_systems)} />
+        <Fact label="Building now" value={n(stats.upgrades_in_progress)} />
+      </dl>
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Fleets</p>
+      <dl className="sci-card mb-4 px-4">
+        <Fact label="In flight" value={n(stats.fleets_en_route)} />
+        <Fact label="Player fleets" value={n(stats.player_fleets)} />
+        <Fact label="Pirate fleets" value={n(stats.pirate_fleets)} />
+        <Fact label="Mining holds" value={n(stats.mining_holds)} />
+        <Fact label="Ships docked" value={n(stats.ships_docked)} />
+        <Fact label="Ships in flight" value={n(stats.ships_in_flight)} />
+      </dl>
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Stockpiles</p>
+      <dl className="sci-card mb-4 px-4">
+        <Fact label="Ore on planets" value={n(stats.ore)} />
+        <Fact label="Crystal on planets" value={n(stats.crystal)} />
+        <Fact label="Deuterium on planets" value={n(stats.deuterium)} />
+        <Fact label="Belts" value={`${n(stats.belts - stats.empty_belts)} live / ${n(stats.belts)}`} />
+        <Fact label="Belt ore" value={n(stats.belt_ore)} />
+        <Fact label="Belt crystal" value={n(stats.belt_crystal)} />
+      </dl>
+      <p className="text-center text-xs text-[var(--muted-fg)]">
+        Operator census · {new Date(stats.generated_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+      </p>
+    </>
+  );
+}
+
 export default function ProfilePage() {
-  const { state, live, error, configured, pending, refresh } = useEmpire();
+  const { state, live, error, configured, pending, refresh, isDebug } = useEmpire();
   const router = useRouter();
   const [tab, setTab] = useState<ProfileTab>("commander");
   const [email, setEmail] = useState<string | null>(null);
@@ -60,6 +110,9 @@ export default function ProfilePage() {
   const [highscores, setHighscores] = useState<HighscoreEntry[] | null>(null);
   const [highscoresError, setHighscoresError] = useState<string | null>(null);
   const [highscoresLoading, setHighscoresLoading] = useState(false);
+  const [universeStats, setUniverseStats] = useState<UniverseStats | null>(null);
+  const [universeError, setUniverseError] = useState<string | null>(null);
+  const [universeLoading, setUniverseLoading] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -92,6 +145,33 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [tab, configured]);
+
+  useEffect(() => {
+    if (!isDebug && tab === "universe") setTab("commander");
+  }, [isDebug, tab]);
+
+  useEffect(() => {
+    if (tab !== "universe" || !configured || !isDebug) return;
+    let cancelled = false;
+    setUniverseLoading(true);
+    setUniverseError(null);
+    void loadUniverseStats()
+      .then((stats) => {
+        if (!cancelled) setUniverseStats(stats);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setUniverseStats(null);
+          setUniverseError(err instanceof Error ? err.message : "Could not load universe stats.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUniverseLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, configured, isDebug]);
 
   async function signOut() {
     const supabase = createClient();
@@ -138,9 +218,12 @@ export default function ProfilePage() {
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       {status ? <p className="mb-3 text-sm text-red-300">{status}</p> : null}
 
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className={`mb-4 grid gap-2 ${isDebug ? "grid-cols-3" : "grid-cols-2"}`}>
         <TabButton active={tab === "commander"} label="Commander" onClick={() => setTab("commander")} />
         <TabButton active={tab === "highscores"} label="Highscores" onClick={() => setTab("highscores")} />
+        {isDebug ? (
+          <TabButton active={tab === "universe"} label="Stats" onClick={() => setTab("universe")} />
+        ) : null}
       </div>
 
       {tab === "commander" ? (
@@ -232,6 +315,16 @@ export default function ProfilePage() {
           </>
         ) : (
           <p className="text-sm text-[var(--muted-fg)]">Establishing a hold…</p>
+        )
+      ) : tab === "universe" ? (
+        universeLoading ? (
+          <p className="text-sm text-[var(--muted-fg)]">Loading universe census…</p>
+        ) : universeError ? (
+          <p className="text-sm text-red-300">{universeError}</p>
+        ) : universeStats ? (
+          <UniverseCensus stats={universeStats} />
+        ) : (
+          <p className="text-sm text-[var(--muted-fg)]">No universe data.</p>
         )
       ) : highscoresLoading ? (
         <p className="text-sm text-[var(--muted-fg)]">Loading universe standings…</p>
