@@ -499,7 +499,7 @@ describe("time-skip simulation", () => {
     const ready: SimWorld = {
       ...base,
       planets: [
-        { ...base.planets[0], interplanetaryMissile: 5, impulseDrive: 5 },
+        { ...base.planets[0], interplanetaryMissile: 5 },
         base.planets[1],
         target,
       ],
