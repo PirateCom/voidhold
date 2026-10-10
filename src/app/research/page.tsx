@@ -55,7 +55,7 @@ export default function ResearchPage() {
         Technologies are empire-wide: Combustion 5 on the homeworld is Combustion 5 on every
         colony. Each planet still needs its own research lab at the listed level to start a
         new tech. Intergalactic Research Network joins extra labs automatically (highest
-        first; labs below the tech's lab level sit out). The lab on this planet always
+        first; labs below the tech lab level sit out). The lab on this planet always
         counts. Other buildings can upgrade at the same time. Upgrading the lab on this
         planet itself stops new research here.
       </p>
