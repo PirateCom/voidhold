@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
-import { SpriteThumb } from "@/components/sprite-thumb";
+import { SpriteHero } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
   RESEARCHES,
@@ -84,17 +84,10 @@ export default function ResearchPage() {
                   ? Date.parse(state.empire.research_completes_at) - Date.parse(state.empire.research_started_at)
                   : durationSec * 1000;
               return (
-                <article key={tech.id} className="sci-card p-4">
-                  <div className="flex items-start gap-3">
-                    <SpriteThumb id={tech.id} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <h2 className="font-semibold">{tech.name}</h2>
-                        <span className="sci-badge">LVL {level}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-[var(--muted-fg)]">{tech.blurb}</p>
-                    </div>
-                  </div>
+                <article key={tech.id} className="sci-card overflow-hidden p-0">
+                  <SpriteHero id={tech.id} title={tech.name} badge={`LVL ${level}`} />
+                  <div className="px-4 pt-3 pb-4">
+                  <p className="text-xs text-[var(--muted-fg)]">{tech.blurb}</p>
                   {thisBusy ? (
                     <TimedStripedProgress
                       className="mt-3"
@@ -146,7 +139,7 @@ export default function ResearchPage() {
                     type="button"
                     disabled={pending || missing.length > 0 || poor || researchRunning || labUpgrading}
                     onClick={() => void research(tech.id)}
-                    className="sci-btn mt-3 h-11 w-full"
+                    className="sci-btn mt-3 h-14 min-h-14 w-full"
                   >
                     {labUpgrading
                       ? "Lab upgrading"
@@ -160,6 +153,7 @@ export default function ResearchPage() {
                               ? "Need resources"
                               : "Research"}
                   </button>
+                  </div>
                 </article>
               );
             })}

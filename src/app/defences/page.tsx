@@ -6,7 +6,7 @@ import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { QueueCountField } from "@/components/queue-count-field";
-import { SpriteThumb } from "@/components/sprite-thumb";
+import { SpriteHero } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
   DEFENCE_GROUPS,
@@ -126,23 +126,16 @@ export default function DefencesPage() {
                 ? "Silo locked"
                 : "Research locked";
           return (
-            <article key={d.id} className="sci-card p-4">
-              <div className="flex items-start gap-3">
-                <SpriteThumb id={d.id} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="font-semibold">{d.name}</h2>
-                    <span className="sci-badge">{badge}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--muted-fg)]">{d.blurb}</p>
-                  <p className="mt-1 font-mono text-xs">
-                    Hull {d.hull.toLocaleString()} · Shield {d.shield.toLocaleString()} · Attack {d.attack.toLocaleString()}
-                    {owned > 1
-                      ? ` · battery hull ${(d.hull * owned).toLocaleString()} shield ${(d.shield * owned).toLocaleString()} attack ${(d.attack * owned).toLocaleString()}`
-                      : ""}
-                  </p>
-                </div>
-              </div>
+            <article key={d.id} className="sci-card overflow-hidden p-0">
+              <SpriteHero id={d.id} title={d.name} badge={badge} />
+              <div className="px-4 pt-3 pb-4">
+              <p className="text-xs text-[var(--muted-fg)]">{d.blurb}</p>
+              <p className="mt-1 font-mono text-xs">
+                Hull {d.hull.toLocaleString()} · Shield {d.shield.toLocaleString()} · Attack {d.attack.toLocaleString()}
+                {owned > 1
+                  ? ` · battery hull ${(d.hull * owned).toLocaleString()} shield ${(d.shield * owned).toLocaleString()} attack ${(d.attack * owned).toLocaleString()}`
+                  : ""}
+              </p>
               {thisBusy ? (
                 <TimedStripedProgress
                   className="mt-3"
@@ -197,7 +190,7 @@ export default function DefencesPage() {
                     type="button"
                     disabled={pending}
                     onClick={() => void cancelDefence()}
-                    className="sci-btn sci-btn-muted mt-3 h-11 w-full disabled:opacity-50"
+                    className="sci-btn sci-btn-muted mt-3 h-14 min-h-14 w-full disabled:opacity-50"
                   >
                     Cancel build
                   </button>
@@ -214,7 +207,7 @@ export default function DefencesPage() {
                 type="button"
                 disabled={pending || online || missing.length > 0 || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildDefence(d.id, d.unique ? 1 : count)}
-                className="sci-btn mt-3 h-11 w-full"
+                className="sci-btn mt-3 h-14 min-h-14 w-full"
               >
                 {online
                   ? "Online"
@@ -230,6 +223,7 @@ export default function DefencesPage() {
                             ? "Load"
                             : "Build"}
               </button>
+              </div>
             </article>
           );
         })}

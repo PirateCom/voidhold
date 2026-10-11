@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEmpire } from "@/components/empire-provider";
-import { SpriteThumb } from "@/components/sprite-thumb";
+import { SpriteHero } from "@/components/sprite-thumb";
 import { Countdown } from "@/components/countdown";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import { totalFieldsUsed, planetFieldCapOf } from "@/lib/game/simulate";
@@ -184,17 +184,10 @@ function UpgradeCard({
               ? "Need resources"
               : "Upgrade";
   return (
-    <article className={`sci-card p-4${thisBusy ? " sci-card-active" : ""}`}>
-      <div className="flex items-start gap-3">
-        <SpriteThumb id={id} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-semibold">{name}</h2>
-            <span className="sci-badge">LVL {level}</span>
-          </div>
-          <p className="mt-1 text-xs text-[var(--muted-fg)]">{blurb}</p>
-        </div>
-      </div>
+    <article className={`sci-card overflow-hidden p-0${thisBusy ? " sci-card-active" : ""}`}>
+      <SpriteHero id={id} title={name} badge={`LVL ${level}`} />
+      <div className="px-4 pt-3 pb-4">
+      <p className="text-xs text-[var(--muted-fg)]">{blurb}</p>
       {thisBusy ? (
         <TimedStripedProgress
           className="mt-3"
@@ -265,7 +258,7 @@ function UpgradeCard({
             type="button"
             disabled={pending}
             onClick={() => void cancelUpgrade()}
-            className="sci-btn sci-btn-muted mt-3 h-11 w-full disabled:opacity-50"
+            className="sci-btn sci-btn-muted mt-3 h-14 min-h-14 w-full disabled:opacity-50"
           >
             Cancel upgrade
           </button>
@@ -275,11 +268,12 @@ function UpgradeCard({
           type="button"
           disabled={blocked}
           onClick={() => void upgrade(id as never)}
-          className="sci-btn mt-3 h-11 w-full"
+          className="sci-btn mt-3 h-14 min-h-14 w-full"
         >
           {actionLabel}
         </button>
       )}
+      </div>
     </article>
   );
 }

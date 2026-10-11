@@ -5,7 +5,7 @@ import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
 import { QueueCountField } from "@/components/queue-count-field";
-import { SpriteThumb } from "@/components/sprite-thumb";
+import { SpriteHero } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import {
   CRAWLER_ENERGY,
@@ -201,45 +201,42 @@ export default function ShipyardPage() {
           const affordable = live ? maxUnitQueueCount(live, ship.cost, thisBusy ? queued : 0) : 0;
           const lockLabel = missing[0]?.name === "Shipyard" ? "Shipyard locked" : "Research locked";
           return (
-            <article key={ship.id} className="sci-card p-4">
-              <div className="flex items-start gap-3">
-                <SpriteThumb id={ship.id} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="font-semibold">{ship.name}</h2>
-                    <span className="sci-badge">×{dockedCount(ship.id, state.empire).toLocaleString()}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--muted-fg)]">
-                    Docked. Build time {formatDuration(buildSecs)} each.
-                    {thisBusy ? ` In yard: ${queued}.` : ""}
-                  </p>
-                  <ShipStats
-                    ship={ship}
-                    empire={state.empire}
-                    shipyardLevel={state.planet.shipyard ?? 0}
-                    satEnergy={
-                      ship.id === "solar_satellite"
-                        ? {
-                            each: solarSatelliteEnergy(
-                              state.planet.temp_min,
-                              state.planet.temp_max,
-                              state.star?.type,
-                              1,
-                            ),
-                            docked: solarSatelliteEnergy(
-                              state.planet.temp_min,
-                              state.planet.temp_max,
-                              state.star?.type,
-                              dockedCount("solar_satellite", state.empire),
-                            ),
-                            count: dockedCount("solar_satellite", state.empire),
-                          }
-                        : undefined
-                    }
-                    crawlerInfo={ship.id === "crawler" ? crawlerHud ?? undefined : undefined}
-                  />
-                </div>
-              </div>
+            <article key={ship.id} className="sci-card overflow-hidden p-0">
+              <SpriteHero
+                id={ship.id}
+                title={ship.name}
+                badge={`×${dockedCount(ship.id, state.empire).toLocaleString()}`}
+              />
+              <div className="px-4 pt-3 pb-4">
+              <p className="text-xs text-[var(--muted-fg)]">
+                Docked. Build time {formatDuration(buildSecs)} each.
+                {thisBusy ? ` In yard: ${queued}.` : ""}
+              </p>
+              <ShipStats
+                ship={ship}
+                empire={state.empire}
+                shipyardLevel={state.planet.shipyard ?? 0}
+                satEnergy={
+                  ship.id === "solar_satellite"
+                    ? {
+                        each: solarSatelliteEnergy(
+                          state.planet.temp_min,
+                          state.planet.temp_max,
+                          state.star?.type,
+                          1,
+                        ),
+                        docked: solarSatelliteEnergy(
+                          state.planet.temp_min,
+                          state.planet.temp_max,
+                          state.star?.type,
+                          dockedCount("solar_satellite", state.empire),
+                        ),
+                        count: dockedCount("solar_satellite", state.empire),
+                      }
+                    : undefined
+                }
+                crawlerInfo={ship.id === "crawler" ? crawlerHud ?? undefined : undefined}
+              />
               {thisBusy ? (
                 <TimedStripedProgress
                   className="mt-3"
@@ -266,10 +263,11 @@ export default function ShipyardPage() {
                 type="button"
                 disabled={pending || !ready || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildShip(ship.id, count)}
-                className="sci-btn mt-3 h-11 w-full"
+                className="sci-btn mt-3 h-14 min-h-14 w-full"
               >
                 {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : poor ? "Need resources" : "Build"}
               </button>
+              </div>
             </article>
           );
         })}

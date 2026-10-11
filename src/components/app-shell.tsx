@@ -17,10 +17,14 @@ export function AppShell({
       <div className="scanlines pointer-events-none absolute inset-0 z-10" />
       <header className="relative z-20 shrink-0 border-b border-cyan-500/20 bg-slate-950/90 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2.5 backdrop-blur-md">
         <PlanetHeader title={title} />
-        <ResourceBar />
       </header>
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-3">
+          <div className="mb-3">
+            <ResourceBar />
+          </div>
+          {children}
+        </div>
         <div id="sheet-root" className="pointer-events-none absolute inset-0 z-40 [&>*]:pointer-events-auto" />
       </div>
       <BottomNav />
