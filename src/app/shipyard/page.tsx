@@ -190,7 +190,7 @@ export default function ShipyardPage() {
           <p className="mt-2 text-sm text-[var(--muted-fg)]">Yard idle.</p>
         )}
       </article>
-      <div className="flex flex-col gap-3">
+      <div className="card-grid">
         {SHIPS.map((ship) => {
           const missing = unmetShipBuild(ship, state.planet.shipyard ?? 0, (id) => levelOf(id, state.empire));
           const ready = missing.length === 0;

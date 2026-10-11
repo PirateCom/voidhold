@@ -14,21 +14,17 @@ import {
   levelsFromHold,
 } from "@/lib/game/directives";
 
-const rows = [
-  [
-    { href: "/", label: "Resources", icon: ResourcesIcon },
-    { href: "/buildings", label: "Facilities", icon: FacilitiesIcon },
-    { href: "/research", label: "Research", icon: ResearchIcon },
-    { href: "/directives", label: "Directives", icon: DirectivesIcon },
-    { href: "/missions", label: "Missions", icon: MissionsIcon },
-  ],
-  [
-    { href: "/defences", label: "Defence", icon: DefenceIcon },
-    { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
-    { href: "/fleets", label: "Fleet", icon: FleetIcon },
-    { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
-    { href: "/communications", label: "Comms", icon: CommsIcon },
-  ],
+const items = [
+  { href: "/", label: "Resources", icon: ResourcesIcon },
+  { href: "/buildings", label: "Facilities", icon: FacilitiesIcon },
+  { href: "/research", label: "Research", icon: ResearchIcon },
+  { href: "/directives", label: "Directives", icon: DirectivesIcon },
+  { href: "/missions", label: "Missions", icon: MissionsIcon },
+  { href: "/defences", label: "Defence", icon: DefenceIcon },
+  { href: "/shipyard", label: "Shipyard", icon: ShipyardIcon },
+  { href: "/fleets", label: "Fleet", icon: FleetIcon },
+  { href: "/galaxy", label: "Galaxy", icon: GalaxyIcon },
+  { href: "/communications", label: "Comms", icon: CommsIcon },
 ];
 
 const ACCENTS: Record<string, { idle: string; active: string }> = {
@@ -90,52 +86,46 @@ export function BottomNav() {
 
   return (
     <footer className="relative z-30 shrink-0 border-t border-cyan-500/30 bg-slate-950/95 px-1 pt-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] backdrop-blur-lg">
-      <nav className="flex flex-col gap-0.5">
-        {rows.map((row) => (
-          <ul
-            key={row[0].href}
-            className="grid gap-0.5"
-            style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}
-          >
-            {row.map(({ href, label, icon: Icon }) => {
-              const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    aria-label={href === "/fleets" && fleetsFlying ? "Fleet, ships in transit" : undefined}
-                    className={`relative flex flex-col items-center justify-center rounded px-0.5 py-1.5 font-[family-name:var(--font-display)] text-[9px] leading-tight tracking-tight uppercase ${
-                      ACCENTS[href]
-                        ? `${active ? ACCENTS[href].active : ACCENTS[href].idle} ${active ? "font-bold" : "font-medium"}`
-                        : active
-                          ? "border border-cyan-500/40 bg-cyan-950/40 font-bold text-cyan-300 shadow-[inset_0_0_15px_rgba(0,240,255,0.15),0_0_10px_rgba(0,240,255,0.2)]"
-                          : "font-medium text-slate-400"
-                    }`}
-                  >
-                    {dotFor[href] && !active ? (
-                      <span
-                        aria-label={
-                          href === "/directives"
-                            ? "Reward ready"
-                            : href === "/fleets"
-                              ? "Incoming attack"
-                              : "New comms"
-                        }
-                        className={`absolute top-1 right-2 h-2 w-2 animate-pulse rounded-full ${
-                          href === "/fleets"
-                            ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.9)]"
-                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
-                        }`}
-                      />
-                    ) : null}
-                    {href === "/fleets" ? <FleetIcon flying={fleetsFlying} /> : <Icon />}
-                    <span className="mt-1 text-center">{label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        ))}
+      <nav>
+        <ul className="grid grid-cols-5 gap-0.5 md:grid-cols-10">
+          {items.map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-label={href === "/fleets" && fleetsFlying ? "Fleet, ships in transit" : undefined}
+                  className={`relative flex flex-col items-center justify-center rounded px-0.5 py-1.5 font-[family-name:var(--font-display)] text-[9px] leading-tight tracking-tight uppercase md:text-[10px] ${
+                    ACCENTS[href]
+                      ? `${active ? ACCENTS[href].active : ACCENTS[href].idle} ${active ? "font-bold" : "font-medium"}`
+                      : active
+                        ? "border border-cyan-500/40 bg-cyan-950/40 font-bold text-cyan-300 shadow-[inset_0_0_15px_rgba(0,240,255,0.15),0_0_10px_rgba(0,240,255,0.2)]"
+                        : "font-medium text-slate-400"
+                  }`}
+                >
+                  {dotFor[href] && !active ? (
+                    <span
+                      aria-label={
+                        href === "/directives"
+                          ? "Reward ready"
+                          : href === "/fleets"
+                            ? "Incoming attack"
+                            : "New comms"
+                      }
+                      className={`absolute top-1 right-1 h-2 w-2 animate-pulse rounded-full md:right-2 ${
+                        href === "/fleets"
+                          ? "bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.9)]"
+                          : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                      }`}
+                    />
+                  ) : null}
+                  {href === "/fleets" ? <FleetIcon flying={fleetsFlying} /> : <Icon />}
+                  <span className="mt-1 text-center">{label}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
     </footer>
   );

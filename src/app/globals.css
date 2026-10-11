@@ -38,6 +38,20 @@ body {
   min-height: 100%;
 }
 
+.card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
 body {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }

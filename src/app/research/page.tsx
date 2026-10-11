@@ -65,6 +65,7 @@ export default function ResearchPage() {
             <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-[var(--muted-fg)] uppercase">
               {group.title}
             </h2>
+            <div className="card-grid">
             {RESEARCHES.filter((tech) => tech.group === group.id).map((tech) => {
               const level = levelOf(tech.id, state.empire);
               const cost = researchTechCost(tech.id, level);
@@ -162,6 +163,7 @@ export default function ResearchPage() {
                 </article>
               );
             })}
+            </div>
           </section>
         ))}
       </div>

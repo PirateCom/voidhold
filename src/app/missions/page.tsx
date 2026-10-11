@@ -113,6 +113,7 @@ export default function MissionsPage() {
             <p className="text-sm text-[var(--muted-fg)]">
               Four contracts each UTC day. Fly them, then collect. Leftovers expire at reset.
             </p>
+            <div className="card-grid">
             {(dailies ?? []).map((row) => {
               const busy = pendingDaily === row.id;
               return (
@@ -155,6 +156,7 @@ export default function MissionsPage() {
                 </article>
               );
             })}
+            </div>
           </section>
           <section className="flex flex-col gap-3">
             <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-[var(--muted-fg)] uppercase">
@@ -163,6 +165,7 @@ export default function MissionsPage() {
             <p className="text-sm text-[var(--muted-fg)]">
               Agents post contracts. Accept one, fly it from Galaxy, then collect here.
             </p>
+            <div className="card-grid">
             {AGENTS.map((agent) => {
               const row = missions?.find((m) => m.agent_id === agent.id) ?? null;
               const busy = pendingAgent === agent.id;
@@ -223,6 +226,7 @@ export default function MissionsPage() {
                 </article>
               );
             })}
+            </div>
           </section>
         </div>
       )}

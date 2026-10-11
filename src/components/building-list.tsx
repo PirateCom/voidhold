@@ -303,7 +303,7 @@ export function ResourceBuildings() {
       {RESOURCE_GROUPS.map((group) => (
         <section key={group.title}>
           <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">{group.title}</p>
-          <div className="flex flex-col gap-3">
+          <div className="card-grid">
             {group.ids.map((id) => {
               const b = byId[id];
               if (!b) return null;
@@ -341,6 +341,7 @@ export function BuildingList() {
       <p className="text-xs text-[var(--muted-fg)]">
         Costs follow the OGame wiki. Deuterium is taken from the tank.
       </p>
+      <div className="card-grid">
       {FACILITIES.filter((facility) => !facility.disabled).map((facility) => {
         const missing = unmetFacility(
           facility.id,
@@ -392,6 +393,7 @@ export function BuildingList() {
           />
         );
       })}
+      </div>
     </div>
   );
 }

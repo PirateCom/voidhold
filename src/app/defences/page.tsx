@@ -88,6 +88,7 @@ export default function DefencesPage() {
             <h2 className="px-1 pt-2 text-xs font-semibold tracking-wide text-[var(--muted-fg)] uppercase">
               {group.title}
             </h2>
+            <div className="card-grid">
             {DEFENCES.filter((d) => d.group === group.id).map((d) => {
           const owned = countOf(d.id, live);
           const buildSecs = planetUnitSeconds(live, d.id);
@@ -232,6 +233,7 @@ export default function DefencesPage() {
             </article>
           );
         })}
+            </div>
           </section>
         ))}
       </div>

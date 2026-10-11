@@ -11,7 +11,7 @@ export function AppShell({
   title: string;
 }) {
   return (
-    <div className="fixed inset-0 z-0 mx-auto flex w-full max-w-md min-h-0 flex-col overflow-hidden overscroll-none border-x border-cyan-900/30 bg-[#040814]">
+    <div className="fixed inset-0 z-0 mx-auto flex h-dvh w-full min-h-0 max-w-md flex-col overflow-hidden overscroll-none border-x border-cyan-900/30 bg-[#040814] md:max-w-4xl">
       <Starfield />
       <div className="holo-grid pointer-events-none absolute inset-0 z-0" />
       <div className="scanlines pointer-events-none absolute inset-0 z-10" />

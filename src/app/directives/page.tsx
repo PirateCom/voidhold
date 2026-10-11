@@ -68,9 +68,11 @@ export default function DirectivesPage() {
             Officer directives in order: first the beginner mines, then yards, research, small hulls and guns,
             climbing until every flyable ship and defence is on the list.
           </p>
+          <div className="card-grid">
           {DIRECTIVES.map((spec) => (
             <DirectiveCard key={spec.id} spec={spec} />
           ))}
+          </div>
         </div>
       )}
     </AppShell>
