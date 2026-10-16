@@ -1,4 +1,4 @@
-import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat, type TechRequirement } from "./ogame-data";
+import { FACILITIES, RESEARCHES, SHIPS, type FacilityId, type ResearchId, type ShipStat, type TechRequirement } from "./voidhold-data";
 
 export const GALAXY = 1;
 export const SYSTEM_MAX = 499;
@@ -20,8 +20,8 @@ export function normalizeEconomySpeed(value?: number | null): EconomySpeed {
 
 export const RAID_LOOT_MIN = 0.25;
 export const RAID_LOOT_MAX = 0.75;
-export type { FacilityId, FacilityRequirement, FacilityStat, ResearchGroup, ResearchId, ShipResearch, ShipStat, TechRequirement } from "./ogame-data";
-export { FACILITIES, RESEARCH_GROUPS, RESEARCHES, SHIPS } from "./ogame-data";
+export type { FacilityId, FacilityRequirement, FacilityStat, ResearchGroup, ResearchId, ShipResearch, ShipStat, TechRequirement } from "./voidhold-data";
+export { FACILITIES, RESEARCH_GROUPS, RESEARCHES, SHIPS } from "./voidhold-data";
 
 const SMALL_CARGO = SHIPS.find((ship) => ship.id === "small_cargo") as ShipStat;
 export const RAIDER_CARGO = SMALL_CARGO.cargo;
@@ -84,10 +84,10 @@ export const BUILDINGS: {
 }[] = [
   { id: "ore_mine", name: "Ore mine", blurb: "Pulls metal from the crust." },
   { id: "crystal_mine", name: "Crystal mine", blurb: "Cuts lattice from the ice." },
-  { id: "deuterium_extractor", name: "Deuterium extractor", blurb: "The wiki synthesizer. Colder worlds make more deuterium. Draws energy." },
+  { id: "deuterium_extractor", name: "Deuterium extractor", blurb: "Extracts deuterium from the oceans. Colder worlds make more deuterium. Draws energy." },
   { id: "ore_storage", name: "Ore storage", blurb: "Raises the ore hold. Does not draw energy." },
   { id: "crystal_storage", name: "Crystal storage", blurb: "Raises the crystal hold. Does not draw energy." },
-  { id: "deuterium_storage", name: "Deuterium storage", blurb: "The wiki deuterium tank. Caps deuterium like the metal and crystal holds." },
+  { id: "deuterium_storage", name: "Deuterium storage", blurb: "Raises the deuterium hold. Does not draw energy." },
   { id: "power_plant", name: "Solar plant", blurb: "Feeds the mines. Shortfalls slow production." },
   { id: "fusion_reactor", name: "Fusion reactor", blurb: "Burns deuterium for energy. Needs Energy technology 3 and Deuterium extractor 5." },
 ];
@@ -1027,6 +1027,15 @@ export function crawlerProductionBonus(working: number): number {
   return 1 + Math.max(0, Math.floor(working)) * CRAWLER_BONUS;
 }
 
+export const MINE_THROTTLE_STEPS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const;
+export type MineThrottleBuildingId = "ore_mine" | "crystal_mine" | "deuterium_extractor";
+
+export function normalizeMinePct(pct?: number | null): number {
+  if (pct == null || !Number.isFinite(pct)) return 100;
+  const clamped = Math.max(0, Math.min(100, pct));
+  return Math.round(clamped / 10) * 10;
+}
+
 export function energyNow(
   oreMine: number,
   crystalMine: number,
@@ -1039,16 +1048,23 @@ export function energyNow(
   tempMin = 30,
   tempMax = 30,
   crawlers = 0,
+  minePcts?: { ore?: number; crystal?: number; deuterium?: number },
 ): {
   output: number;
   drain: number;
   factor: number;
 } {
+  const orePct = normalizeMinePct(minePcts?.ore) / 100;
+  const crystalPct = normalizeMinePct(minePcts?.crystal) / 100;
+  const deutPct = normalizeMinePct(minePcts?.deuterium) / 100;
   const output =
     powerOutput(powerPlant, star) +
     fusionOutput(fusion, energyTech) +
     solarSatelliteEnergy(tempMin, tempMax, star, satellites);
-  const mineDrain = mineEnergyDrain(oreMine) + mineEnergyDrain(crystalMine) + deutEnergyDrain(deutMine);
+  const mineDrain =
+    Math.floor(mineEnergyDrain(oreMine) * orePct) +
+    Math.floor(mineEnergyDrain(crystalMine) * crystalPct) +
+    Math.floor(deutEnergyDrain(deutMine) * deutPct);
   const working = workingCrawlers(crawlers, oreMine, crystalMine, deutMine, output, mineDrain);
   const drain = mineDrain + working * CRAWLER_ENERGY;
   const factor = mineDrain <= 0 ? 1 : Math.min(1, output / mineDrain);
@@ -1607,7 +1623,7 @@ export function rollMaxFields(slot: number, outerRoll: number, valueRoll: number
   return inclusivePick(hi + 1, hi + width, valueRoll);
 }
 
-/** OGame homeworld diameter. Fields are floor((km / 1000)^2) plus the universe bonus. */
+/** Voidhold homeworld diameter. Fields are floor((km / 1000)^2) plus the universe bonus. */
 export const HOMEWORLD_DIAMETER_KM = 12_800;
 export const PLANET_FIELD_BONUS = 10;
 

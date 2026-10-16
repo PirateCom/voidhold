@@ -238,18 +238,6 @@ export default function ShipyardPage() {
                 crawlerInfo={ship.id === "crawler" ? crawlerHud ?? undefined : undefined}
               />
               {thisBusy ? (
-                <TimedStripedProgress
-                  className="mt-3"
-                  until={state.empire.raider_completes_at}
-                  durationMs={buildSecs * 1000}
-                  now={now}
-                  tone="var(--ore)"
-                  label={ship.name}
-                />
-              ) : showsJobProgress(buildSecs * 1000) ? (
-                <StripedProgress className="mt-3" value={0} tone="var(--ore)" animated={false} disabled label={ship.name} />
-              ) : null}
-              {thisBusy ? (
                 <p className="mt-3 text-sm">
                   Next hull <Countdown until={state.empire.raider_completes_at} now={now} />
                 </p>
@@ -263,9 +251,25 @@ export default function ShipyardPage() {
                 type="button"
                 disabled={pending || !ready || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildShip(ship.id, count)}
-                className="sci-btn mt-3 h-14 min-h-14 w-full"
+                className={`sci-btn relative mt-3 h-14 min-h-14 w-full overflow-hidden ${
+                  thisBusy ? "sci-btn-muted" : ""
+                }`}
               >
-                {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : poor ? "Need resources" : "Build"}
+                {thisBusy ? (
+                  <TimedStripedProgress
+                    fill
+                    until={state.empire.raider_completes_at}
+                    durationMs={buildSecs * 1000}
+                    now={now}
+                    tone="var(--ore)"
+                    label={ship.name}
+                  />
+                ) : showsJobProgress(buildSecs * 1000) ? (
+                  <StripedProgress fill value={0} tone="var(--ore)" animated={false} disabled label={ship.name} />
+                ) : null}
+                <span className="relative z-10">
+                  {!ready ? lockLabel : yardBusy && !thisBusy ? "Yard occupied" : poor ? "Need resources" : "Build"}
+                </span>
               </button>
               </div>
             </article>

@@ -1,6 +1,6 @@
 import type { BuildingId, DefenceId, EmpireRow, PlanetRow } from "./types";
 import { energyNow, type StarType } from "./catalog";
-import type { ResearchId } from "./ogame-data";
+import type { ResearchId } from "./voidhold-data";
 
 export type DirectiveObjective =
   | { kind: "building"; building: BuildingId; level: number; label: string }

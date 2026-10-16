@@ -34,6 +34,7 @@ import {
   ipmRangeSystems,
   ipmSystemDistance,
   normalizeEconomySpeed,
+  normalizeMinePct,
   harvestDebris,
   recyclerHarvestCapacity,
   maxPlanets,
@@ -121,6 +122,9 @@ export type SimPlanet = {
   oreMine: number;
   crystalMine: number;
   deuteriumExtractor: number;
+  oreMinePct?: number;
+  crystalMinePct?: number;
+  deuteriumExtractorPct?: number;
   powerPlant: number;
   fusionReactor: number;
   oreStorage: number;
@@ -489,6 +493,11 @@ function planetEnergy(planet: SimPlanet, fusion = planet.fusionReactor) {
     planet.tempMin ?? 30,
     planet.tempMax ?? 30,
     planet.crawlers ?? 0,
+    {
+      ore: planet.oreMinePct,
+      crystal: planet.crystalMinePct,
+      deuterium: planet.deuteriumExtractorPct,
+    },
   );
 }
 
@@ -496,7 +505,10 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
   const speed = Math.max(1, planet.economySpeed ?? 1);
   const elapsed = Math.max(0, (at - planet.lastHarvestedAt) / 1000) * speed;
   const tempMax = planet.tempMax ?? 30;
-  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax, planet.tempMin);
+  const orePct = normalizeMinePct(planet.oreMinePct) / 100;
+  const crystalPct = normalizeMinePct(planet.crystalMinePct) / 100;
+  const deutPct = normalizeMinePct(planet.deuteriumExtractorPct) / 100;
+  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax, planet.tempMin) * deutPct;
   const burn = fusionDeuteriumBurnPerHour(planet.fusionReactor);
   const withFusion = planetEnergy(planet);
   const producedWith = (synth * withFusion.factor * elapsed) / GAME_HOUR_SECONDS;
@@ -504,6 +516,10 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
   const fusionLive = planet.fusionReactor <= 0 || planet.deuterium + producedWith + 1e-9 >= burnAmt;
   const energy = fusionLive ? withFusion : planetEnergy(planet, 0);
   const factor = energy.factor;
+  const mineDrainNow =
+    Math.floor(mineEnergyDrain(planet.oreMine) * orePct) +
+    Math.floor(mineEnergyDrain(planet.crystalMine) * crystalPct) +
+    Math.floor(deutEnergyDrain(planet.deuteriumExtractor) * deutPct);
   const bonus = crawlerProductionBonus(
     workingCrawlers(
       planet.crawlers ?? 0,
@@ -511,9 +527,7 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
       planet.crystalMine,
       planet.deuteriumExtractor,
       energy.output,
-      mineEnergyDrain(planet.oreMine) +
-        mineEnergyDrain(planet.crystalMine) +
-        deutEnergyDrain(planet.deuteriumExtractor),
+      mineDrainNow,
     ),
   );
   const deutAdd = Math.floor((synth * factor * bonus * elapsed) / GAME_HOUR_SECONDS);
@@ -522,13 +536,13 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
     ...planet,
     ore: harvestAmount(
       planet.ore,
-      mineProductionPerHour(planet.oreMine) * factor * bonus,
+      mineProductionPerHour(planet.oreMine) * orePct * factor * bonus,
       elapsed,
       storageCap(planet.oreStorage),
     ),
     crystal: harvestAmount(
       planet.crystal,
-      crystalProductionPerHour(planet.crystalMine) * factor * bonus,
+      crystalProductionPerHour(planet.crystalMine) * crystalPct * factor * bonus,
       elapsed,
       storageCap(planet.crystalStorage),
     ),
@@ -2811,13 +2825,20 @@ export function sendExpedition(
 export function livePlanet(planet: SimPlanet, at: number) {
   const preview = catchUpPlanet(planet, at);
   const tempMax = preview.tempMax ?? 30;
-  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax, preview.tempMin);
+  const orePct = normalizeMinePct(preview.oreMinePct) / 100;
+  const crystalPct = normalizeMinePct(preview.crystalMinePct) / 100;
+  const deutPct = normalizeMinePct(preview.deuteriumExtractorPct) / 100;
+  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax, preview.tempMin) * deutPct;
   const burn = fusionDeuteriumBurnPerHour(preview.fusionReactor);
   const withFusion = planetEnergy(preview);
   const fusionLive =
     preview.fusionReactor <= 0 || preview.deuterium > 0 || synth * withFusion.factor >= burn;
   const energy = fusionLive ? withFusion : planetEnergy(preview, 0);
   const factor = energy.factor;
+  const mineDrainNow =
+    Math.floor(mineEnergyDrain(preview.oreMine) * orePct) +
+    Math.floor(mineEnergyDrain(preview.crystalMine) * crystalPct) +
+    Math.floor(deutEnergyDrain(preview.deuteriumExtractor) * deutPct);
   const bonus = crawlerProductionBonus(
     workingCrawlers(
       preview.crawlers ?? 0,
@@ -2825,17 +2846,15 @@ export function livePlanet(planet: SimPlanet, at: number) {
       preview.crystalMine,
       preview.deuteriumExtractor,
       energy.output,
-      mineEnergyDrain(preview.oreMine) +
-        mineEnergyDrain(preview.crystalMine) +
-        deutEnergyDrain(preview.deuteriumExtractor),
+      mineDrainNow,
     ),
   );
   const speed = preview.economySpeed ?? 1;
   return {
     ...preview,
     energy,
-    orePerHour: mineProductionPerHour(preview.oreMine) * factor * bonus * speed,
-    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * factor * bonus * speed,
+    orePerHour: mineProductionPerHour(preview.oreMine) * orePct * factor * bonus * speed,
+    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * crystalPct * factor * bonus * speed,
     deuteriumPerHour: (synth * factor * bonus - (fusionLive ? burn : 0)) * speed,
     oreCap: storageCap(preview.oreStorage),
     crystalCap: storageCap(preview.crystalStorage),

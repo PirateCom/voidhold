@@ -1,5 +1,5 @@
 {
-  "sheet": "public/sprites/ogame_sprite.jpg",
+  "sheet": "public/sprites/voidhold_sprite.jpg",
   "note": "Big pictures only. Each cell is 200 by 200. Rows start at y 0, 1000, 2000, 3000, and 4000. The smaller copies under each row are skipped. On row 1, the three pictures after deuterium storage are ignored.",
   "sprites": [
     { "id": "ore", "name": "Ore", "represents": "Resource icon in the top bar", "x": null, "y": null, "w": null, "h": null },

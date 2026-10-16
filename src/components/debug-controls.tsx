@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { fakeCommanderStatus, setFakeCommander } from "@/lib/game/actions";
-import { DebugInfoDialog } from "@/components/debug-info-dialog";
 import { useEmpire } from "@/components/empire-provider";
 import { setGhostFleetEnabled, useGhostFleetEnabled } from "@/components/ghost-fleet-toggle";
 import {
@@ -30,7 +30,6 @@ export function DebugControls() {
   const pirateRaidsOn = state?.empire.pirate_raids_enabled !== false;
   const economySpeed =
     state?.empire.economy_speed === 3 || state?.empire.economy_speed === 5 ? state.empire.economy_speed : 1;
-  const [infoOpen, setInfoOpen] = useState(false);
   const planetSeed = String(state?.planet.id ?? "");
   const avatarOverride = usePlanetAvatarOverride(planetSeed);
   const ghostFleetOn = useGhostFleetEnabled();
@@ -228,14 +227,12 @@ export function DebugControls() {
       >
         Debug: ghost fleet {ghostFleetOn ? "on" : "off"}
       </button>
-      <button
-        type="button"
-        onClick={() => setInfoOpen(true)}
-        className="sci-btn sci-btn-warn mt-2 mb-4 h-11 w-full"
+      <Link
+        href="/admin-guide"
+        className="sci-btn mt-2 mb-4 h-11 w-full"
       >
-        Debug: info
-      </button>
-      <DebugInfoDialog open={infoOpen} onClose={() => setInfoOpen(false)} />
+        Admin: status & mechanics guide
+      </Link>
     </>
   );
 }

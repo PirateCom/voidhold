@@ -11,7 +11,7 @@ import {
   type DefenceId,
 } from "./catalog";
 
-/** OGame attack: at most six rounds, then a draw with no plunder. */
+/** Voidhold attack: at most six rounds, then a draw with no plunder. */
 export const COMBAT_ROUNDS = 6;
 /** Wiki plunder cap: half of each resource on the planet. */
 export const PLUNDER_FRACTION = 0.5;

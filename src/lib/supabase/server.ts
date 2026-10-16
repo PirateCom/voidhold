@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE_MAX_AGE } from "@/lib/session";
+import {
+  KEEP_LOGGED_IN_COOKIE,
+  applySessionCookieLifetime,
+  sessionCookieOptionsFor,
+} from "@/lib/session";
 import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "./config";
 
 export { isSupabaseConfigured };
@@ -11,13 +15,10 @@ export async function createClient() {
   if (!url || !anon) return null;
 
   const cookieStore = await cookies();
+  const keepLoggedIn = cookieStore.get(KEEP_LOGGED_IN_COOKIE)?.value !== "0";
 
   return createServerClient(url, anon, {
-    cookieOptions: {
-      maxAge: SESSION_COOKIE_MAX_AGE,
-      path: "/",
-      sameSite: "lax",
-    },
+    cookieOptions: sessionCookieOptionsFor(keepLoggedIn),
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -25,10 +26,7 @@ export async function createClient() {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, {
-              ...options,
-              maxAge: SESSION_COOKIE_MAX_AGE,
-            }),
+            cookieStore.set(name, value, applySessionCookieLifetime(value, options, keepLoggedIn)),
           );
         } catch {
           /* called from a Server Component — middleware refreshes sessions */

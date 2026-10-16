@@ -51,7 +51,7 @@ export default function ResearchPage() {
       {error ? <p className="mb-3 text-sm text-red-300">{error}</p> : null}
       <CurrentDirective />
       <p className="mb-3 text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is taken from the tank on this planet.
+        Deuterium is taken from the tank on this planet.
         Technologies are empire-wide: Combustion 5 on the homeworld is Combustion 5 on every
         colony. Each planet still needs its own research lab at the listed level to start a
         new tech. Intergalactic Research Network joins extra labs automatically (highest
@@ -88,26 +88,6 @@ export default function ResearchPage() {
                   <SpriteHero id={tech.id} title={tech.name} badge={`LVL ${level}`} />
                   <div className="px-4 pt-3 pb-4">
                   <p className="text-xs text-[var(--muted-fg)]">{tech.blurb}</p>
-                  {thisBusy ? (
-                    <TimedStripedProgress
-                      className="mt-3"
-                      until={state.empire.research_completes_at}
-                      durationMs={runningMs}
-                      startedAt={state.empire.research_started_at}
-                      now={now}
-                      tone="var(--crystal)"
-                      label={tech.name}
-                    />
-                  ) : showsJobProgress(runningMs) ? (
-                    <StripedProgress
-                      className="mt-3"
-                      value={0}
-                      tone="var(--crystal)"
-                      animated={false}
-                      disabled
-                      label={tech.name}
-                    />
-                  ) : null}
                   <p className="mt-3 text-xs text-[var(--muted-fg)]">
                     Next:{" "}
                     <span className={live && live.ore < cost.ore ? "text-red-400" : undefined}>
@@ -139,19 +119,43 @@ export default function ResearchPage() {
                     type="button"
                     disabled={pending || missing.length > 0 || poor || researchRunning || labUpgrading}
                     onClick={() => void research(tech.id)}
-                    className="sci-btn mt-3 h-14 min-h-14 w-full"
+                    className={`sci-btn relative mt-3 h-14 min-h-14 w-full overflow-hidden ${
+                      thisBusy ? "sci-btn-muted disabled:opacity-100" : ""
+                    }`}
                   >
-                    {labUpgrading
-                      ? "Lab upgrading"
-                      : thisBusy
-                        ? "Researching"
-                        : researchRunning
-                          ? "Research running"
-                          : missing.length > 0
-                            ? "Research locked"
-                            : poor
-                              ? "Need resources"
-                              : "Research"}
+                    {thisBusy ? (
+                      <TimedStripedProgress
+                        fill
+                        until={state.empire.research_completes_at}
+                        durationMs={runningMs}
+                        startedAt={state.empire.research_started_at}
+                        now={now}
+                        tone="var(--crystal)"
+                        label={tech.name}
+                      />
+                    ) : showsJobProgress(runningMs) ? (
+                      <StripedProgress
+                        fill
+                        value={0}
+                        tone="var(--crystal)"
+                        animated={false}
+                        disabled
+                        label={tech.name}
+                      />
+                    ) : null}
+                    <span className="relative z-10">
+                      {labUpgrading
+                        ? "Lab upgrading"
+                        : thisBusy
+                          ? "Researching"
+                          : researchRunning
+                            ? "Research running"
+                            : missing.length > 0
+                              ? "Research locked"
+                              : poor
+                                ? "Need resources"
+                                : "Research"}
+                    </span>
                   </button>
                   </div>
                 </article>

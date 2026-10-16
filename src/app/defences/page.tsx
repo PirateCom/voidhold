@@ -136,17 +136,6 @@ export default function DefencesPage() {
                   ? ` · battery hull ${(d.hull * owned).toLocaleString()} shield ${(d.shield * owned).toLocaleString()} attack ${(d.attack * owned).toLocaleString()}`
                   : ""}
               </p>
-              {thisBusy ? (
-                <TimedStripedProgress
-                  className="mt-3"
-                  until={state.planet.defence_completes_at}
-                  durationMs={buildSecs * 1000}
-                  now={now}
-                  label={d.name}
-                />
-              ) : showsJobProgress(buildSecs * 1000) ? (
-                <StripedProgress className="mt-3" value={0} disabled animated={false} label={d.name} />
-              ) : null}
               <p className="mt-3 text-xs text-[var(--muted-fg)]">
                 Next:{" "}
                 {[
@@ -190,9 +179,16 @@ export default function DefencesPage() {
                     type="button"
                     disabled={pending}
                     onClick={() => void cancelDefence()}
-                    className="sci-btn sci-btn-muted mt-3 h-14 min-h-14 w-full disabled:opacity-50"
+                    className="sci-btn sci-btn-muted relative mt-3 h-14 min-h-14 w-full overflow-hidden disabled:opacity-50"
                   >
-                    Cancel build
+                    <TimedStripedProgress
+                      fill
+                      until={state.planet.defence_completes_at}
+                      durationMs={buildSecs * 1000}
+                      now={now}
+                      label={d.name}
+                    />
+                    <span className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">Cancel build</span>
                   </button>
                 </>
               ) : null}
@@ -207,21 +203,26 @@ export default function DefencesPage() {
                 type="button"
                 disabled={pending || online || missing.length > 0 || poor || (yardBusy && !thisBusy)}
                 onClick={() => void buildDefence(d.id, d.unique ? 1 : count)}
-                className="sci-btn mt-3 h-14 min-h-14 w-full"
+                className="sci-btn relative mt-3 h-14 min-h-14 w-full overflow-hidden"
               >
-                {online
-                  ? "Online"
-                  : missing.length > 0
-                    ? lockLabel
-                    : yardBusy && !thisBusy
-                      ? "Yard occupied"
-                      : poor
-                        ? "Need resources"
-                        : d.group === "dome"
-                          ? "Raise dome"
-                          : d.group === "missile"
-                            ? "Load"
-                            : "Build"}
+                {!thisBusy && showsJobProgress(buildSecs * 1000) ? (
+                  <StripedProgress fill value={0} disabled animated={false} label={d.name} />
+                ) : null}
+                <span className="relative z-10">
+                  {online
+                    ? "Online"
+                    : missing.length > 0
+                      ? lockLabel
+                      : yardBusy && !thisBusy
+                        ? "Yard occupied"
+                        : poor
+                          ? "Need resources"
+                          : d.group === "dome"
+                            ? "Raise dome"
+                            : d.group === "missile"
+                              ? "Load"
+                              : "Build"}
+                </span>
               </button>
               </div>
             </article>

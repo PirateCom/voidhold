@@ -1,4 +1,4 @@
--- Planet facilities from the sprite row and ogame.fandom.com/wiki/Facilities.
+-- Planet facilities from the sprite row and Voidhold wiki Facilities.
 -- Moon buildings are stored at 0. Deuterium and terraformer energy are listed in the client and not charged.
 
 alter table public.planets

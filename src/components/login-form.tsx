@@ -2,11 +2,12 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { readKeepLoggedInBrowser, writeKeepLoggedInBrowser } from "@/lib/session";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const fieldClass =
-  "h-12 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2";
+  "sci-input h-12 px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2";
 
 function safeNext(path: string | null | undefined) {
   return path && path.startsWith("/") && !path.startsWith("//") ? path : "/";
@@ -25,9 +26,14 @@ export function LoginForm({ next }: { next?: string }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [signupOpen, setSignupOpen] = useState(true);
+
+  useEffect(() => {
+    setKeepLoggedIn(readKeepLoggedInBrowser());
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -41,7 +47,8 @@ export function LoginForm({ next }: { next?: string }) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const supabase = createClient();
+    writeKeepLoggedInBrowser(keepLoggedIn);
+    const supabase = createClient(keepLoggedIn);
     if (!supabase) return;
     setPending(true);
     setStatus(null);
@@ -115,21 +122,51 @@ export function LoginForm({ next }: { next?: string }) {
         className={fieldClass}
       />
       {mode !== "reset" ? (
-        <input
-          type="password"
-          required
-          minLength={6}
-          autoComplete={mode === "signup" ? "new-password" : "current-password"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className={fieldClass}
-        />
+        <>
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className={fieldClass}
+          />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={keepLoggedIn}
+            onClick={() => {
+              const nextValue = !keepLoggedIn;
+              setKeepLoggedIn(nextValue);
+              writeKeepLoggedInBrowser(nextValue);
+            }}
+            className="flex items-center justify-between border border-[var(--border)] bg-slate-950/60 px-3.5 py-2.5 text-left text-xs text-[var(--foreground)]"
+          >
+            <span>Keep me logged in</span>
+            <span
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors ${
+                keepLoggedIn
+                  ? "border-cyan-400/70 bg-cyan-500/30"
+                  : "border-slate-700 bg-slate-900"
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full transition-transform ${
+                  keepLoggedIn
+                    ? "translate-x-4 bg-[var(--accent)] shadow-[0_0_8px_var(--accent)]"
+                    : "translate-x-0.5 bg-slate-500"
+                }`}
+              />
+            </span>
+          </button>
+        </>
       ) : null}
       <button
         type="submit"
         disabled={pending}
-        className="h-12 rounded-2xl bg-[var(--accent)] text-sm font-semibold text-[var(--accent-fg)] disabled:opacity-60"
+        className="sci-btn h-14 min-h-14 w-full"
       >
         {pending
           ? "Working…"
@@ -142,12 +179,20 @@ export function LoginForm({ next }: { next?: string }) {
       {status ? <p className="text-sm text-[var(--muted-fg)]">{status}</p> : null}
       <div className="flex flex-col gap-2 pt-1 text-xs text-[var(--muted-fg)]">
         {mode !== "signin" ? (
-          <button type="button" className="text-left underline" onClick={() => setMode("signin")}>
+          <button
+            type="button"
+            className="sci-btn sci-btn-muted h-11 w-full"
+            onClick={() => setMode("signin")}
+          >
             Sign in with password
           </button>
         ) : null}
         {mode !== "signup" && signupOpen ? (
-          <button type="button" className="text-left underline" onClick={() => setMode("signup")}>
+          <button
+            type="button"
+            className="sci-btn sci-btn-muted h-11 w-full"
+            onClick={() => setMode("signup")}
+          >
             Create an account
           </button>
         ) : null}
@@ -155,7 +200,11 @@ export function LoginForm({ next }: { next?: string }) {
           <p className="text-amber-200/90">All 20 commander slots are taken. New registration is closed.</p>
         ) : null}
         {mode !== "reset" ? (
-          <button type="button" className="text-left underline" onClick={() => setMode("reset")}>
+          <button
+            type="button"
+            className="sci-btn sci-btn-quiet h-11 w-full"
+            onClick={() => setMode("reset")}
+          >
             Forgot password
           </button>
         ) : null}

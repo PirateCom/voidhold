@@ -1,4 +1,4 @@
-import type { FacilityId } from "./ogame-data";
+import type { FacilityId } from "./voidhold-data";
 import type { StarType } from "./catalog";
 import type { AgentId, AgentMissionStatus, MissionKind } from "./agents";
 
@@ -43,6 +43,9 @@ export type PlanetRow = {
   ore_mine: number;
   crystal_mine: number;
   deuterium_extractor: number;
+  ore_mine_pct?: number;
+  crystal_mine_pct?: number;
+  deuterium_extractor_pct?: number;
   power_plant: number;
   fusion_reactor: number;
   ore_storage: number;

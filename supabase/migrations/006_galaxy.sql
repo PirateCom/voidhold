@@ -1,4 +1,4 @@
--- OGame-style map: 9 galaxies, 499 systems, 15 slots, one star per system.
+-- Voidhold-style map: 9 galaxies, 499 systems, 15 slots, one star per system.
 -- Field rolls, temperatures, and star multipliers match src/lib/game/catalog.ts.
 
 create or replace function private.inclusive_pick(lo integer, hi integer, value_roll numeric)

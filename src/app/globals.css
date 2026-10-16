@@ -219,40 +219,89 @@ button {
 }
 
 .sci-btn {
-  background: var(--accent);
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(165, 243, 252, 0.75);
+  background: linear-gradient(180deg, #22d3ee 0%, #00d8f0 52%, #0891b2 100%);
   color: var(--accent-fg);
   font-family: var(--font-display), sans-serif;
   font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(3, 7, 18, 0.45),
+    0 0 12px rgba(0, 240, 255, 0.25);
+  clip-path: polygon(
+    0 6px,
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px)
+  );
+  transition:
+    filter 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease,
+    transform 100ms ease;
+}
+
+.sci-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 16px rgba(0, 240, 255, 0.45);
+}
+
+.sci-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .sci-btn:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .sci-btn-muted {
-  border: 1px solid rgba(0, 240, 255, 0.3);
-  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(0, 240, 255, 0.38);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(7, 13, 27, 0.98) 100%);
   color: var(--foreground);
+  box-shadow:
+    inset 0 0 12px rgba(0, 240, 255, 0.1),
+    0 0 8px rgba(0, 240, 255, 0.12);
 }
 
 .sci-btn-danger {
-  border: 1px solid rgba(255, 42, 85, 0.45);
-  background: transparent;
+  border: 1px solid rgba(255, 42, 85, 0.55);
+  background: linear-gradient(180deg, rgba(76, 5, 25, 0.72) 0%, rgba(35, 4, 15, 0.9) 100%);
   color: #fda4af;
+  box-shadow:
+    inset 0 0 12px rgba(255, 42, 85, 0.16),
+    0 0 10px rgba(255, 42, 85, 0.15);
 }
 
 .sci-btn-warn {
-  border: 1px solid rgba(255, 170, 0, 0.45);
-  background: transparent;
+  border: 1px solid rgba(255, 170, 0, 0.55);
+  background: linear-gradient(180deg, rgba(69, 26, 3, 0.72) 0%, rgba(32, 12, 2, 0.9) 100%);
   color: #fde68a;
+  box-shadow:
+    inset 0 0 12px rgba(255, 170, 0, 0.16),
+    0 0 10px rgba(255, 170, 0, 0.15);
 }
 
 .sci-btn-quiet {
-  background: transparent;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  background: rgba(8, 15, 30, 0.65);
   color: var(--muted-fg);
+  box-shadow: inset 0 0 8px rgba(0, 240, 255, 0.06);
 }
 
 .sci-input {

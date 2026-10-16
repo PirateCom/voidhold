@@ -45,7 +45,7 @@ export function setPlanetAvatarOverride(seed: string, index: number | null) {
   listeners.forEach((l) => l());
 }
 
-const SHEET = "/sprites/ogame_sprite.jpg";
+const SHEET = "/sprites/voidhold_sprite.jpg";
 const CELL = 30;
 const COLUMNS_X = [5, 43, 81, 119, 157, 195, 233, 271, 309, 347];
 const ROWS_Y = [5000, 5033, 5066, 5099, 5132, 5165, 5198];

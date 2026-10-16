@@ -1,7 +1,7 @@
-OGame formulas (merged)
+Voidhold formulas (merged)
 Sources:
-  https://ogame.fandom.com/wiki/Formulas
-  https://punisher.forumotion.com/t13-ogame-formulas
+  Voidhold wiki / Formulas
+  Voidhold community formula reference
   plus the later production, storage, and research formulas compared on 2026-09-22
 Retrieved: 2026-09-22
 
@@ -137,7 +137,7 @@ Stars
   Mine energy draw does not change.
 
 Temperature by slot
-  Source: https://ogame.fandom.com/wiki/Temperature
+  Source: Voidhold wiki / Temperature
   These are the base minimum and maximum. A planet then shifts both ends by the same
   integer from -10 to +10, so the span stays 40 degrees, 60 on slot 1, and 70 on slot 15.
   Slots 1–3 are hot. Slots 13–15 are cold.
@@ -320,7 +320,7 @@ DEFENCES (wiki)
   Rocket Launcher           2000 metal
   Light Laser               1500 metal, 500 crystal
   Heavy Laser               6000 metal, 2000 crystal
-  Ion Cannon                5000 metal, 3000 crystal   (since OGame 7; older was 2000/6000)
+  Ion Cannon                5000 metal, 3000 crystal   (since Voidhold 7; older was 2000/6000)
   Gauss Cannon              20000 metal, 15000 crystal, 2000 deuterium
   Plasma Turret             50000 metal, 50000 crystal, 30000 deuterium
   Small Shield Dome         10000 metal, 10000 crystal

@@ -14,7 +14,9 @@ import type {
   ResearchId,
   SolarSystemView,
 } from "@/lib/game/types";
+import type { MineThrottleBuildingId } from "@/lib/game/catalog";
 import type { AgentId } from "@/lib/game/agents";
+import type { EmpireMechanicsState, RelicId, StellarEventKind } from "@/lib/game/mechanics";
 
 function asState(data: unknown): EmpireState {
   return data as EmpireState;
@@ -93,6 +95,13 @@ export async function deleteCommsNotice(id: number): Promise<EmpireState> {
 
 export async function upgradeBuilding(building: BuildingId): Promise<EmpireState> {
   return rpc("start_upgrade", { p_building: building });
+}
+
+export async function setMinePercent(
+  mine: MineThrottleBuildingId,
+  pct: number,
+): Promise<EmpireState> {
+  return rpc("set_mine_percent", { p_mine: mine, p_pct: pct });
 }
 
 export async function cancelBuildingUpgrade(): Promise<EmpireState> {
@@ -406,4 +415,73 @@ export async function deleteOwnAccount(confirmation: string): Promise<void> {
   const { error } = await supabase.rpc("delete_own_account", { p_confirmation: confirmation });
   if (error) rpcError(error);
   await supabase.auth.signOut();
+}
+
+const EMPTY_MECHANICS: EmpireMechanicsState = {
+  stellar_events: [],
+  strongholds: [],
+  relic_inventory: {
+    overclock_drill: 0,
+    phase_cloak: 0,
+    subspace_beacon: 0,
+    repair_nanites: 0,
+  },
+  planet_relics: {},
+};
+
+export async function loadMechanicsState(): Promise<EmpireMechanicsState> {
+  const supabase = await createClient();
+  if (!supabase) return EMPTY_MECHANICS;
+  const { data, error } = await supabase.rpc("get_mechanics_state");
+  if (error || !data) return EMPTY_MECHANICS;
+  return data as EmpireMechanicsState;
+}
+
+export async function togglePlanetRelic(planetId: number, relicId: RelicId): Promise<EmpireMechanicsState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("toggle_planet_relic", {
+    p_planet_id: planetId,
+    p_relic_id: relicId,
+  });
+  if (error) rpcError(error);
+  return data as EmpireMechanicsState;
+}
+
+export async function strikePirateStronghold(
+  strongholdId: number,
+  ships: Record<string, number>,
+): Promise<EmpireMechanicsState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("strike_pirate_stronghold", {
+    p_stronghold_id: strongholdId,
+    p_ships: ships,
+  });
+  if (error) rpcError(error);
+  return data as EmpireMechanicsState;
+}
+
+export async function debugSpawnStellarEvent(
+  galaxy: number,
+  system: number,
+  kind: StellarEventKind,
+): Promise<EmpireMechanicsState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("debug_spawn_stellar_event", {
+    p_galaxy: galaxy,
+    p_system: system,
+    p_kind: kind,
+  });
+  if (error) rpcError(error);
+  return data as EmpireMechanicsState;
+}
+
+export async function debugGrantRelics(): Promise<EmpireMechanicsState> {
+  const supabase = await createClient();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.rpc("debug_grant_relics");
+  if (error) rpcError(error);
+  return data as EmpireMechanicsState;
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import atlas from "../../public/sprites/ogame.json";
+import atlas from "../../public/sprites/voidhold.json";
 
-const SHEET = "/sprites/ogame_sprite.jpg";
+const SHEET = "/sprites/voidhold_sprite.jpg";
 const SPRITE_SIZE = 96;
 
 /** New art in public/img — mines, power, storage, facilities, defences, research, ships. */

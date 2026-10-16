@@ -1,4 +1,4 @@
--- Wiki defence costs (https://ogame.fandom.com/wiki/Defense). Rocket launchers are metal only.
+-- Wiki defence costs (Voidhold wiki Defense). Rocket launchers are metal only.
 
 create or replace function private.defence_cost_ore(id text)
 returns integer

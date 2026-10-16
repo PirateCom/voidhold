@@ -43,7 +43,14 @@ export function ExpeditionSheet({
     ...(state.empire.ships ?? {}),
     small_cargo: state.empire.raiders,
   };
-  const cargo = Math.max(0, counts.small_cargo ?? 0);
+  const selectedShips = Object.fromEntries(
+    Object.entries(counts)
+      .map(([id, n]) => [id, Math.max(0, Math.floor(n || 0))])
+      .filter(([, n]) => Number(n) > 0),
+  ) as Record<string, number>;
+  const totalSelected = Object.values(selectedShips).reduce((sum, n) => sum + n, 0);
+  const hasPathfinder = (selectedShips.pathfinder ?? 0) > 0;
+  const overDocked = Object.entries(selectedShips).some(([id, n]) => n > (docked[id] ?? 0));
   const flight = expeditionFlightSeconds(
     state.planet.system,
     state.planet.slot,
@@ -55,26 +62,31 @@ export function ExpeditionSheet({
     state.empire.impulse_drive ?? 0,
     state.empire.hyperspace_drive ?? 0,
   );
-  const fuel = fleetFuelRoundTrip(
-    cargo,
-    state.planet.galaxy,
-    state.planet.system,
-    state.planet.slot,
-    galaxy,
-    system,
-    slot,
-    "small_cargo",
-    state.empire.impulse_drive ?? 0,
+  const fuel = Object.entries(selectedShips).reduce(
+    (sum, [id, n]) =>
+      sum +
+      fleetFuelRoundTrip(
+        n,
+        state.planet.galaxy,
+        state.planet.system,
+        state.planet.slot,
+        galaxy,
+        system,
+        slot,
+        id,
+        state.empire.impulse_drive ?? 0,
+      ),
+    0,
   );
   const blocked =
     astro < 1
       ? "Needs Astronomy 1."
       : active >= cap
         ? "No free expedition slots."
-        : cargo < 1
-          ? "Send at least one small cargo."
-          : cargo > state.empire.raiders
-            ? "Not enough small cargo."
+        : totalSelected < 1
+          ? "Select at least one ship."
+          : overDocked
+            ? "Not enough docked ships."
             : Number(state.planet.deuterium) < fuel
               ? "Not enough deuterium for fuel."
               : null;
@@ -94,25 +106,35 @@ export function ExpeditionSheet({
           </button>
         </div>
         <p className="mt-3 text-xs text-[var(--muted-fg)]">
-          Wiki expeditions need Astronomy 1. Only docked hulls can launch. Small cargo is the hull in dock.
+          Expeditions need Astronomy 1. Any flyable docked hull can launch. Including a{" "}
+          <span className="text-cyan-300">Pathfinder</span> doubles (×2) expedition resource finds and boosts Ancient
+          Relic discovery.
         </p>
+        {hasPathfinder ? (
+          <p className="mt-2 rounded border border-cyan-400/50 bg-cyan-950/40 px-2.5 py-1.5 font-mono text-xs text-cyan-200">
+            Pathfinder scanner active · ×2 expedition loot & relic discovery bonus
+          </p>
+        ) : null}
         <ul className="mt-3 flex flex-col gap-2">
           {flyable.map((ship) => {
             const have = docked[ship.id] ?? 0;
-            const locked = have < 1 && ship.id !== "small_cargo";
+            const locked = have < 1;
             return (
               <li key={ship.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2">
                 <SpriteThumb id={ship.id} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{ship.name}</p>
-                  <p className="text-xs text-[var(--muted-fg)]">Docked {have}</p>
+                  <p className="text-xs text-[var(--muted-fg)]">
+                    Docked {have}
+                    {ship.id === "pathfinder" ? " · ×2 expedition bonus" : ""}
+                  </p>
                 </div>
                 <input
                   type="number"
                   min={0}
                   max={Math.max(have, 0)}
                   disabled={locked || pending}
-                  value={ship.id === "small_cargo" ? cargo : 0}
+                  value={counts[ship.id] ?? 0}
                   onChange={(e) =>
                     setCounts((prev) => ({ ...prev, [ship.id]: Math.max(0, Number(e.target.value) || 0) }))
                   }
@@ -131,7 +153,7 @@ export function ExpeditionSheet({
           disabled={pending || Boolean(blocked)}
           className="sci-btn mt-3 h-11 w-full"
           onClick={() => {
-            void sendExpedition(galaxy, system, slot, { small_cargo: cargo }).then((ok) => {
+            void sendExpedition(galaxy, system, slot, selectedShips).then((ok) => {
               if (ok) onClose();
             });
           }}

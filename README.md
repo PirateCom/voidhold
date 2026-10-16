@@ -1,6 +1,6 @@
 # Voidhold
 
-Browser empire game in the OGame family: one planet, three structures, propulsion research, raiders, and a 10×10 galaxy of derelicts. Timers keep running while the app is closed. The server owns resources and combat.
+Browser empire game in the Voidhold family: one planet, three structures, propulsion research, raiders, and a 10×10 galaxy of derelicts. Timers keep running while the app is closed. The server owns resources and combat.
 
 ## Play locally
 

@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_MAX_AGE } from "@/lib/session";
+import {
+  KEEP_LOGGED_IN_COOKIE,
+  applySessionCookieLifetime,
+  sessionCookieOptionsFor,
+} from "@/lib/session";
 import { supabaseAnonKey, supabaseUrl } from "./config";
 
 export async function updateSession(request: NextRequest) {
@@ -12,12 +16,10 @@ export async function updateSession(request: NextRequest) {
     return { response: supabaseResponse, user: null };
   }
 
+  const keepLoggedIn = request.cookies.get(KEEP_LOGGED_IN_COOKIE)?.value !== "0";
+
   const supabase = createServerClient(url, anon, {
-    cookieOptions: {
-      maxAge: SESSION_COOKIE_MAX_AGE,
-      path: "/",
-      sameSite: "lax",
-    },
+    cookieOptions: sessionCookieOptionsFor(keepLoggedIn),
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -26,10 +28,11 @@ export async function updateSession(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         supabaseResponse = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, {
-            ...options,
-            maxAge: SESSION_COOKIE_MAX_AGE,
-          }),
+          supabaseResponse.cookies.set(
+            name,
+            value,
+            applySessionCookieLifetime(value, options, keepLoggedIn),
+          ),
         );
       },
     },

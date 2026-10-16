@@ -42,12 +42,12 @@ export default function ResetPasswordPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="New password"
-          className="h-12 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2"
+          className="sci-input h-12 px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2"
         />
         <button
           type="submit"
           disabled={pending}
-          className="h-12 rounded-2xl bg-[var(--accent)] text-sm font-semibold text-[var(--accent-fg)] disabled:opacity-60"
+          className="sci-btn h-14 min-h-14 w-full"
         >
           {pending ? "Saving…" : "Save password"}
         </button>

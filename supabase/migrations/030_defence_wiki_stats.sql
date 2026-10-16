@@ -1,4 +1,4 @@
--- Wiki defence hull / shield / weapon power (https://ogame.fandom.com/wiki/Defense).
+-- Wiki defence hull / shield / weapon power (Voidhold wiki Defense).
 
 create or replace function private.defence_attack(id text)
 returns integer

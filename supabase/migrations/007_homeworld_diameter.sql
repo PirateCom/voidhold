@@ -1,4 +1,4 @@
--- Homeworlds match a new OGame start: 12,800 km, floor(12.8^2) = 163 fields, plus 10.
+-- Homeworlds match a new Voidhold start: 12,800 km, floor(12.8^2) = 163 fields, plus 10.
 
 update public.planets
 set

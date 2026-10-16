@@ -1,4 +1,4 @@
-/** OGame ship and technology stats from ogame.fandom.com, gathered 23 Sep 2026. */
+/** Voidhold ship and technology stats, gathered 23 Sep 2026. */
 
 export type ResearchId =
   | "energy_tech"
@@ -211,7 +211,7 @@ export const RESEARCHES: {
   {
     id: "graviton_tech",
     name: "Graviton technology",
-    blurb: "Required for the deathstar. The wiki cost is 300,000 energy, and only level 1 is useful.",
+    blurb: "Required for the deathstar. Costs 300,000 energy, and only level 1 is useful.",
     group: "empire",
     baseOre: 0,
     baseCrystal: 0,
@@ -405,7 +405,7 @@ export const SHIPS: ShipStat[] = [
       ["Destroyer", 2],
       ["Deathstar", 15],
     ],
-    note: "The wiki lists rapid fire 44 against espionage probes.",
+    note: "Has rapid fire 44 against espionage probes.",
   },
   {
     id: "bomber",
@@ -710,7 +710,6 @@ export const SHIPS: ShipStat[] = [
       ["Most ships", 5],
       ["Deathstar", 1250],
     ],
-    note: "Stays in orbit. Wiki energy is floor((average temperature + 160) / 6) each, then the system star bonus.",
   },
 ];
 
@@ -859,6 +858,6 @@ export const FACILITIES: FacilityStat[] = [
     moon: false,
     disabled: true,
     requires: [{ kind: "facility", id: "shipyard", level: 2 }],
-    note: "The sprite is labelled space station. The wiki building is Space Dock. Cost factor is 5.",
+    note: "The sprite is labelled space station. Cost factor is 5.",
   },
 ];

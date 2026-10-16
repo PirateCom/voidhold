@@ -379,7 +379,7 @@ export default function ProfilePage() {
                 value={typed}
                 onChange={(ev) => setTyped(ev.target.value)}
                 autoComplete="off"
-                className="mt-1 h-12 w-full rounded-2xl border border-[var(--border)] bg-[var(--background)] px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2"
+                className="sci-input mt-1 h-12 w-full px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2"
                 placeholder="delete"
               />
             </label>

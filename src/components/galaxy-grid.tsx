@@ -5,12 +5,14 @@ import { AttackSheet } from "@/components/attack-sheet";
 import { Countdown } from "@/components/countdown";
 import { ExpeditionSheet } from "@/components/expedition-sheet";
 import { DeploySheet } from "@/components/deploy-sheet";
+import { GalaxyMechanicsPanel } from "@/components/galaxy-mechanics-panel";
 import { TransportSheet } from "@/components/transport-sheet";
 import { SheetDock, SheetPortal } from "@/components/sheet-portal";
 import { useEmpire } from "@/components/empire-provider";
 import { PlanetAvatar } from "@/components/planet-avatar";
 import { loadSolarSystem } from "@/lib/game/actions";
 import { attackFlightSeconds, attackFuel, canColonizeSlot, colonizeSlotRange, flightSeconds, hullSpeed, maxPlanets, starLabel, debrisVisible, fleetFuelRoundTrip, shipSpec } from "@/lib/game/catalog";
+import type { PirateStrongholdRow } from "@/lib/game/mechanics";
 import type { SolarSlot, SolarSystemView } from "@/lib/game/types";
 
 function DebrisMark() {
@@ -37,7 +39,7 @@ function wrap(value: number, max: number) {
 
 function slotClass(kind: SolarSlot["kind"], selected: boolean) {
   const ring = selected ? " ring-2 ring-[var(--accent)]" : "";
-  if (kind === "home") return `bg-[var(--accent)] text-[var(--accent-fg)]${ring}`;
+  if (kind === "home") return `bg-[#1e293b] text-[var(--foreground)]${ring}`;
   if (kind === "npc") return `bg-[#3a2418] text-[#f0c9a0]${ring}`;
   if (kind === "player") return `bg-[#1d2a4a] text-[#9db7ff]${ring}`;
   if (kind === "outer") return `bg-[#12141c] text-[var(--muted-fg)]${ring}`;
@@ -58,6 +60,7 @@ export function GalaxyGrid() {
   const [mineShips, setMineShips] = useState(1);
   const [colonizeShips, setColonizeShips] = useState(1);
   const [action, setAction] = useState<GalaxyAction | null>(null);
+  const [strongholds, setStrongholds] = useState<PirateStrongholdRow[]>([]);
 
   useEffect(() => {
     setAction(null);
@@ -334,24 +337,38 @@ export function GalaxyGrid() {
           {starLabel(view.star_type)} · solar ×{view.multiplier}
         </p>
       ) : null}
+      <GalaxyMechanicsPanel
+        galaxy={galaxy}
+        system={system}
+        onJump={(g, s) => {
+          setGalaxy(g);
+          setSystem(s);
+        }}
+        onStrongholdsChange={setStrongholds}
+      />
       {loadError ? <p className="mt-3 text-sm text-red-300">{loadError}</p> : null}
 
       <ul className="mt-3 flex flex-col gap-1">
         {(view?.slots ?? []).map((slot) => {
           const isSelected = selected?.slot === slot.slot;
-          const label =
-            slot.kind === "outer"
+          const stronghold = slot.kind === "empty" ? strongholds.find((sh) => sh.slot === slot.slot) : undefined;
+          const label = stronghold
+            ? stronghold.name
+            : slot.kind === "outer"
               ? "Outer space"
               : slot.kind === "belt"
                 ? "Asteroid belt"
-              : slot.kind === "empty"
-                ? "Empty"
-                : (slot.name ?? "Occupied");
+                : slot.kind === "empty"
+                  ? "Empty"
+                  : (slot.name ?? "Occupied");
+          const rowClass = stronghold
+            ? `bg-rose-950/60 text-rose-100 border border-rose-500/40${isSelected ? " ring-2 ring-[var(--accent)]" : ""}`
+            : slotClass(slot.kind, isSelected);
           return (
             <li key={slot.slot}>
               <button
                 type="button"
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${slotClass(slot.kind, isSelected)}`}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${rowClass}`}
                 onClick={() => setSelected(slot)}
               >
                 <span className="w-6 font-mono text-xs">
@@ -362,7 +379,11 @@ export function GalaxyGrid() {
                 ) : null}
                 <span className="font-semibold">{label}</span>
                 {debrisVisible(slot.debris_ore ?? 0, slot.debris_crystal ?? 0) ? <DebrisMark /> : null}
-                {slot.kind === "outer" ? (
+                {stronghold ? (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide text-rose-300">
+                    Stronghold · {Math.round((stronghold.current_hull / Math.max(1, stronghold.max_hull)) * 100)}%
+                  </span>
+                ) : slot.kind === "outer" ? (
                   <span className="ml-auto text-[10px] uppercase tracking-wide text-cyan-300">Expedition</span>
                 ) : slot.kind === "belt" ? (
                   <span className="ml-auto text-[10px] uppercase tracking-wide text-amber-200">Belt</span>

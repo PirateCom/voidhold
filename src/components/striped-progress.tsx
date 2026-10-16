@@ -11,6 +11,7 @@ export function StripedProgress({
   label,
   className,
   size = "md",
+  fill = false,
 }: {
   value: number;
   tone?: string;
@@ -19,9 +20,35 @@ export function StripedProgress({
   label?: string;
   className?: string;
   size?: "sm" | "md";
+  fill?: boolean;
 }) {
   const pct = disabled ? 0 : Math.min(100, Math.max(0, value * 100));
   const running = animated && !disabled && pct > 0 && pct < 100;
+  if (fill) {
+    return (
+      <span
+        className={`progress-track pointer-events-none absolute inset-0 overflow-hidden ${
+          disabled ? "opacity-0" : ""
+        } ${className ?? ""}`}
+        role="progressbar"
+        aria-disabled={disabled || undefined}
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+      >
+        <span
+          className={`progress-stripes block h-full ${running ? "progress-stripes-animated" : ""}`}
+          style={{
+            width: `${pct}%`,
+            backgroundColor: tone,
+            opacity: 0.42,
+            boxShadow: pct > 0 && pct < 100 ? `inset -2px 0 0 ${tone}, 0 0 12px ${tone}` : undefined,
+          }}
+        />
+      </span>
+    );
+  }
   return (
     <div
       className={`progress-track overflow-hidden rounded-full ring-1 ring-[var(--border)] ${
@@ -54,6 +81,7 @@ export function TimedStripedProgress({
   label,
   className,
   size,
+  fill = false,
 }: {
   until: number | string | null | undefined;
   durationMs: number;
@@ -63,13 +91,14 @@ export function TimedStripedProgress({
   label?: string;
   className?: string;
   size?: "sm" | "md";
+  fill?: boolean;
 }) {
   const untilKey = until == null ? "" : String(until);
   const origin = useRef<{ untilKey: string; base: number; perf: number; span: number } | null>(null);
   const span = effectiveJobDurationMs(until, durationMs, now, startedAt);
   const remaining =
     until == null ? 0 : Math.max(0, (typeof until === "string" ? Date.parse(until) : until) - now);
-  const visible = showsJobProgress(durationMs) || showsJobProgress(span) || showsJobProgress(remaining);
+  const visible = fill || showsJobProgress(durationMs) || showsJobProgress(span) || showsJobProgress(remaining);
   if (!origin.current || origin.current.untilKey !== untilKey) {
     origin.current = {
       untilKey,
@@ -106,6 +135,7 @@ export function TimedStripedProgress({
       label={label}
       className={className}
       size={size}
+      fill={fill}
     />
   );
 }

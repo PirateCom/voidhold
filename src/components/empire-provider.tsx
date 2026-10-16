@@ -46,10 +46,11 @@ import {
   deleteReport as deleteReportAction,
   postCommsNotice as postCommsNoticeAction,
   deleteCommsNotice as deleteCommsNoticeAction,
+  setMinePercent as setMinePercentAction,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { isDebugOperator } from "@/lib/debug-operator";
-import { gameClock } from "@/lib/game/catalog";
+import { gameClock, type MineThrottleBuildingId } from "@/lib/game/catalog";
 import type { BuildingId, CommsNoticeChannel, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
 import { EMPTY_DEFENCES, livePlanet, type SimPlanet } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
@@ -116,6 +117,7 @@ type EmpireContextValue = {
   deleteReport: (id: number) => Promise<void>;
   postNotice: (channel: CommsNoticeChannel, title: string, body: string) => Promise<boolean>;
   deleteNotice: (id: number) => Promise<void>;
+  setMinePercent: (mine: MineThrottleBuildingId, pct: number) => Promise<void>;
   isDebug: boolean;
 };
 
@@ -153,6 +155,9 @@ function toSimPlanet(planet: EmpireState["planet"], starType: EmpireState["star"
     oreMine: planet.ore_mine,
     crystalMine: planet.crystal_mine,
     deuteriumExtractor: planet.deuterium_extractor ?? 0,
+    oreMinePct: planet.ore_mine_pct ?? 100,
+    crystalMinePct: planet.crystal_mine_pct ?? 100,
+    deuteriumExtractorPct: planet.deuterium_extractor_pct ?? 100,
     powerPlant: planet.power_plant,
     fusionReactor: planet.fusion_reactor ?? 0,
     oreStorage: planet.ore_storage ?? 0,
@@ -361,6 +366,7 @@ export function EmpireProvider({
     deleteReport: (id) => runAction(() => deleteReportAction(id)),
     postNotice: (channel, title, body) => run(() => postCommsNoticeAction(channel, title, body)),
     deleteNotice: (id) => runAction(() => deleteCommsNoticeAction(id)),
+    setMinePercent: (mine, pct) => runAction(() => setMinePercentAction(mine, pct)),
   };
 
   return <EmpireContext.Provider value={value}>{children}</EmpireContext.Provider>;

@@ -12,7 +12,7 @@ export function DebugInfoDialog({ open, onClose }: { open: boolean; onClose: () 
           <div>
             <h2 className="font-semibold">{DEBUG_INFO.title}</h2>
             <p className="mt-1 text-xs uppercase tracking-wide text-cyan-300">
-              Playable · {DEBUG_INFO.percent}% of a full OGame session
+              Playable · {DEBUG_INFO.percent}% of a full Voidhold session
             </p>
           </div>
           <button type="button" className="sci-btn sci-btn-quiet h-11 px-3" onClick={onClose}>

@@ -1,10 +1,11 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { sessionCookieOptions } from "@/lib/session";
+import { readKeepLoggedInBrowser, sessionCookieOptionsFor } from "@/lib/session";
 import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from "./config";
 
-export function createClient() {
+export function createClient(keepLoggedIn = readKeepLoggedInBrowser()) {
   if (!isSupabaseConfigured()) return null;
   return createBrowserClient(supabaseUrl()!, supabaseAnonKey()!, {
-    cookieOptions: sessionCookieOptions,
+    cookieOptions: sessionCookieOptionsFor(keepLoggedIn),
+    isSingleton: false,
   });
 }

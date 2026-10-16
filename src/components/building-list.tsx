@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { CommandCoreCard } from "@/components/command-core-card";
 import { useEmpire } from "@/components/empire-provider";
 import { SpriteHero } from "@/components/sprite-thumb";
 import { Countdown } from "@/components/countdown";
@@ -20,6 +21,7 @@ import {
   facilitySpec,
   formatDuration,
   fusionOutput,
+  normalizeMinePct,
   powerOutput,
   progressToward,
   effectiveJobDurationMs,
@@ -35,6 +37,7 @@ import {
   upgradeWouldCauseEnergyDeficit,
   type BuildingId,
   type FacilityId,
+  type MineThrottleBuildingId,
   type ResearchId,
   type ResourceBuildingId,
 } from "@/lib/game/catalog";
@@ -84,6 +87,131 @@ function planetFacilityLevel(id: FacilityId, planet: PlanetRow): number {
   return planet[id] ?? 0;
 }
 
+function MineThrottleControl({
+  id,
+  level,
+  currentPct,
+  maxPerHour,
+  maxEnergyDrain,
+  disabled,
+  onCommit,
+}: {
+  id: MineThrottleBuildingId;
+  level: number;
+  currentPct: number;
+  maxPerHour: number;
+  maxEnergyDrain: number;
+  disabled: boolean;
+  onCommit: (mine: MineThrottleBuildingId, pct: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => normalizeMinePct(currentPct));
+
+  useEffect(() => {
+    setDraft(normalizeMinePct(currentPct));
+  }, [currentPct]);
+
+  if (level <= 0) return null;
+
+  const pct = normalizeMinePct(draft);
+  const activeProduction = Math.floor((maxPerHour * pct) / 100);
+  const activeEnergy = Math.floor((maxEnergyDrain * pct) / 100);
+
+  function choose(next: number) {
+    const clean = normalizeMinePct(next);
+    setDraft(clean);
+    if (clean !== normalizeMinePct(currentPct)) {
+      onCommit(id, clean);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded border border-cyan-500/25 bg-slate-950/70 p-2.5">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-[family-name:var(--font-display)] text-[10px] font-bold tracking-wider text-cyan-300 uppercase">
+          Throttle · {pct}%
+        </span>
+        <span className="font-mono text-[11px] text-slate-200">
+          +{activeProduction.toLocaleString()}/h · <span className="text-amber-300">-{activeEnergy.toLocaleString()} pwr</span>
+        </span>
+      </div>
+
+      {/* Mobile-first touch control: large −10% / +10% steppers flanking a 10-cell touch slider */}
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Decrease mine output by 10%"
+          disabled={disabled || pct <= 0}
+          onClick={() => choose(pct - 10)}
+          className="sci-btn sci-btn-muted h-10 w-11 shrink-0 px-0 text-sm"
+        >
+          −
+        </button>
+
+        <div className="relative flex h-10 flex-1 items-center">
+          <div className="grid h-6 w-full grid-cols-10 gap-1" aria-hidden>
+            {Array.from({ length: 10 }, (_, idx) => {
+              const cellPct = (idx + 1) * 10;
+              const lit = pct >= cellPct;
+              return (
+                <span
+                  key={cellPct}
+                  className={`rounded-xs border transition-colors ${
+                    lit
+                      ? "border-cyan-300/80 bg-cyan-400/75 shadow-[0_0_6px_rgba(0,240,255,0.45)]"
+                      : "border-slate-700/70 bg-slate-900/90"
+                  }`}
+                />
+              );
+            })}
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={10}
+            disabled={disabled}
+            aria-label="Mine production percentage"
+            value={pct}
+            onChange={(e) => setDraft(normalizeMinePct(Number(e.target.value)))}
+            onPointerUp={(e) => choose(Number((e.currentTarget as HTMLInputElement).value))}
+            onKeyUp={(e) => choose(Number((e.currentTarget as HTMLInputElement).value))}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </div>
+
+        <button
+          type="button"
+          aria-label="Increase mine output by 10%"
+          disabled={disabled || pct >= 100}
+          onClick={() => choose(pct + 10)}
+          className="sci-btn sci-btn-muted h-10 w-11 shrink-0 px-0 text-sm"
+        >
+          +
+        </button>
+      </div>
+
+      {/* Quick one-tap presets for common mobile adjustments */}
+      <div className="mt-1.5 grid grid-cols-5 gap-1">
+        {([0, 20, 50, 80, 100] as const).map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            disabled={disabled}
+            onClick={() => choose(preset)}
+            className={`rounded border py-1 font-mono text-[10px] transition-colors ${
+              pct === preset
+                ? "border-cyan-400/70 bg-cyan-950/70 font-bold text-cyan-200"
+                : "border-slate-800 bg-slate-900/60 text-[var(--muted-fg)]"
+            }`}
+          >
+            {preset}%
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function UpgradeCard({
   id,
   name,
@@ -101,9 +229,16 @@ function UpgradeCard({
   locked?: boolean;
   lockLabel?: string;
 }) {
-  const { live, state, pending, upgrade, cancelUpgrade, now } = useEmpire();
+  const { live, state, pending, upgrade, cancelUpgrade, setMinePercent, now } = useEmpire();
   if (!live || !state) return null;
   const speed = state.empire.economy_speed ?? 1;
+  const orePct = normalizeMinePct(live.oreMinePct ?? state.planet.ore_mine_pct);
+  const crystalPct = normalizeMinePct(live.crystalMinePct ?? state.planet.crystal_mine_pct);
+  const deutPct = normalizeMinePct(live.deuteriumExtractorPct ?? state.planet.deuterium_extractor_pct);
+  const activeMineDrain =
+    Math.floor((mineEnergyDrain(live.oreMine) * orePct) / 100) +
+    Math.floor((mineEnergyDrain(live.crystalMine) * crystalPct) / 100) +
+    Math.floor((deutEnergyDrain(live.deuteriumExtractor) * deutPct) / 100);
   const crawlerBonus = crawlerProductionBonus(
     workingCrawlers(
       live.crawlers ?? 0,
@@ -111,13 +246,11 @@ function UpgradeCard({
       live.crystalMine,
       live.deuteriumExtractor,
       live.energy.output,
-      mineEnergyDrain(live.oreMine) +
-        mineEnergyDrain(live.crystalMine) +
-        deutEnergyDrain(live.deuteriumExtractor),
+      activeMineDrain,
     ),
   );
-  const incomePerHour = (base: number) =>
-    Math.floor(base * live.energy.factor * crawlerBonus * speed);
+  const incomePerHour = (base: number, pct = 100) =>
+    Math.floor(((base * pct) / 100) * live.energy.factor * crawlerBonus * speed);
   const cost = buildingCost(id as never, level);
   const stores = id === "ore_storage" || id === "crystal_storage" || id === "deuterium_storage";
   const energyDelta = upgradeEnergyDelta(id as never, level, state.star.type, state.empire.energy_tech ?? 0);
@@ -188,26 +321,13 @@ function UpgradeCard({
       <SpriteHero id={id} title={name} badge={`LVL ${level}`} />
       <div className="px-4 pt-3 pb-4">
       <p className="text-xs text-[var(--muted-fg)]">{blurb}</p>
-      {thisBusy ? (
-        <TimedStripedProgress
-          className="mt-3"
-          until={state.planet.upgrade_completes_at}
-          durationMs={durationMs}
-          startedAt={state.planet.upgrade_started_at}
-          now={now}
-          tone="var(--accent)"
-          label={`${name} upgrade`}
-        />
-      ) : showsJobProgress(durationMs) ? (
-        <StripedProgress className="mt-3" value={0} disabled label={name} animated={false} />
-      ) : null}
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
         {id === "ore_mine"
-          ? `Produces ${incomePerHour(mineProductionPerHour(level)).toLocaleString()}/h, next ${incomePerHour(mineProductionPerHour(level + 1)).toLocaleString()}/h. `
+          ? `Produces ${incomePerHour(mineProductionPerHour(level), orePct).toLocaleString()}/h, next ${incomePerHour(mineProductionPerHour(level + 1), orePct).toLocaleString()}/h. `
           : id === "crystal_mine"
-            ? `Produces ${incomePerHour(crystalProductionPerHour(level)).toLocaleString()}/h, next ${incomePerHour(crystalProductionPerHour(level + 1)).toLocaleString()}/h. `
+            ? `Produces ${incomePerHour(crystalProductionPerHour(level), crystalPct).toLocaleString()}/h, next ${incomePerHour(crystalProductionPerHour(level + 1), crystalPct).toLocaleString()}/h. `
             : id === "deuterium_extractor"
-              ? `Produces ${incomePerHour(deuteriumProductionPerHour(level, live.tempMax ?? 30, live.tempMin)).toLocaleString()}/h, next ${incomePerHour(deuteriumProductionPerHour(level + 1, live.tempMax ?? 30, live.tempMin)).toLocaleString()}/h. `
+              ? `Produces ${incomePerHour(deuteriumProductionPerHour(level, live.tempMax ?? 30, live.tempMin), deutPct).toLocaleString()}/h, next ${incomePerHour(deuteriumProductionPerHour(level + 1, live.tempMax ?? 30, live.tempMin), deutPct).toLocaleString()}/h. `
               : null}
         {stores ? `Holds ${storageCap(level).toLocaleString()}, next ${storageCap(level + 1).toLocaleString()}. ` : null}
         {pricedResources(cost, live).map((bit, index) => (
@@ -240,6 +360,25 @@ function UpgradeCard({
         {" · "}
         {formatDuration(buildingTimeSeconds(id, level, live.roboticsFactory, live.naniteFactory, speed))}
       </p>
+      {usesEnergy ? (
+        <MineThrottleControl
+          id={id as MineThrottleBuildingId}
+          level={level}
+          currentPct={id === "ore_mine" ? orePct : id === "crystal_mine" ? crystalPct : deutPct}
+          maxPerHour={
+            id === "ore_mine"
+              ? incomePerHour(mineProductionPerHour(level), 100)
+              : id === "crystal_mine"
+                ? incomePerHour(crystalProductionPerHour(level), 100)
+                : incomePerHour(deuteriumProductionPerHour(level, live.tempMax ?? 30, live.tempMin), 100)
+          }
+          maxEnergyDrain={
+            id === "deuterium_extractor" ? deutEnergyDrain(level) : mineEnergyDrain(level)
+          }
+          disabled={pending}
+          onCommit={(mine, pct) => void setMinePercent(mine, pct)}
+        />
+      ) : null}
       {extra}
       {thisBusy ? (
         <>
@@ -258,9 +397,18 @@ function UpgradeCard({
             type="button"
             disabled={pending}
             onClick={() => void cancelUpgrade()}
-            className="sci-btn sci-btn-muted mt-3 h-14 min-h-14 w-full disabled:opacity-50"
+            className="sci-btn sci-btn-muted relative mt-3 h-14 min-h-14 w-full overflow-hidden disabled:opacity-50"
           >
-            Cancel upgrade
+            <TimedStripedProgress
+              fill
+              until={state.planet.upgrade_completes_at}
+              durationMs={durationMs}
+              startedAt={state.planet.upgrade_started_at}
+              now={now}
+              tone="var(--accent)"
+              label={`${name} upgrade`}
+            />
+            <span className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">Cancel upgrade</span>
           </button>
         </>
       ) : (
@@ -268,9 +416,12 @@ function UpgradeCard({
           type="button"
           disabled={blocked}
           onClick={() => void upgrade(id as never)}
-          className="sci-btn mt-3 h-14 min-h-14 w-full"
+          className="sci-btn relative mt-3 h-14 min-h-14 w-full overflow-hidden"
         >
-          {actionLabel}
+          {showsJobProgress(durationMs) ? (
+            <StripedProgress fill value={0} disabled label={name} animated={false} />
+          ) : null}
+          <span className="relative z-10">{actionLabel}</span>
         </button>
       )}
       </div>
@@ -332,8 +483,9 @@ export function BuildingList() {
   if (!live || !state) return null;
   return (
     <div className="flex flex-col gap-3">
+      <CommandCoreCard />
       <p className="text-xs text-[var(--muted-fg)]">
-        Costs follow the OGame wiki. Deuterium is taken from the tank.
+        Deuterium is taken from the tank.
       </p>
       <div className="card-grid">
       {FACILITIES.filter((facility) => !facility.disabled).map((facility) => {

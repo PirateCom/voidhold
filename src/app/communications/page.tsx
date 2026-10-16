@@ -10,6 +10,7 @@ import {
   type CommsTab,
 } from "@/components/comms-seen";
 import { useEmpire } from "@/components/empire-provider";
+import { ADMIN_MESSAGE_PRESETS } from "@/lib/game/admin-presets";
 import { REPORT_TTL_DAYS } from "@/lib/game/catalog";
 import type { CommsNoticeChannel, CommsNoticeRow, ReportRow } from "@/lib/game/types";
 
@@ -52,7 +53,7 @@ export default function CommunicationsPage() {
         <p className="text-sm text-[var(--muted-fg)]">No empire loaded.</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-2">
             {TABS.map((item) => {
               const active = tab === item.id;
               return (
@@ -60,14 +61,10 @@ export default function CommunicationsPage() {
                   key={item.id}
                   type="button"
                   onClick={() => setTab(item.id)}
-                  className={`relative rounded px-1 py-2 font-[family-name:var(--font-display)] text-[10px] font-bold tracking-wide uppercase ${
-                    active
-                      ? "border border-cyan-500/40 bg-cyan-950/40 text-cyan-300"
-                      : "border border-transparent bg-slate-900/60 text-slate-400"
-                  }`}
+                  className={`sci-btn h-10 ${active ? "" : "sci-btn-muted"}`}
                 >
                   {unread[item.id] && !active ? (
-                    <span className="absolute top-1 right-2 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    <span className="absolute top-1.5 right-2.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   ) : null}
                   {item.label}
                 </button>
@@ -108,6 +105,33 @@ export default function CommunicationsPage() {
               <p className="font-[family-name:var(--font-display)] text-[10px] font-bold tracking-wide text-cyan-300 uppercase">
                 Post {tab}
               </p>
+              {tab === "admin" ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[11px] text-[var(--muted-fg)]">Common issue presets:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ADMIN_MESSAGE_PRESETS.map((preset) => {
+                      const activePreset = title === preset.title && body === preset.body;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            setTitle(preset.title);
+                            setBody(preset.body);
+                          }}
+                          className={`rounded border px-2 py-1 text-left text-xs transition-colors ${
+                            activePreset
+                              ? "border-cyan-400/60 bg-cyan-950/60 text-cyan-200"
+                              : "border-slate-700/70 bg-slate-900/70 text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <input
                 className="sci-input h-9 rounded px-2 text-sm"
                 maxLength={80}

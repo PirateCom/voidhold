@@ -1,4 +1,4 @@
--- Beginner directives (OGame officer tutorial, Voidhold names). No mine-output sliders.
+-- Beginner directives (Voidhold officer tutorial, Voidhold names). No mine-output sliders.
 
 alter table public.empires
   add column if not exists claimed_directives jsonb not null default '[]'::jsonb;

@@ -1,4 +1,4 @@
--- Official OGame technology costs and the small-cargo research gate.
+-- Official Voidhold technology costs and the small-cargo research gate.
 -- Deuterium and the 300,000 energy graviton cost are recorded in the client and are not charged.
 
 create or replace function private.research_tech_cost_ore(id text, current_level integer)

@@ -15,6 +15,7 @@ import {
   mineEnergyDrain,
   mineProductionPerHour,
   normalizeEconomySpeed,
+  normalizeMinePct,
   powerOutput,
   solarPlantBase,
   solarSatelliteBaseEnergy,
@@ -125,9 +126,12 @@ export function PlanetEconomy() {
   const satEach = Math.floor(satBase * mul);
   const satTotal = solarSatelliteEnergy(tempMin, tempMax, star, sats);
   const fusionOnline = live.fusionReactor > 0 && live.energy.output === plant + fusion + satTotal;
-  const drainOre = mineEnergyDrain(live.oreMine);
-  const drainCry = mineEnergyDrain(live.crystalMine);
-  const drainDeut = deutEnergyDrain(live.deuteriumExtractor);
+  const orePct = normalizeMinePct(live.oreMinePct ?? state.planet.ore_mine_pct);
+  const crystalPct = normalizeMinePct(live.crystalMinePct ?? state.planet.crystal_mine_pct);
+  const deutPct = normalizeMinePct(live.deuteriumExtractorPct ?? state.planet.deuterium_extractor_pct);
+  const drainOre = Math.floor((mineEnergyDrain(live.oreMine) * orePct) / 100);
+  const drainCry = Math.floor((mineEnergyDrain(live.crystalMine) * crystalPct) / 100);
+  const drainDeut = Math.floor((deutEnergyDrain(live.deuteriumExtractor) * deutPct) / 100);
   const mineDrain = drainOre + drainCry + drainDeut;
   const crawlersOwned = live.crawlers ?? state.empire.ships?.crawler ?? 0;
   const crawlerLimit = crawlerCap(live.oreMine, live.crystalMine, live.deuteriumExtractor);
@@ -153,19 +157,19 @@ export function PlanetEconomy() {
       <p className="mb-2 text-xs uppercase tracking-[0.2em] text-[var(--muted-fg)]">Mines</p>
       <dl className="sci-card mb-4 px-4">
         <MineRow
-          label={`Ore mine L${live.oreMine}`}
+          label={`Ore mine L${live.oreMine}${orePct < 100 ? ` (${orePct}%)` : ""}`}
           perHour={live.orePerHour}
-          detail={`Base ${fmt(oreBase)}/h${energyBit}${crawlerBit}${speedBit}`}
+          detail={`Base ${fmt(oreBase)}/h${orePct < 100 ? ` · throttle ${orePct}%` : ""}${energyBit}${crawlerBit}${speedBit}`}
         />
         <MineRow
-          label={`Crystal mine L${live.crystalMine}`}
+          label={`Crystal mine L${live.crystalMine}${crystalPct < 100 ? ` (${crystalPct}%)` : ""}`}
           perHour={live.crystalPerHour}
-          detail={`Base ${fmt(crystalBase)}/h${energyBit}${crawlerBit}${speedBit}`}
+          detail={`Base ${fmt(crystalBase)}/h${crystalPct < 100 ? ` · throttle ${crystalPct}%` : ""}${energyBit}${crawlerBit}${speedBit}`}
         />
         <MineRow
-          label={`Deuterium extractor L${live.deuteriumExtractor}`}
+          label={`Deuterium extractor L${live.deuteriumExtractor}${deutPct < 100 ? ` (${deutPct}%)` : ""}`}
           perHour={live.deuteriumPerHour ?? 0}
-          detail={`Base ${fmt(deutBase)}/h at Tmax ${tempMax}°C (climate ×${climate.toFixed(3)})${energyBit}${crawlerBit}${
+          detail={`Base ${fmt(deutBase)}/h at Tmax ${tempMax}°C (climate ×${climate.toFixed(3)})${deutPct < 100 ? ` · throttle ${deutPct}%` : ""}${energyBit}${crawlerBit}${
             live.fusionReactor > 0
               ? ` · fusion ${fusionOnline ? "burns" : "idle, would burn"} ${fmt(fusionBurn * speed)}/h`
               : ""

@@ -17,7 +17,7 @@ export default async function LoginPage({
         Mine ore and crystal, power the grid, build small cargo, and strip derelicts across nine galaxies.
       </p>
       {error ? (
-        <p className="mt-6 rounded-2xl border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+        <p className="sci-card sci-card-danger mt-6 px-4 py-3 text-sm text-red-200">
           {error}
         </p>
       ) : null}
