@@ -3,7 +3,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { CommandCoreCard } from "@/components/command-core-card";
 import { useEmpire } from "@/components/empire-provider";
+import { InfoButton } from "@/components/info-button";
+import { InfoDialog } from "@/components/info-dialog";
 import { SpriteHero } from "@/components/sprite-thumb";
+import { FACILITY_HELP } from "@/lib/game/facility-help";
 import { Countdown } from "@/components/countdown";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
 import { totalFieldsUsed, planetFieldCapOf } from "@/lib/game/simulate";
@@ -220,6 +223,8 @@ function UpgradeCard({
   extra,
   locked,
   lockLabel,
+  help,
+  onHelp,
 }: {
   id: BuildingId;
   name: string;
@@ -228,6 +233,8 @@ function UpgradeCard({
   extra?: ReactNode;
   locked?: boolean;
   lockLabel?: string;
+  help?: boolean;
+  onHelp?: () => void;
 }) {
   const { live, state, pending, upgrade, cancelUpgrade, setMinePercent, now } = useEmpire();
   if (!live || !state) return null;
@@ -317,8 +324,9 @@ function UpgradeCard({
               ? "Need resources"
               : "Upgrade";
   return (
-    <article className={`sci-card overflow-hidden p-0${thisBusy ? " sci-card-active" : ""}`}>
+    <article className={`sci-card relative overflow-hidden p-0${thisBusy ? " sci-card-active" : ""}`}>
       <SpriteHero id={id} title={name} badge={`LVL ${level}`} />
+      {help && onHelp ? <InfoButton label={`About ${name}`} onClick={onHelp} /> : null}
       <div className="px-4 pt-3 pb-4">
       <p className="text-xs text-[var(--muted-fg)]">{blurb}</p>
       <p className="mt-3 text-xs text-[var(--muted-fg)]">
@@ -480,7 +488,9 @@ export function ResourceBuildings() {
 
 export function BuildingList() {
   const { live, state } = useEmpire();
+  const [helpId, setHelpId] = useState<FacilityId | null>(null);
   if (!live || !state) return null;
+  const helpSpec = helpId ? FACILITIES.find((facility) => facility.id === helpId) : null;
   return (
     <div className="flex flex-col gap-3">
       <CommandCoreCard />
@@ -502,6 +512,8 @@ export function BuildingList() {
             name={facility.name}
             blurb={facility.blurb}
             level={planetFacilityLevel(facility.id, state.planet)}
+            help
+            onHelp={() => setHelpId(facility.id)}
             locked={locked}
             lockLabel={
               facility.moon
@@ -540,6 +552,12 @@ export function BuildingList() {
         );
       })}
       </div>
+      <InfoDialog
+        open={helpId != null}
+        title={helpSpec?.name ?? "Facility"}
+        paragraphs={helpId ? FACILITY_HELP[helpId] : []}
+        onClose={() => setHelpId(null)}
+      />
     </div>
   );
 }

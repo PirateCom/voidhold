@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Countdown } from "@/components/countdown";
 import { CurrentDirective } from "@/components/directive-card";
 import { useEmpire } from "@/components/empire-provider";
+import { InfoButton } from "@/components/info-button";
+import { InfoDialog } from "@/components/info-dialog";
 import { SpriteHero } from "@/components/sprite-thumb";
 import { StripedProgress, TimedStripedProgress } from "@/components/striped-progress";
+import { RESEARCH_HELP } from "@/lib/game/research-help";
 import {
   RESEARCHES,
   RESEARCH_GROUPS,
@@ -28,6 +32,7 @@ function levelOf(id: ResearchId, empire: EmpireRow): number {
 
 export default function ResearchPage() {
   const { state, live, pending, error, research, now } = useEmpire();
+  const [helpId, setHelpId] = useState<ResearchId | null>(null);
 
   if (!state) {
     return (
@@ -84,8 +89,9 @@ export default function ResearchPage() {
                   ? Date.parse(state.empire.research_completes_at) - Date.parse(state.empire.research_started_at)
                   : durationSec * 1000;
               return (
-                <article key={tech.id} className="sci-card overflow-hidden p-0">
+                <article key={tech.id} className="sci-card relative overflow-hidden p-0">
                   <SpriteHero id={tech.id} title={tech.name} badge={`LVL ${level}`} />
+                  <InfoButton label={`About ${tech.name}`} onClick={() => setHelpId(tech.id)} />
                   <div className="px-4 pt-3 pb-4">
                   <p className="text-xs text-[var(--muted-fg)]">{tech.blurb}</p>
                   <p className="mt-3 text-xs text-[var(--muted-fg)]">
@@ -165,6 +171,12 @@ export default function ResearchPage() {
           </section>
         ))}
       </div>
+      <InfoDialog
+        open={helpId != null}
+        title={helpId ? RESEARCHES.find((tech) => tech.id === helpId)?.name ?? "Research" : "Research"}
+        paragraphs={helpId ? RESEARCH_HELP[helpId] : []}
+        onClose={() => setHelpId(null)}
+      />
     </AppShell>
   );
 }
