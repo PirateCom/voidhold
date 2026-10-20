@@ -6,6 +6,8 @@ import { readKeepLoggedInBrowser, writeKeepLoggedInBrowser } from "@/lib/session
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
+const COMMANDER_SIGNUP_CAP = 30;
+
 const fieldClass =
   "sci-input h-12 px-4 text-sm outline-none ring-[var(--accent)] focus:ring-2";
 
@@ -15,7 +17,7 @@ function safeNext(path: string | null | undefined) {
 
 function signupErrorMessage(message: string): string {
   if (/REGISTRATION_CAP|commander slots/i.test(message)) {
-    return "All 20 commander slots are taken. Registration is closed.";
+    return `All ${COMMANDER_SIGNUP_CAP} commander slots are taken. Registration is closed.`;
   }
   return message;
 }
@@ -197,7 +199,9 @@ export function LoginForm({ next }: { next?: string }) {
           </button>
         ) : null}
         {!signupOpen ? (
-          <p className="text-amber-200/90">All 20 commander slots are taken. New registration is closed.</p>
+          <p className="text-amber-200/90">
+            All {COMMANDER_SIGNUP_CAP} commander slots are taken. New registration is closed.
+          </p>
         ) : null}
         {mode !== "reset" ? (
           <button

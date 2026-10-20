@@ -505,6 +505,26 @@ export function settleAttack(args: {
   const cargo = cargoOf(fought.attackers, attProfiles);
   const haul =
     fought.outcome === "attacker" ? plunder(cargo, args.ore, args.crystal, args.deuterium) : { ore: 0, crystal: 0, deuterium: 0 };
+
+  // Reapers automatically skim up to 25% of newly created battle debris into their remaining cargo hold.
+  const survivingReapers = fought.attackers.reaper ?? 0;
+  const reaperCargoCap = survivingReapers * (shipSpec("reaper")?.cargo ?? 10000);
+  const freeCargo = Math.max(0, cargo - (haul.ore + haul.crystal + haul.deuterium));
+  const skimCap = Math.min(reaperCargoCap, freeCargo);
+  const maxSkimOre = Math.floor(debrisOre * 0.25);
+  const maxSkimCrystal = Math.floor(debrisCrystal * 0.25);
+  const maxSkimTotal = maxSkimOre + maxSkimCrystal;
+  if (survivingReapers > 0 && skimCap > 0 && maxSkimTotal > 0) {
+    const takeOre =
+      skimCap >= maxSkimTotal ? maxSkimOre : Math.min(maxSkimOre, Math.floor((skimCap * maxSkimOre) / maxSkimTotal));
+    const takeCrystal =
+      skimCap >= maxSkimTotal ? maxSkimCrystal : Math.min(maxSkimCrystal, skimCap - takeOre);
+    haul.ore += takeOre;
+    haul.crystal += takeCrystal;
+    debrisOre -= takeOre;
+    debrisCrystal -= takeCrystal;
+  }
+
   const result =
     fought.outcome === "attacker" ? "Attacker wins" : fought.outcome === "defender" ? "Defender holds" : "Draw";
   const empty = Object.keys(initialDef).length === 0;

@@ -572,7 +572,9 @@ export const SHIPS: ShipStat[] = [
     attack: 1,
     cargo: 20000,
     speed: 2000,
+    speedUpgraded: 4000,
     fuel: 300,
+    fuelUpgraded: 600,
     shipyard: 4,
     research: [
       { id: "combustion_drive", level: 6 },
@@ -580,6 +582,7 @@ export const SHIPS: ShipStat[] = [
     ],
     rapidFireAgainst: probeSatCrawler,
     rapidFireFrom: [["Deathstar", 250]],
+    note: "Impulse Drive 17 doubles base speed (4,000) and fuel (600); Hyperspace Drive 15 triples base speed (6,000) and fuel (900).",
   },
   {
     id: "mining_barge",

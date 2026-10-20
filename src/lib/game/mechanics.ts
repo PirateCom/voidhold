@@ -5,7 +5,7 @@ export type StellarEventSpec = {
   name: string;
   badge: string;
   blurb: string;
-  solarMultiplier: number;
+  mineOutputMultiplier: number;
   shieldMultiplier: number;
   flightTimeMultiplier: number;
   fuelMultiplier: number;
@@ -16,10 +16,10 @@ export const STELLAR_EVENTS: readonly StellarEventSpec[] = [
   {
     id: "solar_flare",
     name: "Solar Flare",
-    badge: "+50% SOLAR · -30% SHIELDS",
+    badge: "+25% MINE OUTPUT · -30% SHIELDS",
     blurb:
-      "Coronal mass ejection supercharges solar plants and solar satellites (+50% energy), but radiation interference weakens shields and counter-espionage by 30%.",
-    solarMultiplier: 1.5,
+      "Coronal mass ejection supercharges solar plants and satellites across the system, feeding surplus power directly into the extraction grid to boost Ore, Crystal, and Deuterium mine production by +25%, while radiation weakens shields by 30%.",
+    mineOutputMultiplier: 1.25,
     shieldMultiplier: 0.7,
     flightTimeMultiplier: 1,
     fuelMultiplier: 1,
@@ -31,7 +31,7 @@ export const STELLAR_EVENTS: readonly StellarEventSpec[] = [
     badge: "+50% FLIGHT TIME · 2× FUEL",
     blurb:
       "Charged nebula turbulence disrupts thrusters and navigation. Fleets flying into or out of this system take 50% longer and burn 2× deuterium fuel.",
-    solarMultiplier: 1,
+    mineOutputMultiplier: 1,
     shieldMultiplier: 1,
     flightTimeMultiplier: 1.5,
     fuelMultiplier: 2,
@@ -43,7 +43,7 @@ export const STELLAR_EVENTS: readonly StellarEventSpec[] = [
     badge: "2× BELT MINING · BONUS CRYSTAL",
     blurb:
       "Dense mineral debris sweeps through the system's asteroid belts. Mining barges harvest at 2× speed and belts are seeded with bonus crystal.",
-    solarMultiplier: 1,
+    mineOutputMultiplier: 1,
     shieldMultiplier: 1,
     flightTimeMultiplier: 1,
     fuelMultiplier: 1,
@@ -196,9 +196,9 @@ export const MECHANICS_GUIDE_SECTIONS = [
     id: "stellar_events",
     title: "1. System-Wide Stellar Events (Dynamic Star Weather)",
     summary:
-      "Temporary cosmic weather phenomena that sweep through solar systems for 3 hours, altering solar output, fleet logistics, combat shields, and asteroid belt yields.",
+      "Temporary cosmic weather phenomena that sweep through solar systems for 3 hours, supercharging mine production, altering fleet logistics, weakening combat shields, and boosting asteroid belt yields.",
     details: [
-      "Solar Flare (+50% Solar Energy, -30% Shields): Solar plants and solar satellites in the system generate 1.5× energy, making it easier to run high-level mines or Overclocked Drill Cores. However, radiation interference reduces shield strength by 30% during combat in that system.",
+      "Solar Flare (+25% Mine Output, -30% Shields): Supercharges solar plants and satellites in the system, channeling the surge directly into the extraction grid so Ore, Crystal, and Deuterium mines produce +25% more resources per hour. Radiation interference reduces shield strength by 30% during combat in that system.",
       "Ion Storm (+50% Flight Time, 2× Deuterium Fuel): Charged nebula turbulence slows fleet travel into or out of the system by 50% and doubles deuterium fuel consumption.",
       "Micrometeorite Shower (2× Belt Mining Speed & Crystal Top-Up): Asteroid belts (slots 17 and 18) in the system yield 2× mining barge harvest speed and receive a fresh injection of crystal when the shower begins.",
       "Gameplay Impact: Encourages commanders to check the Galaxy map and Comms daily, time offensive strikes during shield-weakening Solar Flares, and relocate mining barges to systems experiencing Micrometeorite Showers.",

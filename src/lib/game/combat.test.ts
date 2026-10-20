@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyDefenceCounts } from "./catalog";
+import { emptyDefenceCounts, hullDrive, hullFuelUse, hullSpeed } from "./catalog";
 import { plunder, resolveCombat, settleAttack, makeRng } from "./combat";
 
 const zero = { weapons: 0, shielding: 0, armour: 0 };
@@ -73,5 +73,35 @@ describe("combat", () => {
     });
     expect(held.outcome).toBe("draw");
     expect(held.plunder).toEqual({ ore: 0, crystal: 0, deuterium: 0 });
+  });
+
+  it("upgrades recycler drive at Impulse 17 and Hyperspace 15 and skims 25% debris with Reapers", () => {
+    expect(hullDrive("recycler", 0, 0)).toBe("combustion");
+    expect(hullSpeed("recycler", 0, 0, 6)).toBe(3200);
+    expect(hullFuelUse("recycler", 0, 0)).toBe(300);
+
+    expect(hullDrive("recycler", 17, 0)).toBe("impulse");
+    expect(hullSpeed("recycler", 17, 0, 6)).toBe(Math.floor(4000 * (1 + 17 * 0.2)));
+    expect(hullFuelUse("recycler", 17, 0)).toBe(600);
+
+    expect(hullDrive("recycler", 17, 15)).toBe("hyperspace");
+    expect(hullSpeed("recycler", 17, 15, 6)).toBe(Math.floor(6000 * (1 + 15 * 0.3)));
+    expect(hullFuelUse("recycler", 17, 15)).toBe(900);
+
+    const reaperFight = settleAttack({
+      attackers: { reaper: 5 },
+      defenderShips: { light_fighter: 10 },
+      defenderDefenses: emptyDefenceCounts(),
+      attackerTech: zero,
+      defenderTech: zero,
+      ore: 0,
+      crystal: 0,
+      deuterium: 0,
+      seed: 1,
+    });
+    // 10 light fighters = 30,000 ore + 10,000 crystal -> 30% debris = 9,000 ore + 3,000 crystal
+    // Reapers skim 25% of debris = 2,250 ore + 750 crystal
+    expect(reaperFight.plunder).toEqual({ ore: 2250, crystal: 750, deuterium: 0 });
+    expect(reaperFight.debris).toEqual({ ore: 6750, crystal: 2250 });
   });
 });

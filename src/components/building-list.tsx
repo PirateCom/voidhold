@@ -257,7 +257,13 @@ function UpgradeCard({
     ),
   );
   const incomePerHour = (base: number, pct = 100) =>
-    Math.floor(((base * pct) / 100) * live.energy.factor * crawlerBonus * speed);
+    Math.floor(
+      ((base * pct) / 100) *
+        (live.stellarMineMultiplier ?? 1) *
+        live.energy.factor *
+        crawlerBonus *
+        speed,
+    );
   const cost = buildingCost(id as never, level);
   const stores = id === "ore_storage" || id === "crystal_storage" || id === "deuterium_storage";
   const energyDelta = upgradeEnergyDelta(id as never, level, state.star.type, state.empire.energy_tech ?? 0);

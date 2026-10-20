@@ -13,7 +13,7 @@ import {
 describe("expansion mechanics", () => {
   it("exposes stellar events and ancient relics catalogs", () => {
     expect(STELLAR_EVENTS).toHaveLength(3);
-    expect(stellarEventSpec("solar_flare")?.solarMultiplier).toBe(1.5);
+    expect(stellarEventSpec("solar_flare")?.mineOutputMultiplier).toBe(1.25);
     expect(stellarEventSpec("ion_storm")?.fuelMultiplier).toBe(2);
     expect(stellarEventSpec("meteor_shower")?.miningSpeedMultiplier).toBe(2);
 

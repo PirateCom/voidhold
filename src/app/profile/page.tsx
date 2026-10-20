@@ -259,12 +259,6 @@ export default function ProfilePage() {
                   <Fact label="Temperature" value={`${planet.temp_min}°C to ${planet.temp_max}°C`} />
                 </>
               ) : null}
-              {state.star ? (
-                <Fact
-                  label="Star"
-                  value={`${starLabel(state.star.type)} · solar ×${state.star.multiplier}`}
-                />
-              ) : null}
               <Fact
                 label="Score"
                 value={`${state.rank.points.toLocaleString()} pts · place ${state.rank.place.toLocaleString()} of ${state.rank.total.toLocaleString()}`}

@@ -47,10 +47,12 @@ import {
   postCommsNotice as postCommsNoticeAction,
   deleteCommsNotice as deleteCommsNoticeAction,
   setMinePercent as setMinePercentAction,
+  loadMechanicsState,
   upgradeBuilding,
 } from "@/lib/game/actions";
 import { isDebugOperator } from "@/lib/debug-operator";
 import { gameClock, type MineThrottleBuildingId } from "@/lib/game/catalog";
+import { stellarEventSpec, type StellarEventRow } from "@/lib/game/mechanics";
 import type { BuildingId, CommsNoticeChannel, DefenceId, EmpireState, ResearchId } from "@/lib/game/types";
 import { EMPTY_DEFENCES, livePlanet, type SimPlanet } from "@/lib/game/simulate";
 import { createClient } from "@/lib/supabase/client";
@@ -209,6 +211,7 @@ export function EmpireProvider({
   const [fetchedAt, setFetchedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [operatorEmail, setOperatorEmail] = useState<string | null>(null);
+  const [stellarEvents, setStellarEvents] = useState<StellarEventRow[]>([]);
   const refreshInFlight = useRef(false);
   const refreshAgain = useRef(false);
 
@@ -230,8 +233,12 @@ export function EmpireProvider({
       let passes = 0;
       do {
         refreshAgain.current = false;
-        const next = await loadEmpireState();
+        const [next, mech] = await Promise.all([
+          loadEmpireState(),
+          loadMechanicsState().catch(() => null),
+        ]);
         commitState(next);
+        if (mech) setStellarEvents(mech.stellar_events);
         setError(null);
         passes += 1;
       } while (refreshAgain.current && passes < 3);
@@ -275,6 +282,13 @@ export function EmpireProvider({
 
   const live = useMemo(() => {
     if (!state?.star || state.planet.max_fields == null) return null;
+    const localEvent = stellarEvents.find(
+      (ev) =>
+        ev.galaxy === state.planet.galaxy &&
+        ev.system === state.planet.system &&
+        new Date(ev.ends_at).getTime() > gameNow,
+    );
+    const stellarMineMultiplier = stellarEventSpec(localEvent?.kind)?.mineOutputMultiplier ?? 1;
     return livePlanet(
       {
         ...toSimPlanet(state.planet, state.star.type),
@@ -282,10 +296,11 @@ export function EmpireProvider({
         solarSatellites: state.empire.ships?.solar_satellite ?? 0,
         crawlers: state.empire.ships?.crawler ?? 0,
         economySpeed: state.empire.economy_speed ?? 1,
+        stellarMineMultiplier,
       },
       gameNow,
     );
-  }, [state, gameNow]);
+  }, [state, stellarEvents, gameNow]);
 
   useEffect(() => {
     if (!state) return;

@@ -146,10 +146,11 @@ export function PlanetEconomy() {
   const crawlerBonus = crawlerProductionBonus(crawlersWorking);
   const crawlerPct = ((crawlerBonus - 1) * 100).toFixed(2);
   const crawlerBit = crawlersWorking > 0 ? ` · crawlers +${crawlerPct}%` : "";
+  const flareMul = live.stellarMineMultiplier ?? 1;
+  const flareBit = flareMul > 1 ? ` · solar flare +${Math.round((flareMul - 1) * 100)}%` : "";
 
   const speedBit = speed !== 1 ? ` · economy ×${speed}` : "";
   const energyBit = factor < 1 ? ` · energy ${pct(factor)}` : "";
-  const starBit = ` · ${starLabel(star)}${mul !== 1 ? ` ×${mul}` : ""}`;
 
   return (
     <>
@@ -159,17 +160,17 @@ export function PlanetEconomy() {
         <MineRow
           label={`Ore mine L${live.oreMine}${orePct < 100 ? ` (${orePct}%)` : ""}`}
           perHour={live.orePerHour}
-          detail={`Base ${fmt(oreBase)}/h${orePct < 100 ? ` · throttle ${orePct}%` : ""}${energyBit}${crawlerBit}${speedBit}`}
+          detail={`Base ${fmt(oreBase)}/h${orePct < 100 ? ` · throttle ${orePct}%` : ""}${flareBit}${energyBit}${crawlerBit}${speedBit}`}
         />
         <MineRow
           label={`Crystal mine L${live.crystalMine}${crystalPct < 100 ? ` (${crystalPct}%)` : ""}`}
           perHour={live.crystalPerHour}
-          detail={`Base ${fmt(crystalBase)}/h${crystalPct < 100 ? ` · throttle ${crystalPct}%` : ""}${energyBit}${crawlerBit}${speedBit}`}
+          detail={`Base ${fmt(crystalBase)}/h${crystalPct < 100 ? ` · throttle ${crystalPct}%` : ""}${flareBit}${energyBit}${crawlerBit}${speedBit}`}
         />
         <MineRow
           label={`Deuterium extractor L${live.deuteriumExtractor}${deutPct < 100 ? ` (${deutPct}%)` : ""}`}
           perHour={live.deuteriumPerHour ?? 0}
-          detail={`Base ${fmt(deutBase)}/h at Tmax ${tempMax}°C (climate ×${climate.toFixed(3)})${deutPct < 100 ? ` · throttle ${deutPct}%` : ""}${energyBit}${crawlerBit}${
+          detail={`Base ${fmt(deutBase)}/h at Tmax ${tempMax}°C (climate ×${climate.toFixed(3)})${deutPct < 100 ? ` · throttle ${deutPct}%` : ""}${flareBit}${energyBit}${crawlerBit}${
             live.fusionReactor > 0
               ? ` · fusion ${fusionOnline ? "burns" : "idle, would burn"} ${fmt(fusionBurn * speed)}/h`
               : ""
@@ -184,7 +185,7 @@ export function PlanetEconomy() {
           value={`${fmt(plant)}`}
           detail={
             live.powerPlant > 0
-              ? `Base ${fmt(plantBase)}${starBit}`
+              ? `Base ${fmt(plantBase)}`
               : "No solar plant"
           }
         />
@@ -201,8 +202,8 @@ export function PlanetEconomy() {
           label={sats > 0 ? `Solar satellites ×${sats}` : "Solar satellites"}
           value={sats > 0 ? fmt(satTotal) : "0"}
           detail={`${fmt(satBase)} each from avg ${Math.round(avg)}°C (${tempMin}°C to ${tempMax}°C)${
-            mul !== 1 ? ` · ${starLabel(star)} ×${mul} → ${fmt(satEach)} each` : ""
-          }${sats > 0 ? ` · ${fmt(satTotal)} total` : ""}`}
+            sats > 0 ? ` · ${fmt(satTotal)} total` : ""
+          }`}
         />
         <Row
           label={crawlersOwned > 0 ? `Crawlers ×${crawlersOwned}` : "Crawlers"}

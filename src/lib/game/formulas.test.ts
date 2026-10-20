@@ -119,15 +119,15 @@ describe("resource costs", () => {
 });
 
 describe("production formulas", () => {
-  it("scales solar output by the system star", () => {
+  it("uses standard ×1 solar output across all systems", () => {
     expect(starMultiplier("medium")).toBe(1);
-    expect(starMultiplier("young_hot")).toBe(1.5);
-    expect(starMultiplier("old_cold")).toBe(0.75);
-    expect(starMultiplier("pulsar")).toBe(3);
-    expect(powerOutput(1, "pulsar")).toBe(66);
+    expect(starMultiplier("young_hot")).toBe(1);
+    expect(starMultiplier("old_cold")).toBe(1);
+    expect(starMultiplier("pulsar")).toBe(1);
+    expect(powerOutput(1, "pulsar")).toBe(22);
     expect(solarPlantBase(1)).toBe(22);
     expect(powerOutput(1)).toBe(22);
-    expect(energyFactor(1, 1, 1, "old_cold")).toBeLessThan(1);
+    expect(energyFactor(1, 1, 1, "old_cold")).toBe(1);
   });
 
   it("keeps a slot temperature span and shifts both ends together", () => {
@@ -174,7 +174,7 @@ describe("production formulas", () => {
     expect(solarSatelliteEnergy(20, 20)).toBe(30);
     expect(solarSatelliteEnergy(204, 264)).toBe(65);
     expect(solarSatelliteBaseEnergy(204, 264)).toBe(65);
-    expect(solarSatelliteEnergy(204, 264, "pulsar", 1)).toBe(195);
+    expect(solarSatelliteEnergy(204, 264, "pulsar", 1)).toBe(65);
     expect(deuteriumClimate(30)).toBeCloseTo(1.24);
     expect(energyNow(3, 1, 1, "medium", 0, 0, 0, 1, 20, 20).output).toBe(52);
   });

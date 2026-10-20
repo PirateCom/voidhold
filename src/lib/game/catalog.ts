@@ -726,9 +726,14 @@ export function wikiFlightDistance(
   return 5;
 }
 
-export function hullFuelUse(shipId: string, impulseLevel = 0): number {
+export function hullFuelUse(shipId: string, impulseLevel = 0, hyperspaceLevel = 0): number {
   const hull = shipSpec(shipId);
   if (!hull) return 0;
+  if (shipId === "recycler") {
+    if (hyperspaceLevel >= 15) return 900;
+    if (impulseLevel >= 17) return 600;
+    return hull.fuel;
+  }
   if (hull.fuelUpgraded != null && impulseLevel >= 5) return hull.fuelUpgraded;
   return hull.fuel;
 }
@@ -766,6 +771,8 @@ type DriveKind = keyof typeof DRIVE_BONUS;
 export function hullDrive(shipId: string, impulseLevel = 0, hyperspaceLevel = 0): DriveKind | null {
   if (shipId === "small_cargo" && impulseLevel >= 5) return "impulse";
   if (shipId === "bomber" && hyperspaceLevel >= 8) return "hyperspace";
+  if (shipId === "recycler" && hyperspaceLevel >= 15) return "hyperspace";
+  if (shipId === "recycler" && impulseLevel >= 17) return "impulse";
   switch (shipId) {
     case "light_fighter":
     case "large_cargo":
@@ -799,6 +806,8 @@ export function hullSpeed(shipId: string, impulseLevel = 0, hyperspaceLevel = 0,
   let base = hull.speed;
   if (shipId === "small_cargo" && impulseLevel >= 5 && hull.speedUpgraded) base = hull.speedUpgraded;
   if (shipId === "bomber" && hyperspaceLevel >= 8 && hull.speedUpgraded) base = hull.speedUpgraded;
+  if (shipId === "recycler" && hyperspaceLevel >= 15) base = 6000;
+  else if (shipId === "recycler" && impulseLevel >= 17) base = 4000;
   const level = drive === "combustion" ? combustionLevel : drive === "impulse" ? impulseLevel : hyperspaceLevel;
   return Math.floor(base * (1 + level * DRIVE_BONUS[drive]));
 }
@@ -901,9 +910,7 @@ export function deployFuel(
 export type StarType = "young_hot" | "medium" | "old_cold" | "pulsar";
 
 export function starMultiplier(star: StarType = "medium"): number {
-  if (star === "young_hot") return 1.5;
-  if (star === "old_cold") return 0.75;
-  if (star === "pulsar") return 3;
+  void star;
   return 1;
 }
 

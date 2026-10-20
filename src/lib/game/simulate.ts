@@ -163,6 +163,7 @@ export type SimPlanet = {
   debrisOre?: number;
   debrisCrystal?: number;
   economySpeed?: number;
+  stellarMineMultiplier?: number;
   /** Docked hulls at this planet. The selected planet hangar is also mirrored on the empire. */
   ships?: Record<string, number>;
   /** Docked hulls on an ownerless world. Player fleets live on the empire instead. */
@@ -508,7 +509,8 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
   const orePct = normalizeMinePct(planet.oreMinePct) / 100;
   const crystalPct = normalizeMinePct(planet.crystalMinePct) / 100;
   const deutPct = normalizeMinePct(planet.deuteriumExtractorPct) / 100;
-  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax, planet.tempMin) * deutPct;
+  const flareMul = planet.stellarMineMultiplier ?? 1;
+  const synth = deuteriumProductionPerHour(planet.deuteriumExtractor, tempMax, planet.tempMin) * deutPct * flareMul;
   const burn = fusionDeuteriumBurnPerHour(planet.fusionReactor);
   const withFusion = planetEnergy(planet);
   const producedWith = (synth * withFusion.factor * elapsed) / GAME_HOUR_SECONDS;
@@ -536,13 +538,13 @@ export function tickPlanet(planet: SimPlanet, at: number): SimPlanet {
     ...planet,
     ore: harvestAmount(
       planet.ore,
-      mineProductionPerHour(planet.oreMine) * orePct * factor * bonus,
+      mineProductionPerHour(planet.oreMine) * orePct * flareMul * factor * bonus,
       elapsed,
       storageCap(planet.oreStorage),
     ),
     crystal: harvestAmount(
       planet.crystal,
-      crystalProductionPerHour(planet.crystalMine) * crystalPct * factor * bonus,
+      crystalProductionPerHour(planet.crystalMine) * crystalPct * flareMul * factor * bonus,
       elapsed,
       storageCap(planet.crystalStorage),
     ),
@@ -2828,7 +2830,8 @@ export function livePlanet(planet: SimPlanet, at: number) {
   const orePct = normalizeMinePct(preview.oreMinePct) / 100;
   const crystalPct = normalizeMinePct(preview.crystalMinePct) / 100;
   const deutPct = normalizeMinePct(preview.deuteriumExtractorPct) / 100;
-  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax, preview.tempMin) * deutPct;
+  const flareMul = preview.stellarMineMultiplier ?? 1;
+  const synth = deuteriumProductionPerHour(preview.deuteriumExtractor, tempMax, preview.tempMin) * deutPct * flareMul;
   const burn = fusionDeuteriumBurnPerHour(preview.fusionReactor);
   const withFusion = planetEnergy(preview);
   const fusionLive =
@@ -2853,8 +2856,8 @@ export function livePlanet(planet: SimPlanet, at: number) {
   return {
     ...preview,
     energy,
-    orePerHour: mineProductionPerHour(preview.oreMine) * orePct * factor * bonus * speed,
-    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * crystalPct * factor * bonus * speed,
+    orePerHour: mineProductionPerHour(preview.oreMine) * orePct * flareMul * factor * bonus * speed,
+    crystalPerHour: crystalProductionPerHour(preview.crystalMine) * crystalPct * flareMul * factor * bonus * speed,
     deuteriumPerHour: (synth * factor * bonus - (fusionLive ? burn : 0)) * speed,
     oreCap: storageCap(preview.oreStorage),
     crystalCap: storageCap(preview.crystalStorage),

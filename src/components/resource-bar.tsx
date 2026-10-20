@@ -52,8 +52,7 @@ export function ResourceBar() {
   const drain = live.energy.drain;
   const short = drain > solar;
   const sats = live.solarSatellites ?? 0;
-  const star = state?.star.multiplier;
-  const solarLabel = sats > 0 ? `SOL +${sats}` : star && star !== 1 ? `SOL ×${star}` : "SOL";
+  const solarLabel = sats > 0 ? `SOL +${sats}` : "SOL";
 
   return (
     <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4">

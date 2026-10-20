@@ -239,8 +239,10 @@ export function GalaxyGrid() {
   if (!state) return null;
 
   const hasDebris = Boolean(selected && (selected.debris_ore ?? 0) + (selected.debris_crystal ?? 0) > 0);
+  const selectedStronghold =
+    selected && selected.kind === "empty" ? strongholds.find((sh) => sh.slot === selected.slot) : undefined;
   const actions: { id: GalaxyAction; label: string; muted?: boolean }[] = [];
-  if (selected) {
+  if (selected && !selectedStronghold) {
     const isCurrent =
       selected.kind === "home" &&
       galaxy === state.planet.galaxy &&
@@ -332,11 +334,6 @@ export function GalaxyGrid() {
         </label>
       </div>
 
-      {view ? (
-        <p className="mt-3 text-sm">
-          {starLabel(view.star_type)} · solar ×{view.multiplier}
-        </p>
-      ) : null}
       <GalaxyMechanicsPanel
         galaxy={galaxy}
         system={system}
@@ -400,14 +397,18 @@ export function GalaxyGrid() {
         <section className="sci-card mt-4 mb-16 p-4">
           <h2 className="font-semibold">
             [{galaxy}:{system}:{selected.slot}]{" "}
-            {selected.kind === "belt"
-              ? "Asteroid belt"
-              : (selected.name ?? (selected.kind === "empty" ? "Empty space" : "Outer space"))}
+            {selectedStronghold
+              ? selectedStronghold.name
+              : selected.kind === "belt"
+                ? "Asteroid belt"
+                : (selected.name ?? (selected.kind === "empty" ? "Empty space" : "Outer space"))}
           </h2>
           <p className="mt-1 text-xs text-[var(--muted-fg)]">
-            {selected.kind === "npc"
-              ? "Abandoned world. Attack it to plunder ore, crystal, and deuterium. A later NPC garrison will fight from here."
-              : selected.kind === "home"
+            {selectedStronghold
+              ? "Pirate stronghold occupying this empty slot. Strike its garrison using the Stronghold card above to claim the bounty and free the slot."
+              : selected.kind === "npc"
+                ? "Abandoned world. Attack it to plunder ore, crystal, and deuterium. A later NPC garrison will fight from here."
+                : selected.kind === "home"
                 ? "Your hold."
                 : selected.kind === "player"
                   ? selected.owner_name

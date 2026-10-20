@@ -1,4 +1,16 @@
--- 085: Per-mine output throttle (0% to 100% in 10% increments) scaling both production and energy drain.
+-- 085: Per-mine output throttle (0% to 100% in 10% increments) scaling both production and energy drain,
+-- multi-hull expeditions with Pathfinder ×2 bonus, and standard ×1 solar multiplier across all systems.
+
+create or replace function private.star_multiplier(star_type text)
+returns numeric
+language sql
+immutable
+set search_path = ''
+as $$
+  select 1::numeric;
+$$;
+
+revoke all on function private.star_multiplier(text) from public, anon, authenticated;
 
 alter table public.planets
   add column if not exists ore_mine_pct smallint not null default 100
@@ -39,10 +51,21 @@ declare
   energy_out numeric;
   mine_drain numeric;
   bonus numeric := 1;
+  flare_bonus numeric := 1;
 begin
   select s.star_type into star
   from public.solar_systems s
   where s.galaxy = p.galaxy and s.system = p.system;
+
+  if exists (
+    select 1 from public.stellar_events se
+    where se.galaxy = p.galaxy
+      and se.system = p.system
+      and se.kind = 'solar_flare'
+      and se.ends_at > at
+  ) then
+    flare_bonus := 1.25;
+  end if;
 
   if p.owner_id is not null then
     select
@@ -88,7 +111,7 @@ begin
     else least(1::numeric, energy_out_with_fusion / mine_drain)
   end;
 
-  synth := private.deut_prod_per_hour(p.deuterium_extractor, p.temp_max, p.temp_min) * deut_pct;
+  synth := private.deut_prod_per_hour(p.deuterium_extractor, p.temp_max, p.temp_min) * deut_pct * flare_bonus;
   burn := private.fusion_deut_burn_per_hour(p.fusion_reactor);
   fusion_live := coalesce(p.fusion_reactor, 0) <= 0
     or p.deuterium + synth * factor_fusion * worked / private.game_hour_seconds() >= burn * worked / private.game_hour_seconds();
@@ -110,8 +133,8 @@ begin
     )
   );
 
-  ore_add := floor(private.mine_prod_per_hour(p.ore_mine) * ore_pct * factor * bonus * worked / private.game_hour_seconds())::bigint;
-  crystal_add := floor(private.crystal_prod_per_hour(p.crystal_mine) * cry_pct * factor * bonus * worked / private.game_hour_seconds())::bigint;
+  ore_add := floor(private.mine_prod_per_hour(p.ore_mine) * ore_pct * flare_bonus * factor * bonus * worked / private.game_hour_seconds())::bigint;
+  crystal_add := floor(private.crystal_prod_per_hour(p.crystal_mine) * cry_pct * flare_bonus * factor * bonus * worked / private.game_hour_seconds())::bigint;
   deut_add := floor(synth * factor * bonus * worked / private.game_hour_seconds())::bigint;
   deut_burn := case when fusion_live then floor(burn * worked / private.game_hour_seconds())::bigint else 0 end;
 
@@ -300,5 +323,112 @@ $$;
 
 revoke all on function public.send_expedition_to(smallint, smallint, smallint, jsonb) from public, anon;
 grant execute on function public.send_expedition_to(smallint, smallint, smallint, jsonb) to authenticated;
+
+create or replace function private.ensure_universe_events(uid uuid, at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  home public.planets%rowtype;
+  free_slot smallint;
+  ev_kind text;
+  ships_json jsonb;
+  defs_json jsonb;
+  total_h bigint;
+begin
+  delete from public.stellar_events where ends_at <= at;
+  delete from public.pirate_strongholds ps
+  where ps.expires_at <= at
+     or ps.current_hull <= 0
+     or exists (
+       select 1 from public.planets p
+       where p.galaxy = ps.galaxy and p.system = ps.system and p.slot = ps.slot
+     );
+
+  select p.* into home
+  from public.planets p
+  join public.empires e on e.home_planet_id = p.id
+  where e.user_id = uid;
+
+  if not found then
+    return;
+  end if;
+
+  if not exists (
+    select 1 from public.stellar_events
+    where galaxy = home.galaxy
+      and ends_at > at
+  ) then
+    ev_kind := (array['solar_flare', 'ion_storm', 'meteor_shower'])[1 + floor(random() * 3)::int];
+    insert into public.stellar_events (galaxy, system, kind, starts_at, ends_at)
+    values (home.galaxy, home.system, ev_kind, at, at + interval '3 hours')
+    on conflict (galaxy, system) do update
+      set kind = excluded.kind,
+          starts_at = excluded.starts_at,
+          ends_at = excluded.ends_at;
+
+    if ev_kind = 'meteor_shower' then
+      update public.asteroid_belts
+      set crystal = crystal + 4500,
+          depleted_at = null
+      where galaxy = home.galaxy and system = home.system;
+    end if;
+  end if;
+
+  if not exists (
+    select 1 from public.pirate_strongholds
+    where galaxy = home.galaxy
+      and system = home.system
+      and expires_at > at
+  ) then
+    select s.slot::smallint into free_slot
+    from generate_series(1, 15) as s(slot)
+    where not exists (
+      select 1 from public.planets p
+      where p.galaxy = home.galaxy and p.system = home.system and p.slot = s.slot
+    )
+    and not exists (
+      select 1 from public.fleets f
+      where f.status = 'en_route'
+        and f.mission = 'colonize'
+        and f.dest_galaxy = home.galaxy
+        and f.dest_system = home.system
+        and f.dest_slot = s.slot
+    )
+    order by random()
+    limit 1;
+
+    if free_slot is not null then
+      ships_json := jsonb_build_object(
+        'light_fighter', 12,
+        'heavy_fighter', 6,
+        'cruiser', 2
+      );
+      defs_json := jsonb_build_object(
+        'rocket_launcher', 15,
+        'light_laser', 8,
+        'heavy_laser', 2
+      );
+      total_h := private.stronghold_hull_of(ships_json, defs_json);
+      insert into public.pirate_strongholds (
+        galaxy, system, slot, name, tier, ships, defenses,
+        vault_ore, vault_crystal, vault_deuterium,
+        max_hull, current_hull, expires_at
+      ) values (
+        home.galaxy, home.system, free_slot,
+        'Corsair Bastion', 1, ships_json, defs_json,
+        20000, 12000, 6000,
+        total_h, total_h,
+        at + interval '24 hours'
+      )
+      on conflict (galaxy, system, slot) do nothing;
+    end if;
+  end if;
+end;
+$$;
+
+revoke all on function private.ensure_universe_events(uuid, timestamptz) from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
